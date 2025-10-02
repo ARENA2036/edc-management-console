@@ -1,0 +1,61 @@
+appConfig:
+  client_id: "CX-EDC"
+  api_version: "v1"
+  port: 5000
+  host: "0.0.0.0"
+
+authorization:
+  enabled: true
+  apiKey:
+    key: "X-Api-Key"
+    value: "${API_KEY}"
+
+startup:
+  checks: true
+  refresh_interval: 10
+
+dataspaceConfig:
+  centralidp:
+    url: "https://centralidp.arena2036-x.de/auth/"
+    realm: "CX-Central"
+    client_id: "${CENTRALIDP_CLIENT_ID}"
+    client_secret: "${CENTRALIDP_CLIENT_SECRET}"
+  ssi_wallet:
+    url: "https://ssi-dim-wallet-stub.arena2036-x.de"
+    client_id: "${SSI_WALLET_CLIENT_ID}"
+    client_secret: "${SSI_WALLET_CLIENT_SECRET}"
+  portal:
+    url: "https://portal.arena2036-x.de"
+    client_id: "${PORTAL_CLIENT_ID}"
+    client_secret: "${PORTAL_CLIENT_SECRET}"
+  discovery:
+    semantics:
+      url: "https://semantics.arena2036-x.de"
+    discoveryFinder:
+      endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
+      keys:
+        edc_discovery: "bpn"
+      client_id: "${DISCOVERY_FINDER_CLIENT_ID}"
+      client_secret: "${DISCOVERY_FINDER_CLIENT_SECRET}"
+    bpnDiscovery:
+      endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
+      client_id: "${BPN_DISCOVERY_CLIENT_ID}"
+      client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
+
+edc:
+  default_url: "https://dataconsumer-controlplane.arena2036-x.de"
+  endpoints:
+    assets: "/v3/assets"
+    policies: "/v3/policydefinitions"
+    contracts: "/v3/contractdefinitions"
+    readiness: "/api/check/readiness"
+    liveness: "/api/check/liveness"
+    catalog: "/management/v3/catalog/request"
+    edr_prefix: "/management/v3/edrs"
+    view_edr: "/request"
+    transfer_edr: "/dataaddress?auto_refresh=true"
+    dsp: "/api/v1/dsp"
+
+database:
+  url: "${DATABASE_URL}"
+  echo: false
