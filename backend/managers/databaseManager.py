@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from models.database import Base, Connector, ActivityLog
 from typing import List, Optional
@@ -17,14 +17,24 @@ class DatabaseManager:
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
         logger.info("[DatabaseManager] Database tables created successfully")
+        
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
+                if not result.fetchone():
+                    conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
+                    conn.commit()
+                    logger.info("[DatabaseManager] Added version column to connectors table")
+        except Exception as e:
+            logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
 
     def get_session(self) -> Session:
         return self.SessionLocal()
 
-    def create_connector(self, name: str, url: str, bpn: Optional[str] = None, config: Optional[dict] = None) -> Connector:
+    def create_connector(self, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
         session = self.get_session()
         try:
-            connector = Connector(name=name, url=url, bpn=bpn, config=config)
+            connector = Connector(name=name, url=url, bpn=bpn, version=version or "0.6.0", config=config)
             session.add(connector)
             session.commit()
             session.refresh(connector)

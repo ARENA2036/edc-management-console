@@ -129,10 +129,12 @@ async def create_connector(connector: ConnectorCreate, request: Request):
         if existing:
             return HttpUtils.get_error_response(status=400, message="Connector with this name already exists")
         
+        version = connector.config.get('version') if connector.config else None
         new_connector = databaseManager.create_connector(
             name=connector.name,
             url=connector.url,
             bpn=connector.bpn,
+            version=version,
             config=connector.config
         )
         

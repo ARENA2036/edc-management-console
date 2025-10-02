@@ -48,12 +48,15 @@ function Dashboard() {
         name: connector.name,
         url: connector.url,
         bpn: connector.bpn,
-        config: { version: connector.version }
+        config: { 
+          version: connector.version || '0.6.0'
+        }
       });
       loadConnectors();
       loadActivityLogs();
     } catch (error) {
       console.error('Failed to deploy connector:', error);
+      alert('Failed to deploy connector. Please check the console for details.');
     }
   };
 
