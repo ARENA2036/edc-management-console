@@ -3,6 +3,7 @@ export interface Connector {
   name: string;
   url: string;
   bpn?: string;
+  version?: string;
   status: string;
   config?: any;
   created_at?: string;

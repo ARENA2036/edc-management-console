@@ -13,6 +13,7 @@ class Connector(Base):
     name = Column(String(255), unique=True, nullable=False, index=True)
     url = Column(String(512), nullable=False)
     bpn = Column(String(255), nullable=True)
+    version = Column(String(50), default="0.6.0", nullable=True)
     status = Column(String(50), default="unknown")
     config = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -24,6 +25,7 @@ class Connector(Base):
             "name": self.name,
             "url": self.url,
             "bpn": self.bpn,
+            "version": self.version,
             "status": self.status,
             "config": self.config,
             "created_at": self.created_at.isoformat() if self.created_at else None,
