@@ -63,8 +63,11 @@ The project includes placeholder configuration for Keycloak OAuth2/OIDC authenti
 
 ## Recent Changes
 - 2025-10-02: Initial project setup with backend and frontend
-- 2025-10-02: Migrated sensitive credentials to environment variables
+- 2025-10-02: Migrated sensitive credentials to environment variables with YAML substitution
+- 2025-10-02: Fixed TypeScript type-only imports to resolve Vite runtime errors
+- 2025-10-02: Refactored backend initialization to avoid double-uvicorn issue
 - 2025-10-02: Configured workflows for backend (port 8000) and frontend (port 5000)
+- 2025-10-02: Application fully functional with health monitoring and connector management
 
 ## Next Steps for Production
 1. Replace default API key with secure random key
