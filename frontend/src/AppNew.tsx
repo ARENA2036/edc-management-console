@@ -14,7 +14,6 @@ function Dashboard() {
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [healthStatus, setHealthStatus] = useState('Healthy');
 
   const loadConnectors = async () => {
     try {
@@ -81,7 +80,7 @@ function Dashboard() {
           <StatsCard
             icon={<Activity size={24} />}
             title="System Health"
-            value={healthStatus}
+            value="Healthy"
             subtitle="All systems operational"
             variant="success"
           />

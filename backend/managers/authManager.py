@@ -31,7 +31,7 @@ class AuthManager:
         token = auth_header.replace('Bearer ', '')
         
         try:
-            decoded = jwt.decode(token, options={"verify_signature": False})
+            decoded = jwt.decode(token, key="", options={"verify_signature": False})
             logger.info(f"[AuthManager] Token decoded successfully for user: {decoded.get('preferred_username', 'unknown')}")
             return True
         except JWTError as e:
@@ -46,7 +46,7 @@ class AuthManager:
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
             try:
-                decoded = jwt.decode(token, options={"verify_signature": False})
+                decoded = jwt.decode(token, key="", options={"verify_signature": False})
                 return decoded.get('preferred_username', 'unknown')
             except JWTError:
                 return 'unknown'
