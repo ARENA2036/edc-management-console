@@ -17,9 +17,11 @@ def init_db():
 
 def init_edc(settings: dict):
     global edc_manager
-    edc_manager = EdcManager(
-        default_edc_url=settings.get("edc", {}).get("defaultUrl", "")
-    )
+    edc_config = {
+        "default_url": settings.get("edc", {}).get("defaultUrl", ""),
+        "endpoints": settings.get("edc", {}).get("endpoints", {})
+    }
+    edc_manager = EdcManager(edc_config=edc_config)
     return edc_manager
 
 def init_activity():
