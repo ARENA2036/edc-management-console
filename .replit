@@ -30,29 +30,25 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd backend && uvicorn init:app --host 0.0.0.0 --port 8000 --reload"
-waitForPort = 8000
+args = "cd backend && uvicorn init:app --host 0.0.0.0 --port 8008 --reload"
+waitForPort = 8008
 
 [[workflows.workflow]]
 name = "Frontend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd frontend && npm run dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev -- --host 0.0.0.0"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 8000
-externalPort = 8000
-
-[[ports]]
-localPort = 35877
-externalPort = 3000
+localPort = 8008
+externalPort = 8008
