@@ -158,9 +158,11 @@ app.add_middleware(
 # ------------------------------------------------------------
 # Initialize Managers
 # ------------------------------------------------------------
-database_manager.init_db()
-edc_manager.init_edc(settings)
-activity_manager.init_activity()
+from managers import init_db, init_edc, init_activity
+
+init_db()
+init_edc(settings)
+init_activity()
 
 logger.info("[INIT] All managers initialized successfully!")
 
