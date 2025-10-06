@@ -1,4 +1,4 @@
-import { Activity, User } from 'lucide-react';
+import { User } from 'lucide-react';
 
 interface Props {
   user?: {
@@ -14,9 +14,9 @@ export default function Header({ user, onLogout }: Props) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img 
-            src="/logo.jpg" 
+            src="/arena2036-logo.png" 
             alt="ARENA2036 Logo" 
-            className="h-10 w-10 rounded-lg object-cover"
+            className="h-10 object-contain"
           />
           <h1 className="text-xl font-semibold">ARENA2036 EDC Management Console</h1>
         </div>
