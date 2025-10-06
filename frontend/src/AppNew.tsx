@@ -8,6 +8,7 @@ import Header from './components/Header';
 import StatsCard from './components/StatsCard';
 import ConnectorTableNew from './components/ConnectorTableNew';
 import DeploymentWizard from './components/DeploymentWizard';
+import keycloak from './auth/keycloak';
 
 function Dashboard() {
   const [connectors, setConnectors] = useState<Connector[]>([]);
@@ -160,17 +161,22 @@ function Settings() {
 }
 
 function AppNew() {
-  const [user] = useState({
-    name: 'User',
+  const username = keycloak.tokenParsed?.preferred_username || 'User';
+  const user = {
+    name: username,
     role: 'Administrator'
-  });
+  };
+
+  const handleLogout = () => {
+    keycloak.logout();
+  };
 
   return (
     <BrowserRouter>
       <div className="flex h-screen bg-gray-50">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Header user={user} />
+          <Header user={user} onLogout={handleLogout} />
           <main className="flex-1 overflow-y-auto">
             <Routes>
               <Route path="/" element={<Dashboard />} />
