@@ -1,0 +1,48 @@
+{
+  "task": "Integrate Keycloak authentication with theme and backend connection",
+  "description": "Modify the existing React/Vite frontend to use official Keycloak authentication and communicate with the FastAPI backend running on port 8001. The frontend must use the official Keycloak login theme (not a custom form) and run locally on port 5173.",
+  "requirements": {
+    "authentication": {
+      "library": "keycloak-js",
+      "config": {
+        "url": "https://centralidp.arena2036-x.de/auth/",
+        "realm": "CX-Central",
+        "clientId": "CX-EDC"
+      },
+      "theme": "Use the official Keycloak login theme",
+      "login_flow": "On app load, redirect to Keycloak login; store JWT in localStorage; redirect to dashboard after successful login",
+      "display_username": "Show keycloak.tokenParsed.preferred_username in top-right corner"
+    },
+    "backend": {
+      "url": "http://localhost:8001",
+      "port": 8001,
+      "auth_header": "Authorization: Bearer <token>",
+      "framework": "FastAPI"
+    },
+    "frontend": {
+      "framework": "React + Vite",
+      "port": 5173,
+      "env_file": {
+        "VITE_KEYCLOAK_URL": "https://centralidp.arena2036-x.de/auth/",
+        "VITE_KEYCLOAK_REALM": "CX-Central",
+        "VITE_KEYCLOAK_CLIENT_ID": "CX-EDC",
+        "VITE_BACKEND_URL": "http://localhost:8001"
+      },
+      "files": {
+        "src/auth/keycloak.js": "Create Keycloak instance using env variables",
+        "src/main.jsx": "Initialize Keycloak with onLoad: 'login-required' and mount App after authentication",
+        "src/api/api.js": "Axios instance with Authorization header automatically set from localStorage token"
+      },
+      "commands": {
+        "install": "npm install keycloak-js axios",
+        "start": "npm run dev"
+      }
+    },
+    "expected_behavior": {
+      "login_redirect": "User sees official Keycloak login page",
+      "post_login": "User is redirected to dashboard",
+      "api_access": "All requests to localhost:8001 include Bearer token automatically",
+      "local_dev": "Frontend available at http://localhost:5173"
+    }
+  }
+}
