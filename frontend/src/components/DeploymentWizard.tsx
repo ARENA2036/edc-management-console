@@ -185,6 +185,24 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 </button>
               )}
             </div>
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                onClick={handleDeploySubmodel}
+                disabled={!formData.submodelServiceUrl}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Deploy Submodel Service
+              </button>
+              {submodelDeployed && (
+                <button
+                  onClick={handleRegisterSubmodel}
+                  disabled={!formData.bpn}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Register Service
+                </button>
+              )}
+            </div>
           </div>
         );
       case 2:
