@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, CheckCircle } from 'lucide-react';
+import { apiClient } from '../api/client';
 import type { Connector } from '../types';
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 
 export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [submodelDeployed, setSubmodelDeployed] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -19,6 +21,34 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   });
 
   const totalSteps = 4;
+
+  const handleDeploySubmodel = async () => {
+    try {
+      await apiClient.post('/submodel/deploy', {
+        url: formData.submodelServiceUrl,
+        apiKey: formData.submodelApiKey,
+        type: 'submodel-service'
+      });
+      setSubmodelDeployed(true);
+      alert('Submodel Service erfolgreich deployed!');
+    } catch (error) {
+      console.error('Failed to deploy submodel:', error);
+      alert('Fehler beim Deployment des Submodel Service');
+    }
+  };
+
+  const handleRegisterSubmodel = async () => {
+    try {
+      await apiClient.post('/submodel/register', {
+        url: formData.submodelServiceUrl,
+        bpn: formData.bpn
+      });
+      alert('Submodel Service erfolgreich registriert!');
+    } catch (error) {
+      console.error('Failed to register submodel:', error);
+      alert('Fehler bei der Registrierung des Submodel Service');
+    }
+  };
 
   const handleNext = () => {
     if (currentStep < totalSteps) {
@@ -55,7 +85,15 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       case 1:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Submodel Service</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Submodel Service</h3>
+              {submodelDeployed && (
+                <span className="flex items-center text-green-600 text-sm">
+                  <CheckCircle size={16} className="mr-1" />
+                  Deployed
+                </span>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Service URL
@@ -79,6 +117,24 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 placeholder="Enter API key"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
+            </div>
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                onClick={handleDeploySubmodel}
+                disabled={!formData.submodelServiceUrl}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Deploy Submodel Service
+              </button>
+              {submodelDeployed && (
+                <button
+                  onClick={handleRegisterSubmodel}
+                  disabled={!formData.bpn}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Register Service
+                </button>
+              )}
             </div>
           </div>
         );
@@ -106,19 +162,33 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 type="text"
                 value={formData.url}
                 onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                placeholder="http://localhost:8080/management"
+                placeholder="https://edc.example.com"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                EDC Version
+              </label>
+              <select
+                value={formData.version}
+                onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="0.6.0">0.6.0</option>
+                <option value="0.7.0">0.7.0</option>
+                <option value="0.8.0">0.8.0</option>
+              </select>
             </div>
           </div>
         );
       case 3:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Business Partner Number</h3>
+            <h3 className="text-lg font-semibold">BPN Configuration</h3>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                BPN
+                Business Partner Number (BPN)
               </label>
               <input
                 type="text"
@@ -134,23 +204,29 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Review & Deploy</h3>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <div>
-                <p className="text-sm text-gray-500">EDC Name</p>
-                <p className="font-medium">{formData.name || 'Not set'}</p>
+                <span className="text-sm text-gray-500">EDC Name:</span>
+                <p className="font-medium">{formData.name || 'Not specified'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">EDC URL</p>
-                <p className="font-medium">{formData.url || 'Not set'}</p>
+                <span className="text-sm text-gray-500">EDC URL:</span>
+                <p className="font-medium">{formData.url || 'Not specified'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">BPN</p>
-                <p className="font-medium">{formData.bpn || 'Not set'}</p>
+                <span className="text-sm text-gray-500">BPN:</span>
+                <p className="font-medium">{formData.bpn || 'Not specified'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Version</p>
+                <span className="text-sm text-gray-500">Version:</span>
                 <p className="font-medium">{formData.version}</p>
               </div>
+              {submodelDeployed && (
+                <div>
+                  <span className="text-sm text-gray-500">Submodel Service:</span>
+                  <p className="font-medium text-green-600">✓ Deployed</p>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -161,12 +237,12 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-8 max-w-3xl w-full mx-4">
-        <div className="flex justify-between items-start mb-6">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4">
+        <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold">EDC Deployment Wizard</h2>
-            <p className="text-gray-500 mt-1">
-              Follow these steps to deploy your EDC. You can skip steps or jump directly to EDC.
+            <h2 className="text-2xl font-bold text-gray-900">Deploy EDC Connector</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Step {currentStep} of {totalSteps}
             </p>
           </div>
           <button
@@ -177,33 +253,27 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
           </button>
         </div>
 
-        <div className="flex items-center justify-center gap-4 mb-8">
-          {[1, 2, 3, 4].map((step) => (
-            <div key={step} className="flex items-center">
-              <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold transition-colors ${
-                  step === currentStep
-                    ? 'bg-orange-500 text-white'
-                    : step < currentStep
-                    ? 'bg-orange-100 text-orange-600'
-                    : 'bg-gray-200 text-gray-400'
-                }`}
-              >
-                {step}
-              </div>
-              {step < 4 && (
-                <div className={`w-16 h-0.5 ${step < currentStep ? 'bg-orange-500' : 'bg-gray-200'}`} />
-              )}
+        <div className="p-6">
+          <div className="mb-6">
+            <div className="flex justify-between">
+              {[1, 2, 3, 4].map((step) => (
+                <div
+                  key={step}
+                  className={`flex-1 h-2 rounded-full mx-1 ${
+                    step <= currentStep ? 'bg-orange-500' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
             </div>
-          ))}
+          </div>
+
+          {renderStepContent()}
         </div>
 
-        <div className="mb-8 min-h-[300px]">{renderStepContent()}</div>
-
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-xl">
           <button
             onClick={onClose}
-            className="px-6 py-2.5 text-gray-600 hover:text-gray-800 transition-colors"
+            className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
           >
             Cancel
           </button>
@@ -211,16 +281,16 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
             {currentStep < totalSteps && (
               <button
                 onClick={handleSkip}
-                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
               >
                 Skip
               </button>
             )}
             <button
               onClick={handleNext}
-              className="px-6 py-2.5 bg-orange-400 hover:bg-orange-500 text-white rounded-lg transition-colors"
+              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
             >
-              {currentStep === totalSteps ? 'Deploy' : 'Next'}
+              {currentStep === totalSteps ? 'Deploy EDC' : 'Next'}
             </button>
           </div>
         </div>
