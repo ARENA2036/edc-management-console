@@ -14,11 +14,11 @@
 #
 # Environment Variables (required):
 #   KEYCLOAK_TOKEN  - Keycloak JWT Bearer token for authentication
-#   API_URL         - Backend API URL (default: http://localhost:8008)
+#   API_URL         - Backend API URL (default: http://localhost:8001)
 #
 # Example:
 #   export KEYCLOAK_TOKEN="your-jwt-token-here"
-#   export API_URL="http://localhost:8008"
+#   export API_URL="http://localhost:8001"
 #   ./scripts/deploy_edc.sh
 ###############################################################################
 
@@ -31,7 +31,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-API_URL="${API_URL:-http://localhost:8008}"
+API_URL="${API_URL:-http://localhost:8001}"
 KEYCLOAK_TOKEN="${KEYCLOAK_TOKEN:-}"
 
 # Check prerequisites

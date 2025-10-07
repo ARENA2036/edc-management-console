@@ -297,4 +297,4 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-logger.info("✅ CX-EDC backend configured and ready on port 8008.")
+logger.info("✅ CX-EDC backend configured and ready on port 8001.")

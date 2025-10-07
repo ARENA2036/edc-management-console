@@ -38,7 +38,7 @@ function Dashboard() {
   const loadDataspace = async () => {
     try {
       const token = localStorage.getItem('keycloak_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8008'}/api/dataspace`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -202,7 +202,7 @@ function Settings() {
     const loadSettings = async () => {
       try {
         const token = localStorage.getItem('keycloak_token');
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8008'}/api/dataspace`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

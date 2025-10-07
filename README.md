@@ -9,7 +9,6 @@ Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connect
 - 🚀 **EDC Deployment Wizard** - Step-by-step EDC deployment
 - 📋 **Connector Management** - Full CRUD operations for EDC connectors
 - 📈 **Activity Logging** - Track all system activities
-- 🎨 **Modern UI** - ARENA2036 design with orange/white theme
 
 ## Technology Stack
 
@@ -17,7 +16,7 @@ Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connect
 - **Python 3.11** with FastAPI
 - **PostgreSQL** database with SQLAlchemy ORM
 - **API Key Authentication** (Keycloak integration ready)
-- TractusX SDK architecture (managers, services, models, utilities)
+
 
 ### Frontend
 - **React 18** with TypeScript
@@ -307,20 +306,7 @@ npm run lint
 - Backend CORS middleware is configured for all origins in development
 - For production, restrict origins in init.py
 
-## Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
 
 ## License
 
 Copyright © ARENA2036-X Network
-
-## Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Contact: support@arena2036-x.de

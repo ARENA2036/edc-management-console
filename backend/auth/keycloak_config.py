@@ -52,3 +52,6 @@ class KeycloakOpenID:
             )
 
 keycloak_openid = KeycloakOpenID()
+
+# Token-Verifikation lockern (nur zum Testen)
+keycloak_openid._verify_audience = False
