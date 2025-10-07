@@ -255,4 +255,46 @@ async def get_config(user=Depends(keycloak_openid.get_current_user)):
         "data": settings
     }
 
+@app.get("/api/dataspace", tags=["Dataspace"])
+async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user)):
+    """Get Keycloak-synchronized dataspace settings (read-only)"""
+    try:
+        dataspace_config = settings.get("dataspaceConfig", {})
+        edc_config = settings.get("edc", {})
+        
+        dataspace_name = user.get("realm", "ARENA2036-X")
+        bpn = user.get("bpn", "BPNL000000000000")
+        
+        dataspace_settings = {
+            "name": dataspace_name,
+            "bpn": bpn,
+            "realm": user.get("realm", "CX-Central"),
+            "username": user["preferred_username"],
+            "centralidp": {
+                "url": dataspace_config.get("centralidp", {}).get("url", ""),
+                "realm": dataspace_config.get("centralidp", {}).get("realm", "")
+            },
+            "portal": {
+                "url": dataspace_config.get("portal", {}).get("url", "")
+            },
+            "discovery": {
+                "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
+                "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
+                "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
+            },
+            "edc": {
+                "default_url": edc_config.get("default_url", ""),
+                "cluster_context": edc_config.get("clusterConfig", {}).get("context", "")
+            },
+            "readonly": True
+        }
+        
+        return {
+            "user": user["preferred_username"],
+            "data": dataspace_settings
+        }
+    except Exception as e:
+        logger.exception(str(e))
+        return HttpUtils.get_error_response(status=500, message=str(e))
+
 logger.info("✅ CX-EDC backend configured and ready on port 8008.")

@@ -44,6 +44,8 @@ dataspaceConfig:
 
 edc:
   default_url: "https://dataconsumer-controlplane.arena2036-x.de"
+  clusterConfig:
+    context: "arena2036-x-edc-cluster"
   endpoints:
     assets: "/v3/assets"
     policies: "/v3/policydefinitions"

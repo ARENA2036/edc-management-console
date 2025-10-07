@@ -1,4 +1,4 @@
-import { Home, Monitor, Settings } from 'lucide-react';
+import { Home, Monitor, Settings, ExternalLink } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function Sidebar() {
@@ -7,6 +7,7 @@ export default function Sidebar() {
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/' },
     { icon: Monitor, label: 'Monitor', path: '/monitor' },
+    { icon: ExternalLink, label: 'SDE', path: '/sde' },
   ];
 
   return (

@@ -11,6 +11,8 @@ interface Props {
 export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [submodelDeployed, setSubmodelDeployed] = useState(false);
+  const [submodelMode, setSubmodelMode] = useState<'new' | 'existing'>('new');
+  const [hasSkipped, setHasSkipped] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -59,6 +61,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   };
 
   const handleSkip = () => {
+    setHasSkipped(true);
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -66,9 +69,15 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     }
   };
 
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
   const handleSubmit = () => {
     const newConnector: Connector = {
-      id: Date.now().toString(),
+      id: Date.now(),
       name: formData.name,
       url: formData.url,
       bpn: formData.bpn,
@@ -94,6 +103,30 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 </span>
               )}
             </div>
+            
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <button
+                onClick={() => setSubmodelMode('new')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  submodelMode === 'new'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Neuen Submodel hinzufügen
+              </button>
+              <button
+                onClick={() => setSubmodelMode('existing')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  submodelMode === 'existing'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Existierenden Server verbinden
+              </button>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Service URL
@@ -102,37 +135,53 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 type="text"
                 value={formData.submodelServiceUrl}
                 onChange={(e) => setFormData({ ...formData, submodelServiceUrl: e.target.value })}
-                placeholder="https://submodel-service.example.com"
+                placeholder={submodelMode === 'new' ? "https://new-submodel-service.example.com" : "https://existing-submodel-service.example.com"}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                API Key
-              </label>
-              <input
-                type="text"
-                value={formData.submodelApiKey}
-                onChange={(e) => setFormData({ ...formData, submodelApiKey: e.target.value })}
-                placeholder="Enter API key"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
+            
+            {submodelMode === 'new' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API Key
+                </label>
+                <input
+                  type="text"
+                  value={formData.submodelApiKey}
+                  onChange={(e) => setFormData({ ...formData, submodelApiKey: e.target.value })}
+                  placeholder="Enter API key"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            )}
+            
             <div className="flex gap-3 pt-4 border-t">
-              <button
-                onClick={handleDeploySubmodel}
-                disabled={!formData.submodelServiceUrl}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Deploy Submodel Service
-              </button>
-              {submodelDeployed && (
+              {submodelMode === 'new' ? (
+                <>
+                  <button
+                    onClick={handleDeploySubmodel}
+                    disabled={!formData.submodelServiceUrl}
+                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Deploy Submodel Service
+                  </button>
+                  {submodelDeployed && (
+                    <button
+                      onClick={handleRegisterSubmodel}
+                      disabled={!formData.bpn}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Register Service
+                    </button>
+                  )}
+                </>
+              ) : (
                 <button
                   onClick={handleRegisterSubmodel}
-                  disabled={!formData.bpn}
+                  disabled={!formData.submodelServiceUrl || !formData.bpn}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Register Service
+                  Connect Existing Service
                 </button>
               )}
             </div>
@@ -271,12 +320,22 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
         </div>
 
         <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-xl">
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-          >
-            Cancel
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            {(currentStep > 1 || hasSkipped) && (
+              <button
+                onClick={handlePrevious}
+                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+              >
+                Previous
+              </button>
+            )}
+          </div>
           <div className="flex gap-3">
             {currentStep < totalSteps && (
               <button
