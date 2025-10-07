@@ -185,21 +185,49 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 </button>
               )}
             </div>
+            
+            {submodelMode === 'new' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API Key
+                </label>
+                <input
+                  type="text"
+                  value={formData.submodelApiKey}
+                  onChange={(e) => setFormData({ ...formData, submodelApiKey: e.target.value })}
+                  placeholder="Enter API key"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            )}
+            
             <div className="flex gap-3 pt-4 border-t">
-              <button
-                onClick={handleDeploySubmodel}
-                disabled={!formData.submodelServiceUrl}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Deploy Submodel Service
-              </button>
-              {submodelDeployed && (
+              {submodelMode === 'new' ? (
+                <>
+                  <button
+                    onClick={handleDeploySubmodel}
+                    disabled={!formData.submodelServiceUrl}
+                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Deploy Submodel Service
+                  </button>
+                  {submodelDeployed && (
+                    <button
+                      onClick={handleRegisterSubmodel}
+                      disabled={!formData.bpn}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Register Service
+                    </button>
+                  )}
+                </>
+              ) : (
                 <button
                   onClick={handleRegisterSubmodel}
-                  disabled={!formData.bpn}
+                  disabled={!formData.submodelServiceUrl || !formData.bpn}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Register Service
+                  Connect Existing Service
                 </button>
               )}
             </div>
