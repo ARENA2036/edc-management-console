@@ -1,6 +1,6 @@
 # ARENA2036 EDC Management Console
 
-Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
+EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
 
 ## Features
 
