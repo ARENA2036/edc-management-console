@@ -1,0 +1,16 @@
+edc:
+  defaultUrl: "https://dataconsumer-controlplane.arena2036-x.de"
+  endpoints:
+    management: "/management/v2"
+    protocol: "/protocol"
+    public: "/public"
+    control: "/control"
+    ids: "/ids"
+
+appConfig:
+  name: "ARENA2036 EDC Management Console"
+  version: "1.0.0"
+
+dataspaceConfig:
+  name: "Catena-X"
+  realm: "CX-Central"
