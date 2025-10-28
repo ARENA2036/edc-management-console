@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from backend.models.database import Base, Connector, ActivityLog
+from models.database import Base, Connector, ActivityLog
 from typing import List, Optional
 import logging
 
@@ -12,19 +12,19 @@ class DatabaseManager:
         self.database_url = database_url
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        self.create_tables()
+#         self.create_tables()
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
         logger.info("[DatabaseManager] Database tables created successfully")
-        
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
-                if not result.fetchone():
-                    conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
-                    conn.commit()
-                    logger.info("[DatabaseManager] Added version column to connectors table")
+                # result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
+                # if not result.fetchone():
+
+                conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
+                conn.commit()
+                logger.info("[DatabaseManager] Added version column to connectors table")
         except Exception as e:
             logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
 

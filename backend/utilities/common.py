@@ -7,7 +7,7 @@ import logging.config
 import yaml
 from urllib import *
 
-from backend.models.connector import Connector
+from models.connector import Connector
 
 SUB_DIR = "charts/umbrella"
 DEFAULT_VALUES_FILE = "values.yaml"
