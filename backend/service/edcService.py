@@ -5,8 +5,8 @@ import json
 import subprocess
 import yaml
 from typing import Dict, Optional, List
-from backend.utilities import httpUtils
-from backend.utilities.common import delete_file
+from utilities import httpUtils
+from utilities.common import delete_file
 
 logger = logging.getLogger('staging')
 
@@ -22,7 +22,7 @@ class EdcService:
 
     def ensure_kubectl_installed(self):
         try:
-            subprocess.run("kubectl version --client", capture_output=True)
+            subprocess.run("kubectl version --client", shell=True, capture_output=True)
             print("kubectl is already installed.")
         except subprocess.CalledProcessError:
             print("Installing kubectl...")
@@ -33,11 +33,11 @@ class EdcService:
             print("kubectl installed successfully.")
 
     def switch_kubectl_context(self, context_name):
-        subprocess.run(f"kubectl config use-context {context_name}")
+        subprocess.run(f"kubectl config use-context {context_name}", shell=True)
 
     def ensure_helm_installed(self):
         try:
-            subprocess.run("helm version --client", capture_output=True)
+            subprocess.run("helm version --client", shell=True, capture_output=True)
             print("helm is already installed.")
         except subprocess.CalledProcessError:
             print("Installing kubectl...")
@@ -50,13 +50,14 @@ class EdcService:
     def update_helm_dependencies(self, dir):
         os.chdir(f"{dir}")
         print(f"Working directory: {os.getcwd()}")
-        subprocess.run("helm dependency update")
+        subprocess.run("helm dependency update", shell=True)
 
     def install_helm_chart(self, deployment_name:str, values_files:list, namespace:str):
         try:
             formatted_files = " ".join([" -f " + file for file in values_files])
             print(f"Installing helm chart with values from {values_files}...")
-            result = subprocess.run(f"helm install {deployment_name}  {formatted_files} --namespace {namespace} --debug .", capture_output=True, text=True)
+            result = subprocess.run(f"helm install {deployment_name} \
+            {formatted_files} --namespace {namespace} --create-namespace --debug .", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to install EDC, return code: {str(result.returncode)}")
                 return {"status_code": 500, "data": result.stderr}
@@ -80,7 +81,7 @@ class EdcService:
         try:
             formatted_files = " ".join([" -f " + file for file in values_files])
             print(f"Upgrading helm chart with values from {values_files}...")
-            result = subprocess.run(f"helm upgrade -i {deployment_name}  {formatted_files} --namespace {namespace} --debug .", capture_output=True, text=True)
+            result = subprocess.run(f"helm upgrade -i {deployment_name}  {formatted_files} --namespace {namespace} --debug .", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to upgrade EDC, return code: {str(result.returncode)}")
                 return {"status_code": 500, "data": result.stderr}
@@ -101,7 +102,7 @@ class EdcService:
 
     def get_all_connectors(self, namespace:str):
         try:
-            result = subprocess.run(f"helm list --namespace {namespace}", capture_output=True, text=True)
+            result = subprocess.run(f"helm list --namespace {namespace}", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to get all EDCs, return code: {str(result.returncode)}")
                 raise
@@ -117,7 +118,7 @@ class EdcService:
         try:
             ## TODO: get connector_name by Id
             connector_name = connector_id
-            result = subprocess.run(f"helm list {connector_name} --namespace {namespace}", capture_output=True, text=True)
+            result = subprocess.run(f"helm list {connector_name} --namespace {namespace}", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to get the EDC, return code: {str(result.returncode)}")
                 raise
@@ -133,7 +134,7 @@ class EdcService:
         try:
             ## TODO: get connector_name by Id
             connector_name = connector_id
-            result = subprocess.run(f"helm uninstall {connector_name} --namespace {namespace}", capture_output=True, text=True)
+            result = subprocess.run(f"helm uninstall {connector_name} --namespace {namespace}", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to delete the EDC, return code: {str(result.returncode)}")
                 return {"status_code": 500, "data": result.stderr}
