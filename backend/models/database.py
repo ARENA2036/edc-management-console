@@ -1,4 +1,6 @@
 from datetime import datetime
+
+from pydantic import UUID4
 from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session

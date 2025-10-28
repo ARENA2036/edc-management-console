@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from models.database import Base, Connector, ActivityLog
+from backend.models.database import Base, Connector, ActivityLog
 from typing import List, Optional
 import logging
 
@@ -31,10 +31,10 @@ class DatabaseManager:
     def get_session(self) -> Session:
         return self.SessionLocal()
 
-    def create_connector(self, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
+    def create_connector(self, id: int, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
         session = self.get_session()
         try:
-            connector = Connector(name=name, url=url, bpn=bpn, version=version or "0.6.0", config=config)
+            connector = Connector(id=id, name=name, url=url, bpn=bpn, version=version or "0.6.0", config=config)
             session.add(connector)
             session.commit()
             session.refresh(connector)

@@ -31,10 +31,7 @@ install:
   # -- Deploying a HashiCorp Vault instance
   vault: true
 
-
 fullnameOverride: ""
-
-# Needs input from the EMC frontend
 nameOverride: ""
 
 # -- Existing image pull secret to use to [obtain the container image from private registries](https://kubernetes.io/docs/concepts/containers/images/#using-a-private-registry)
@@ -42,19 +39,16 @@ imagePullSecrets: []
 # -- Add some custom labels
 customLabels: {}
 
-# Needs input from the EMC frontend
 participant:
   # -- BPN Number
   id: "BPNLCHANGEME"
 
-
-# Creates dynamically rom the EMC Backend
 iatp:
   # -- Decentralized IDentifier (DID) of the connector
   id: "did:web:changeme"
   # -- Configures the trusted issuers for this runtime
-  trustedIssuers: []
-  # Creates dynamically rom the EMC Backend
+  trustedIssuers:
+    - "did:web:changeme"
   sts:
     dim:
       # -- URL where connectors can request SI tokens
@@ -74,7 +68,7 @@ customCaCerts: {}
 controlplane:
   image:
     # -- Which derivate of the control plane to use. When left empty the deployment will select the correct image automatically
-    repository: ""
+    repository: "tractusx/edc-controlplane-postgresql-hashicorp-vault"
     # -- [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) to use
     pullPolicy: IfNotPresent
     # -- Overrides the image tag whose default is the chart appVersion
@@ -257,7 +251,7 @@ controlplane:
   ## Ingress declaration to expose the network service.
   ingresses:
     ## Public / Internet facing Ingress
-    - enabled: false
+    - enabled: true
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
       hostname: "edc-control.local"
       # -- Additional ingress annotations to add
@@ -265,12 +259,14 @@ controlplane:
       # -- EDC endpoints exposed by this ingress resource
       endpoints:
         - protocol
+        - management
+        - control
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: ""
+      className: "webapprouting.kubernetes.azure.com"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
-        enabled: false
+        enabled: true
         # -- If present overwrites the default secret name
         secretName: ""
       ## Adds [cert-manager](https://cert-manager.io/docs/) annotations to the ingress resource
@@ -278,7 +274,7 @@ controlplane:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: ""
+        clusterIssuer: "letsencrypt-prod"
     ## Private / Intranet facing Ingress
     - enabled: false
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
@@ -290,11 +286,11 @@ controlplane:
         - management
         - control
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: ""
+      className: "webapprouting.kubernetes.azure.com"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
-        enabled: false
+        enabled: true
         # -- If present overwrites the default secret name
         secretName: ""
       ## Adds [cert-manager](https://cert-manager.io/docs/) annotations to the ingress resource
@@ -302,7 +298,7 @@ controlplane:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: ""
+        clusterIssuer: "letsencrypt-prod"
 
   # -- declare where to mount [volumes](https://kubernetes.io/docs/concepts/storage/volumes/) into the container
   volumeMounts:
@@ -356,7 +352,7 @@ controlplane:
 dataplane:
   image:
     # -- Which derivate of the data plane to use. when left empty the deployment will select the correct image automatically
-    repository: ""
+    repository: "tractusx/edc-dataplane-hashicorp-vault"
     # -- [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) to use
     pullPolicy: IfNotPresent
     # -- Overrides the image tag whose default is the chart appVersion
@@ -453,10 +449,10 @@ dataplane:
       refresh_endpoint:
     signer:
       # -- Alias under which the private key (JWK or PEM format) is stored in the vault
-      privatekey_alias:
+      privatekey_alias: tokenSignerPrivateKey
     verifier:
       # -- Alias under which the public key (JWK or PEM format) is stored in the vault, that belongs to the private key which was referred to at `dataplane.token.signer.privatekey_alias`
-      publickey_alias:
+      publickey_alias: tokenSignerPublicKey
 
   aws:
     endpointOverride: ""
@@ -523,7 +519,7 @@ dataplane:
   ## Ingress declaration to expose the network service.
   ingresses:
     ## Public / Internet facing Ingress
-    - enabled: false
+    - enabled: true
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
       hostname: "edc-data.local"
       # -- Additional ingress annotations to add
@@ -532,11 +528,11 @@ dataplane:
       endpoints:
         - public
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: ""
+      className: "webapprouting.kubernetes.azure.com"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
-        enabled: false
+        enabled: true
         # -- If present overwrites the default secret name
         secretName: ""
       ## Adds [cert-manager](https://cert-manager.io/docs/) annotations to the ingress resource
@@ -544,7 +540,7 @@ dataplane:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: ""
+        clusterIssuer: "letsencrypt-prod"
 
   # -- declare where to mount [volumes](https://kubernetes.io/docs/concepts/storage/volumes/) into the container
   volumeMounts:
@@ -595,10 +591,13 @@ dataplane:
     public: ""
 
 postgresql:
+  image:
+    repository: "bitnamilegacy/postgresql"
+    tag: "16.2.0-debian-12-r10"
   jdbcUrl: "jdbc:postgresql://{{ .Release.Name }}-postgresql:5432/edc"
   primary:
     persistence:
-      enabled: false
+      enabled: true
   readReplicas:
     persistence:
       enabled: false

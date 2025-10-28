@@ -4,17 +4,19 @@ import logging.config
 import yaml
 import urllib3
 import uvicorn
-import requests
-import os
-from dotenv import load_dotenv
+import uuid
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from managers import init_db, init_edc, init_activity
 from auth.keycloak_config import keycloak_openid
 from managers import database_manager, edc_manager, activity_manager
+from backend.managers import DatabaseManager, edc_manager, activity_manager
 from models.requests import ConnectorCreate, ConnectorUpdate
+from models.connector import Connector
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
+from managers.edcManager import EdcManager
+from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
 from utilities.operators import op
 
@@ -22,6 +24,9 @@ op.make_dir("logs")
 
 idpManager: OAuth2Manager
 authManager: AuthManager
+edcManager: EdcManager
+edcService: EdcService
+databaseManager: DatabaseManager
 
 urllib3.disable_warnings()
 logging.captureWarnings(True)
@@ -62,31 +67,12 @@ keycloak_openid.add_swagger_config(app)
 logger.info("[INIT] Starting EMC Backend...")
 
 # ------------------------------------------------------------
-# CORS Setup
-# ------------------------------------------------------------
-origins = [
-    "http://localhost:5000",
-    "http://127.0.0.1:5000",
-    "https://centralidp.arena2036-x.de",
-    "https://*.replit.dev",
-    "*"
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ------------------------------------------------------------
 # Initialize Managers
 # ------------------------------------------------------------
 
-
-init_db()
-init_edc(settings)
-init_activity()
+# init_db()
+# init_edc(settings)
+# init_activity()
 
 logger.info("[INIT] All managers initialized successfully!")
 
@@ -120,13 +106,49 @@ async def list_connectors(request: Request):
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
-        connectors = database_manager.get_all_connectors()
-        if connectors is not None:
-            logger.info(f"Retrieving list of connectors...")
 
-        return {
-            "data": [conn.to_dict() for conn in connectors]
-        }
+        ##edcService = EdcService()
+        response: dict = edcService.get_all_connectors(namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        if (response.get("status_code", 0) != 200):
+            raise
+        data: dict = response.get("data", {}).split("\n")
+        if (len(data) == 2):
+            return HttpUtils.response(
+                status=200,
+                data="[]",
+                message="No EDCs found"
+            )
+
+        json_list: list = []
+        for index, value in  enumerate(data):
+            # skip the 0th index, its the header
+            if (len(data) != (index+1)):
+                formatted_response: dict = data[index+1].split("\t")
+                if (formatted_response[0] != ""):
+                    json_object: dict = {
+                        "id": str(uuid.uuid4()),
+                        "Name": str(formatted_response[0]).replace(' ',''),
+                        "Namespace": str(formatted_response[1]).replace(' ',''),
+                        "Revision": str(formatted_response[2]).replace(' ',''),
+                        "Updated": str(formatted_response[3]).replace(' ',''),
+                        "Status": str(formatted_response[4]).replace(' ',''),
+                        "Chart": str(formatted_response[5]).replace(' ',''),
+                        "App_Version": str(formatted_response[6]).replace(' ','')
+                    }
+                    json_list.append(json_object)
+
+
+        return HttpUtils.response(
+            status=200,
+            data=json_list)
+
+        # connectors = database_manager.get_all_connectors()
+        # if connectors is not None:
+        #     logger.info(f"Retrieving list of connectors...")
+        #
+        # return {
+        #     "data": [conn.to_dict() for conn in connectors]
+        # }
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
@@ -145,108 +167,178 @@ async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_curr
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.post("/api/connectors", tags=["EDC"])
-async def create_connector(connector: ConnectorCreate, user=Depends(keycloak_openid.get_current_user)):
+@app.post("/api/connector", tags=["EDC"])
+async def add_connector(connector: Connector, request: Request):
     try:
-        existing = database_manager.get_connector_by_name(connector.name)
-        if existing:
-            return HttpUtils.get_error_response(status=400, message="Connector already exists")
-        
-        version = connector.config.get('version') if connector.config else None
-        new_connector = database_manager.create_connector(
-            name=connector.name,
-            url=connector.url,
-            bpn=connector.bpn,
-            version=version,
-            config=connector.config
-        )
-        
-        database_manager.log_activity(
-            action="CREATE_CONNECTOR",
-            connector_id=new_connector.id,
-            connector_name=new_connector.name,
-            details=f"Connector created by {user['preferred_username']}",
-            status="success"
-        )
-        
-        return {
-            "message": f"Connector created by {user['preferred_username']}", 
-            "data": new_connector.to_dict()
-        }
+        ## Check if the api key is present and if it is authenticated
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        # set edc helm chart directory
+        edcManager.add_edc(connector)
+        #edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
+        response: dict = edcService.install_helm_chart(deployment_name=connector.connector_name, values_files=["install_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        if (response.get("status_code", 0) != 200):
+            raise Exception(response.get("data",{}).split('Error')[1])
+
+        data: dict = response.get("data", {}).split("\n")
+        connector_id = str(uuid.uuid4())
+
+        # existing = database_manager.get_connector_by_name(connector.name)
+        # if existing:
+        #     return HttpUtils.get_error_response(status=400, message="Connector already exists")
+        #
+        # version = connector.config.get('version') if connector.config else None
+        # new_connector = databaseManager.create_connector(
+        #     id=1,
+        #     name=connector.connector_name,
+        #     url=connector.connector_url,
+        #     bpn=connector.bpn,
+        #     config={}
+        #  )
+        #
+        # databaseManager.log_activity(
+        #     action="CREATE_CONNECTOR",
+        #     connector_id=new_connector.id,
+        #     connector_name=new_connector.name,
+        #     details=f"Connector created",
+        #     status="success"
+        # )
+
+        return HttpUtils.response(
+            status=200,
+            data={
+                "id": connector_id,
+                "Name": str(data[0].split()[1]),
+                "Namespace": str(data[2].split()[1]),
+                "Status": str(data[3].split()[1]),
+                "Revision": str(data[4].split()[1])
+            })
+
+        # return {
+        #     "message": f"Connector created by {user['preferred_username']}",
+        #     "data": new_connector.to_dict()
+        # }
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.put("/api/connectors/{connector_id}", tags=["EDC"])
-async def update_connector(connector_id: int, connector: ConnectorUpdate, user=Depends(keycloak_openid.get_current_user)):
+async def upgrade_connector(connector_id: str, connector: Connector, request: Request):
     try:
-        updated = database_manager.update_connector(
-            connector_id=connector_id,
-            name=connector.name,
-            url=connector.url,
-            bpn=connector.bpn,
-            config=connector.config
-        )
-        
-        if not updated:
-            return HttpUtils.get_error_response(status=404, message="Connector not found")
-        
-        database_manager.log_activity(
-            action="UPDATE_CONNECTOR",
-            connector_id=connector_id,
-            connector_name=updated.name,
-            details=f"Connector updated by {user['preferred_username']}",
-            status="success"
-        )
-        
-        return {
-            "message": f"Connector updated by {user['preferred_username']}",
-            "data": updated.to_dict()
-        }
+        ## Check if the api key is present and if it is authenticated
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        # set edc helm chart directory
+        edcManager.upgrade_edc(connector)
+        ##edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
+        response:dict = edcService.upgrade_helm_chart(deployment_name=connector.connector_name, values_files=["upgrade_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        if (response.get("status_code", 0) != 200):
+            raise Exception(response.get("data",{}).split('Error')[1])
+        data: dict = response.get("data", {}).split("\n")
+
+        return HttpUtils.response(
+            status=200,
+            message=str(data[0]),
+            data={
+                "id": str(uuid.uuid4()),
+                "Name": str(data[1].split()[1]),
+                "Namespace": str(data[3].split()[1]),
+                "Status": str(data[4].split()[1]),
+                "Revision": str(data[5].split()[1])
+            })
+
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
+    #     updated = database_manager.update_connector(
+    #         connector_id=connector_id,
+    #         name=connector.name,
+    #         url=connector.url,
+    #         bpn=connector.bpn,
+    #         config=connector.config
+    #     )
+    #
+    #     if not updated:
+    #         return HttpUtils.get_error_response(status=404, message="Connector not found")
+    #
+    #     database_manager.log_activity(
+    #         action="UPDATE_CONNECTOR",
+    #         connector_id=connector_id,
+    #         connector_name=updated.name,
+    #         details=f"Connector updated by {user['preferred_username']}",
+    #         status="success"
+    #     )
+    #
+    #     return {
+    #         "message": f"Connector updated by {user['preferred_username']}",
+    #         "data": updated.to_dict()
+    #     }
+    # except Exception as e:
+    #     logger.exception(str(e))
+    #     return HttpUtils.get_error_response(status=500, message=str(e))
+
 @app.delete("/api/connectors/{connector_id}", tags=["EDC"])
-async def delete_connector(connector_id: int, user=Depends(keycloak_openid.get_current_user)):
+async def delete_connector(connector_id: str, connector: Connector, request: Request):
+
     try:
-        connector = database_manager.get_connector_by_id(connector_id)
-        if not connector:
-            return HttpUtils.get_error_response(status=404, message="Connector not found")
-        
-        success = database_manager.delete_connector(connector_id)
-        if success:
-            database_manager.log_activity(
-                action="DELETE_CONNECTOR",
-                connector_id=connector_id,
-                connector_name=connector.name,
-                details=f"Connector deleted by {user['preferred_username']}",
-                status="success"
-            )
-            return {"message": f"Connector deleted by {user['preferred_username']}"}
-        
+        ## Check if the api key is present and if it is authenticated
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        # set edc helm chart directory
+        # edcManager.delete_edc(connector)
+        response:dict = edcService.uninstall_helm_chart(connector_id=connector.connector_name, namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        if (response.get("status_code", 0) != 200):
+            raise Exception(response.get("data",{}).split('Error')[1])
+
+        return HttpUtils.response(
+            status=200,
+            message=str(response.get("data", {})))
+
+    except Exception as e:
+        logger.exception(str(e))
+        return HttpUtils.get_error_response(status=500, message=str(e))
+        # try:
+        #     connector = database_manager.get_connector_by_id(connector_id)
+        #     if not connector:
+        #         return HttpUtils.get_error_response(status=404, message="Connector not found")
+        #
+        #     success = database_manager.delete_connector(connector_id)
+        #     if success:
+        #         database_manager.log_activity(
+        #             action="DELETE_CONNECTOR",
+        #             connector_id=connector_id,
+        #             connector_name=connector.name,
+        #             details=f"Connector deleted by {user['preferred_username']}",
+        #             status="success"
+        #         )
+        #         return {"message": f"Connector deleted by {user['preferred_username']}"}
+
         return HttpUtils.get_error_response(status=500, message="Failed to delete")
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.post("/api/submodel/deploy", tags=["Submodel"])
-async def deploy_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
+@app.post("/api/submodel", tags=["Submodel"])
+async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
     """Deploy a submodel service independently"""
     try:
         url = data.get("url")
         api_key = data.get("apiKey")
         service_type = data.get("type", "submodel-service")
-        
+
         if not url:
             return HttpUtils.get_error_response(status=400, message="URL is required")
-        
+
         database_manager.log_activity(
             action="DEPLOY_SUBMODEL",
             details=f"Submodel service deployed by {user['preferred_username']}: {url}",
             status="success"
         )
-        
+
         return {
             "message": f"Submodel service deployed by {user['preferred_username']}",
             "data": {
@@ -259,22 +351,22 @@ async def deploy_submodel_service(data: dict, user=Depends(keycloak_openid.get_c
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.post("/api/submodel/register", tags=["Submodel"])
-async def register_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
+@app.post("/api/submodel/{submodel_service_id}", tags=["Submodel"])
+async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
     """Register a submodel service independently"""
     try:
         url = data.get("url")
         bpn = data.get("bpn")
-        
+
         if not url or not bpn:
             return HttpUtils.get_error_response(status=400, message="URL and BPN are required")
-        
+
         database_manager.log_activity(
             action="REGISTER_SUBMODEL",
             details=f"Submodel service registered by {user['preferred_username']}: {url} (BPN: {bpn})",
             status="success"
         )
-        
+
         return {
             "message": f"Submodel service registered by {user['preferred_username']}",
             "data": {
@@ -287,12 +379,12 @@ async def register_submodel_service(data: dict, user=Depends(keycloak_openid.get
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.get("/api/activity-logs", tags=["Logs"])
+@app.get("/api/logs", tags=["Logs"])
 async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
     try:
         logs = activity_manager.get_recent_logs(limit)
         return {
-            "user": user["preferred_username"], 
+            "user": user["preferred_username"],
             "data": logs
         }
     except Exception as e:
@@ -307,52 +399,73 @@ async def get_config(user=Depends(keycloak_openid.get_current_user)):
     }
 
 @app.get("/api/dataspace", tags=["Dataspace"])
-async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user)):
-    """Get Keycloak-synchronized dataspace settings (read-only)"""
+async def get_dataspace_settings(request: Request):
+    """
+    Retrieves dataspace specific configurations from the configuration file
+
+    Returns:
+        response: :obj:`data object with the dataspace settings`
+    """
     try:
-        dataspace_config = settings.get("dataspaceConfig", {})
-        edc_config = settings.get("edc", {})
-        
-        dataspace_name = user.get("realm", "ARENA2036-X")
-        bpn = user.get("bpn", "BPNL000000000000")
-        
-        dataspace_settings = {
-            "name": dataspace_name,
-            "bpn": bpn,
-            "realm": user.get("realm", "CX-Central"),
-            "username": user["preferred_username"],
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        dataspace_config = app_configuration.get("dataspaceConfig", {})
+
+        semantics_url:str = dataspace_config.get("discovery", {}).get("semantics", {}).get("url", "")
+
+        return HttpUtils.response({
+            "name": dataspace_config.get("name", None),
+            "authority_id": dataspace_config.get("authority_id", None),
             "centralidp": {
                 "url": dataspace_config.get("centralidp", {}).get("url", ""),
                 "realm": dataspace_config.get("centralidp", {}).get("realm", "")
+            },
+            "ssi_wallet": {
+                "url": dataspace_config.get("ssi_wallet", {}).get("url", ""),
             },
             "portal": {
                 "url": dataspace_config.get("portal", {}).get("url", "")
             },
             "discovery": {
-                "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
-                "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
-                "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
+                "discovery_finder_url": semantics_url + dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
+                "bpn_discovery_url": semantics_url + dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },
-            "edc": {
-                "default_url": edc_config.get("default_url", ""),
-                "cluster_context": edc_config.get("clusterConfig", {}).get("context", "")
-            },
-            "readonly": True
-        }
-        
-        return {
-            "user": user["preferred_username"],
-            "data": dataspace_settings
-        }
+        })
+
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 
 def init_app(host: str, port: int, log_level: str = "info"):
-    global app, app_configuration, flagManager, flagService, edcService, edcManager, edcDiscoveryService, discoveryFinderService, authManager
+    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, authManager, databaseManager
 
+    ## API Key Authorization
     authManager = AuthManager()
+    auth_config: dict = app_configuration.get("authorization", {"enabled": False})
+    auth_enabled: bool = auth_config.get("enabled", False)
+
+    if auth_enabled:
+        api_key: dict = auth_config.get("apiKey", {"key": "X-Api-Key", "value": "password"})
+        authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
+                                  configured_api_key=api_key.get("value", "password"), auth_enabled=True)
+
+    edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
+
+    ## Get environment specific configurations
+    cluster_config: dict = app_configuration["clusterConfig"]
+
+    edc_config: dict = app_configuration.get("edc", {})
+
+    edcManager = EdcManager(cluster_config=cluster_config,edc_config=edc_config, dataspace_config=app_configuration.get("dataspaceConfig",{}))
+
+    ## Initialize database manager
+    databaseManager = DatabaseManager(database_url="sqlite:///edc_manager.db")
+    init_db()
+    init_edc(settings)
+    init_activity()
+
 
     uvicorn.run(app, host=host, port=port, log_level=log_level)
 
@@ -385,6 +498,13 @@ def get_arguments():
 
 
 if __name__ == "__main__":
+
+    print("  _____ __  __  ____   ____             _                  _ ")
+    print(" | ____|  \\/  |/ ___| | __ )  __ _  ___| | _____ _ __   __| |")
+    print(" |  _| | |\\/| | |     |  _ \\ / _` |/ __| |/ / _ \\ '_ \\ / _` |")
+    print(" | |___| |  | | |___  | |_) | (_| | (__|   <  __/ | | | (_| |")
+    print(" |_____|_|  |_|\\____| |____/ \\__,_|\\___|_|\\_\\___|_| |_|\\__,_|")
+    print("                                                             ")
 
     print("Application starting, listening to requests...\n")
 
