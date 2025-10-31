@@ -364,19 +364,22 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
             return HttpUtils.get_error_response(status=400, message="URL and BPN are required")
 
         database_manager.log_activity(
-            action="REGISTER_SUBMODEL",
-            details=f"Submodel service registered by {user['preferred_username']}: {url} (BPN: {bpn})",
-            status="success"
+            action="CONNECT_SUBMODEL",
+            details=f"Existing submodel service connected by {user['preferred_username']}: {url} (BPN: {bpn})",
+            status="success" if reachable else "warning"
         )
 
+
         return {
-            "message": f"Submodel service registered by {user['preferred_username']}",
+            "message": f"Submodel service connected by {user['preferred_username']}",
             "data": {
                 "url": url,
                 "bpn": bpn,
-                "status": "registered"
+                "reachable": reachable,
+                "status": "connected" if reachable else "unreachable"
             }
         }
+
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

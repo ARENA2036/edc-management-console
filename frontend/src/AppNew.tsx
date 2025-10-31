@@ -375,11 +375,14 @@ function Settings() {
 }
 
 function AppNew() {
-  const username = keycloak.tokenParsed?.preferred_username || 'User';
-  const user = {
-    name: username,
-    role: 'Administrator'
-  };
+const firstName = keycloak.tokenParsed?.given_name || '';
+const lastName = keycloak.tokenParsed?.family_name || '';
+const fullName = `${firstName} ${lastName}`.trim() || keycloak.tokenParsed?.preferred_username || 'User';
+
+const user = {
+  name: fullName,
+  role: 'Administrator'
+};
 
   const handleLogout = () => {
     keycloak.logout();
