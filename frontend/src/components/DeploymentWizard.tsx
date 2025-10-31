@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, CheckCircle } from 'lucide-react';
+import { X, CheckCircle, Copy } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Connector } from '../types';
 
@@ -13,6 +13,8 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const [submodelDeployed, setSubmodelDeployed] = useState(false);
   const [submodelMode, setSubmodelMode] = useState<'new' | 'existing'>('new');
   const [hasSkipped, setHasSkipped] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     url: '',
@@ -20,6 +22,8 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     version: '0.6.0',
     submodelServiceUrl: '',
     submodelApiKey: '',
+    registryUrl: '',
+    registryCredentials: '',
   });
 
   const totalSteps = 4;
@@ -29,7 +33,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       await apiClient.post('/submodel/deploy', {
         url: formData.submodelServiceUrl,
         apiKey: formData.submodelApiKey,
-        type: 'submodel-service'
+        type: 'submodel-service',
       });
       setSubmodelDeployed(true);
       alert('Submodel Service erfolgreich deployed!');
@@ -40,38 +44,29 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   };
 
   const handleRegisterSubmodel = async () => {
+    if (!formData.submodelServiceUrl) {
+      alert('Bitte gib eine Service URL ein.');
+      return;
+    }
+
     try {
-      await apiClient.post('/submodel/register', {
+      setIsConnecting(true);
+      const response = await apiClient.post('/submodel/connect', {
         url: formData.submodelServiceUrl,
-        bpn: formData.bpn
+        bpn: formData.bpn || null,
       });
-      alert('Submodel Service erfolgreich registriert!');
+
+      if (response.status === 200) {
+        alert(`Service erfolgreich verbunden: ${formData.submodelServiceUrl}`);
+        setCurrentStep(currentStep + 1);
+      } else {
+        alert(`Fehler: ${response.statusText}`);
+      }
     } catch (error) {
-      console.error('Failed to register submodel:', error);
-      alert('Fehler bei der Registrierung des Submodel Service');
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const handleSkip = () => {
-    setHasSkipped(true);
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      handleSubmit();
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      console.error('Failed to connect existing submodel:', error);
+      alert('Fehler beim Verbinden mit dem Submodel Service');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -89,8 +84,24 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     onClose();
   };
 
+  const yamlPreview = `edc:
+  name: ${formData.name || '<EDC Name>'}
+  version: ${formData.version || '<Version>'}
+  endpoint: ${formData.url || '<https://edc.example.com>'}
+  bpn: ${formData.bpn || '<BPNL000000000000>'}
+  registry:
+    url: ${formData.registryUrl || '<https://registry.example.com>'}
+    credentials: ${formData.registryCredentials ? '******' : '<none>'}
+`;
+
+  const copyYaml = async () => {
+    await navigator.clipboard.writeText(yamlPreview);
+    alert('YAML-Konfiguration kopiert!');
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
+      /** STEP 1 — SUBMODEL SERVICE **/
       case 1:
         return (
           <div className="space-y-6">
@@ -103,7 +114,8 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 </span>
               )}
             </div>
-            
+
+            {/* Auswahl: Neuer oder bestehender Service */}
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <button
                 onClick={() => setSubmodelMode('new')}
@@ -127,6 +139,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               </button>
             </div>
 
+            {/* Eingabefelder */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Service URL
@@ -134,12 +147,18 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               <input
                 type="text"
                 value={formData.submodelServiceUrl}
-                onChange={(e) => setFormData({ ...formData, submodelServiceUrl: e.target.value })}
-                placeholder={submodelMode === 'new' ? "https://new-submodel-service.example.com" : "https://existing-submodel-service.example.com"}
+                onChange={(e) =>
+                  setFormData({ ...formData, submodelServiceUrl: e.target.value })
+                }
+                placeholder={
+                  submodelMode === 'new'
+                    ? 'https://new-submodel-service.example.com'
+                    : 'https://existing-submodel-service.example.com'
+                }
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
-            
+
             {submodelMode === 'new' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -148,13 +167,15 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 <input
                   type="text"
                   value={formData.submodelApiKey}
-                  onChange={(e) => setFormData({ ...formData, submodelApiKey: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, submodelApiKey: e.target.value })
+                  }
                   placeholder="Enter API key"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
             )}
-            
+
             <div className="flex gap-3 pt-4 border-t">
               {submodelMode === 'new' ? (
                 <>
@@ -178,107 +199,177 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               ) : (
                 <button
                   onClick={handleRegisterSubmodel}
-                  disabled={!formData.submodelServiceUrl || !formData.bpn}
+                  disabled={!formData.submodelServiceUrl || isConnecting}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Connect Existing Service
+                  {isConnecting ? 'Connecting...' : 'Connect Existing Service'}
                 </button>
               )}
             </div>
           </div>
         );
+
+      /** STEP 2 — DIGITAL TWIN REGISTRY **/
       case 2:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">EDC Configuration</h3>
+            <h3 className="text-lg font-semibold">Digital Twin Registry</h3>
+            <p className="text-sm text-gray-500">
+              Verbinde deinen Digital Twin Registry Service.
+            </p>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                EDC Name
+                Registry URL
               </label>
               <input
                 type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Provider EDC"
+                value={formData.registryUrl}
+                onChange={(e) =>
+                  setFormData({ ...formData, registryUrl: e.target.value })
+                }
+                placeholder="https://registry.example.com"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                EDC URL
+                Credentials (z. B. API Key oder Token)
               </label>
               <input
-                type="text"
-                value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                placeholder="https://edc.example.com"
+                type="password"
+                value={formData.registryCredentials}
+                onChange={(e) =>
+                  setFormData({ ...formData, registryCredentials: e.target.value })
+                }
+                placeholder="••••••••"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                EDC Version
-              </label>
-              <select
-                value={formData.version}
-                onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="0.6.0">0.6.0</option>
-                <option value="0.7.0">0.7.0</option>
-                <option value="0.8.0">0.8.0</option>
-              </select>
-            </div>
+
+            <button
+              disabled={!formData.registryUrl}
+              onClick={() => setCurrentStep(currentStep + 1)}
+              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Connect Registry
+            </button>
           </div>
         );
+
+      /** STEP 3 — EDC DEPLOYMENT CONFIG **/
       case 3:
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">BPN Configuration</h3>
-            <div>
+            <h3 className="text-lg font-semibold">EDC Deployment Configuration</h3>
+            <p className="text-sm text-gray-500">
+              Bitte gib die EDC-Informationen für den Deployment-Vorgang ein.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  EDC Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="Provider EDC"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  EDC Version
+                </label>
+                <select
+                  value={formData.version}
+                  onChange={(e) =>
+                    setFormData({ ...formData, version: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="0.6.0">0.6.0</option>
+                  <option value="0.7.0">0.7.0</option>
+                  <option value="0.8.0">0.8.0</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Endpoint URL
+                </label>
+                <input
+                  type="text"
+                  value={formData.url}
+                  onChange={(e) =>
+                    setFormData({ ...formData, url: e.target.value })
+                  }
+                  placeholder="https://edc.example.com"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Business Partner Number (BPN)
+                </label>
+                <input
+                  type="text"
+                  value={formData.bpn}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bpn: e.target.value })
+                  }
+                  placeholder="BPNL000000000000"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* YAML Preview */}
+            <div className="mt-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Business Partner Number (BPN)
+                YAML Preview
               </label>
-              <input
-                type="text"
-                value={formData.bpn}
-                onChange={(e) => setFormData({ ...formData, bpn: e.target.value })}
-                placeholder="BPNL000000000000"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <textarea
+                  readOnly
+                  value={yamlPreview}
+                  rows={6}
+                  className="w-full font-mono text-sm px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                />
+                <button
+                  onClick={copyYaml}
+                  className="absolute top-2 right-2 p-2 text-gray-500 hover:text-gray-800"
+                  title="Copy YAML"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
             </div>
           </div>
         );
+
+      /** STEP 4 — REVIEW & DEPLOY **/
       case 4:
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Review & Deploy</h3>
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <div>
-                <span className="text-sm text-gray-500">EDC Name:</span>
-                <p className="font-medium">{formData.name || 'Not specified'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500">EDC URL:</span>
-                <p className="font-medium">{formData.url || 'Not specified'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500">BPN:</span>
-                <p className="font-medium">{formData.bpn || 'Not specified'}</p>
-              </div>
-              <div>
-                <span className="text-sm text-gray-500">Version:</span>
-                <p className="font-medium">{formData.version}</p>
-              </div>
-              {submodelDeployed && (
-                <div>
-                  <span className="text-sm text-gray-500">Submodel Service:</span>
-                  <p className="font-medium text-green-600">✓ Deployed</p>
-                </div>
-              )}
+              <p><strong>EDC Name:</strong> {formData.name}</p>
+              <p><strong>Version:</strong> {formData.version}</p>
+              <p><strong>Endpoint:</strong> {formData.url}</p>
+              <p><strong>BPN:</strong> {formData.bpn}</p>
+              <p><strong>Registry:</strong> {formData.registryUrl}</p>
             </div>
           </div>
         );
+
       default:
         return null;
     }
@@ -289,7 +380,9 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4">
         <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Deploy EDC Connector</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Deploy EDC Connector
+            </h2>
             <p className="text-sm text-gray-500 mt-1">
               Step {currentStep} of {totalSteps}
             </p>
@@ -327,9 +420,9 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
             >
               Cancel
             </button>
-            {(currentStep > 1 || hasSkipped) && (
+            {currentStep > 1 && (
               <button
-                onClick={handlePrevious}
+                onClick={() => setCurrentStep(currentStep - 1)}
                 className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
               >
                 Previous
@@ -337,16 +430,12 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
             )}
           </div>
           <div className="flex gap-3">
-            {currentStep < totalSteps && (
-              <button
-                onClick={handleSkip}
-                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-              >
-                Skip
-              </button>
-            )}
             <button
-              onClick={handleNext}
+              onClick={
+                currentStep < totalSteps
+                  ? () => setCurrentStep(currentStep + 1)
+                  : handleSubmit
+              }
               className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
             >
               {currentStep === totalSteps ? 'Deploy EDC' : 'Next'}

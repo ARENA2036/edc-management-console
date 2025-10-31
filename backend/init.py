@@ -208,30 +208,45 @@ async def deploy_submodel_service(data: dict, user=Depends(keycloak_openid.get_c
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.post("/api/submodel/register", tags=["Submodel"])
-async def register_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
-    """Register a submodel service independently"""
+@app.post("/api/submodel/connect", tags=["Submodel"])
+async def connect_existing_submodel_service(
+        data: dict,
+        user=Depends(keycloak_openid.get_current_user)
+):
+    """Connect to an existing submodel service"""
     try:
         url = data.get("url")
         bpn = data.get("bpn")
-        
-        if not url or not bpn:
-            return HttpUtils.get_error_response(status=400, message="URL and BPN are required")
-        
+
+        if not url:
+            return HttpUtils.get_error_response(status=400, message="URL is required")
+
+        # Optional: Überprüfe, ob der Service erreichbar ist
+        import requests
+        health_url = f"{url.rstrip('/')}/api/health"
+        try:
+            check = requests.get(health_url, timeout=5)
+            reachable = check.status_code == 200
+        except Exception:
+            reachable = False
+
+        # Logge den Connect-Vorgang
         database_manager.log_activity(
-            action="REGISTER_SUBMODEL",
-            details=f"Submodel service registered by {user['preferred_username']}: {url} (BPN: {bpn})",
-            status="success"
+            action="CONNECT_SUBMODEL",
+            details=f"Existing submodel service connected by {user['preferred_username']}: {url} (BPN: {bpn})",
+            status="success" if reachable else "warning"
         )
-        
+
         return {
-            "message": f"Submodel service registered by {user['preferred_username']}",
+            "message": f"Submodel service connected by {user['preferred_username']}",
             "data": {
                 "url": url,
                 "bpn": bpn,
-                "status": "registered"
+                "reachable": reachable,
+                "status": "connected" if reachable else "unreachable"
             }
         }
+
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

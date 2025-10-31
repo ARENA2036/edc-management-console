@@ -12,21 +12,31 @@ class DatabaseManager:
         self.database_url = database_url
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        self.create_tables()
+     #   self.create_tables()
 
     def create_tables(self):
         Base.metadata.create_all(bind=self.engine)
         logger.info("[DatabaseManager] Database tables created successfully")
-        
+
+        # Prüfen, welches DB-System genutzt wird
+        dialect = self.engine.dialect.name
+        if dialect == "sqlite":
+            logger.info("[DatabaseManager] SQLite detected – skipping migration check.")
+            return
+
+        # Nur für PostgreSQL / MySQL Migration prüfen
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
+                result = conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='connectors' AND column_name='version'"
+                ))
                 if not result.fetchone():
-                    conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
+                    conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.8.0'"))
                     conn.commit()
                     logger.info("[DatabaseManager] Added version column to connectors table")
         except Exception as e:
-            logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
+            logger.warning(f"[DatabaseManager] Migration check failed: {str(e)}")
 
     def get_session(self) -> Session:
         return self.SessionLocal()
@@ -92,8 +102,8 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def log_activity(self, action: str, details: Optional[str] = None, 
-                     connector_id: Optional[int] = None, 
+    def log_activity(self, action: str, details: Optional[str] = None,
+                     connector_id: Optional[int] = None,
                      connector_name: Optional[str] = None,
                      status: Optional[str] = None):
         session = self.get_session()
