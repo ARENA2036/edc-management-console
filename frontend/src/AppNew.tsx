@@ -202,11 +202,7 @@ function Settings() {
     const loadSettings = async () => {
       try {
         const token = localStorage.getItem('keycloak_token');
-<<<<<<< HEAD
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
-=======
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8008'}/api/dataspace`, {
->>>>>>> 3e2cf02 (Enhance deployment with SDE link, Keycloak sync, and scripting)
           headers: {
             'Authorization': `Bearer ${token}`
           }

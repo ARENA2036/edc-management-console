@@ -1,10 +1,6 @@
 # ARENA2036 EDC Management Console
 
-<<<<<<< HEAD
 EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
-=======
-Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
->>>>>>> 4aea207 (Implement secure user authentication and enhance dashboard features)
 
 ## Features
 
@@ -13,10 +9,6 @@ Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connect
 - 🚀 **EDC Deployment Wizard** - Step-by-step EDC deployment
 - 📋 **Connector Management** - Full CRUD operations for EDC connectors
 - 📈 **Activity Logging** - Track all system activities
-<<<<<<< HEAD
-=======
-- 🎨 **Modern UI** - ARENA2036 design with orange/white theme
->>>>>>> 4aea207 (Implement secure user authentication and enhance dashboard features)
 
 ## Technology Stack
 
@@ -24,11 +16,6 @@ Enterprise-grade management platform for TractusX EDC (Eclipse Dataspace Connect
 - **Python 3.11** with FastAPI
 - **PostgreSQL** database with SQLAlchemy ORM
 - **API Key Authentication** (Keycloak integration ready)
-<<<<<<< HEAD
-
-=======
-- TractusX SDK architecture (managers, services, models, utilities)
->>>>>>> 4aea207 (Implement secure user authentication and enhance dashboard features)
 
 ### Frontend
 - **React 18** with TypeScript
