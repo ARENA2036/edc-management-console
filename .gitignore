@@ -16,3 +16,5 @@ parts/
 sdist/
 var/
 
+Chart.lock
+charts/
