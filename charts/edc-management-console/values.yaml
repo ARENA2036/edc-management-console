@@ -1,0 +1,302 @@
+# Default values for edc-management-console.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This is to override the chart name.
+name: "edc-management-console"
+nameOverride: ""
+fullnameOverride: ""
+
+backend:
+  enabled: true
+  name: "emc-backend"
+  # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+  replicaCount: 1
+  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  image:
+    repository: nginx
+    # This sets the pull policy for images.
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    className: "nginx"
+    annotations:
+      # kubernetes.io/tls-acme: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - host: &hostname "emc-backend.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: default-ssl-certificate
+        hosts:
+          - *hostname
+
+  # -- Existing image pull secret to use to [obtain the container image from private registries](https://kubernetes.io/docs/concepts/containers/images/#using-a-private-registry)
+  imagePullSecrets:
+    - name: acr-pull-secret
+  podAnnotations: {}
+    # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+  service:
+    # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+    type: ClusterIP
+    # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+    port: 80
+
+  authorization:
+    enabled: true
+    apiKey:
+      key: "X-Api-Key"
+      value: ifs-api-key
+
+  flags:
+    - industry: chemicals
+
+    - industry: automotive
+      mimetype: application/json
+      proof: >
+        {
+          "result": true
+        }
+
+  startup:
+    checks: False
+    refresh_interval: 10
+
+  ifs:
+    ## Refresh interval for the cache of applications
+    refresh_interval: 1440
+    ## DCT Type used to find the applications in the cache
+    dct_type: "IndustryFlagService"
+    ## JSON array of policies that are allowed to be used
+    policies: >
+      [
+        {
+          "odrl:permission": {
+              "odrl:action": {
+                  "@id": "odrl:use"
+              },
+              "odrl:constraint": {
+                "odrl:leftOperand": {
+                    "@id": "cx-policy:UsagePurpose"
+                },
+                "odrl:operator": {
+                    "@id": "odrl:eq"
+                },
+                "odrl:rightOperand": "catenax.industryflagservice"
+            }
+          },
+          "odrl:prohibition": [],
+          "odrl:obligation": []
+        }
+      ]
+
+  edc:
+    url: "https://control.plane.url"
+    apis:
+      readiness: "/api/check/readiness"
+      catalog: "/management/v3/catalog/request"
+      edr_prefix: "/management/v2/edrs"
+      view_edr: "/request"
+      transfer_edr: "/dataaddress?auto_refresh=true"
+      dsp: "/api/v1/dsp"
+
+    oauth:
+      apiKey: ""
+
+    participantId: ""
+
+    dct_type_key: "'http://purl.org/dc/terms/type'.'@id'"
+
+    cache:
+      expiration_time: 60
+
+  discovery:
+    url: "https://TODO__XXX__YOUR_VALUE___XXX.cofinity-x.com/api/v1.0/administration/connectors/discovery/search"
+    keys:
+      edc_discovery: "bpnl"
+
+  catenax:
+    centralidp:
+      url: "https://TODO__XXX__YOUR_VALUE___XXX.cofinity-x.com/auth/"
+      realm: CX-Central
+      clientid: "TODO__XXX__YOUR_VALUE___XXX"
+      clientsecret: "TODO__XXX__YOUR_VALUE___XXX"
+
+  resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  ## Additional volumes on the output Deployment definition.
+  volumes:
+    # -- persist the backend configuration
+    - name: emc-backend-config
+      configMap:
+        name: "{{ .Release.Name }}-emc-backend-config"
+    # -- persist the backend data directories
+    - name: pvc-emc-backend
+      persistentVolumeClaim:
+        claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
+    # -- temporary file system mount
+    - name: tmpfs
+      emptyDir: {}
+    #  - name: secrets-store
+    #    csi:
+    #      driver: secrets-store.csi.k8s.io
+    #      readOnly: true
+    #      volumeAttributes:
+    #        secretProviderClass: "secrets-provider
+
+    # -- specifies the volume mounts for the backend deployment
+  volumeMounts:
+    # -- mounted path for the backend configuration added in the config maps
+    - name: emc-backend-config
+      mountPath: /backend/config
+    # -- contains the location for the process data directory
+    - name: pvc-emc-backend
+      mountPath: /backend/data
+      subPath: data
+    # -- contains the log directory uses by the backend
+    - name: tmpfs
+      mountPath: /backend/logs
+      subPath: logs
+
+frontend:
+  enabled: true
+  name: "emc-frontend"
+  # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+  replicaCount: 1
+  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  image:
+    repository: nginx
+    # This sets the pull policy for images.
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+  imagePullSecrets:
+    - name: acr-pull-secret
+
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    className: "nginx"
+    annotations:
+      # kubernetes.io/tls-acme: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      # nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+    hosts:
+      - host: &hostname "emc-frontend.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: default-ssl-certificate
+        hosts:
+          - *hostname
+
+  resources: { }
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  volumeMounts: []
+
+  # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
