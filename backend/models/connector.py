@@ -5,10 +5,10 @@ from pydantic import BaseModel
 
 ## Define here the search parameters or filters 
 class Connector(BaseModel):
-    connector_name: str
+    name: str
     bpn: str
     version: str
-    connector_url: str
+    url: str
     iatp_id: Optional[str] = None
     trustedIssuers: Optional[str] = None
     sts_dim_url: Optional[str] = None
@@ -22,6 +22,8 @@ class Connector(BaseModel):
     db_username: Optional[str] = "user"
     db_password: Optional[str] = ""
 
+    def to_dict() -> dict:
+        return 
 
 class DigitalTwinRegistry:
     pass

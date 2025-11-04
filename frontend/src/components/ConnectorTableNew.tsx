@@ -57,11 +57,11 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                      connector.status === 'connected'
+                      connector.status === 'deployed'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-red-100 text-red-700'
                     }`}>
-                      {connector.status === 'connected' ? 'Connected' : 'Disconnected'}
+                      {connector.status === 'deployed' ? 'Connected' : 'Disconnected'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">

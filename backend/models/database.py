@@ -1,7 +1,6 @@
 from datetime import datetime
 
-from pydantic import UUID4
-from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, JSON
+from sqlalchemy import Uuid, Column, String, Integer, DateTime, Text, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 
@@ -11,13 +10,13 @@ Base = declarative_base()
 class Connector(Base):
     __tablename__ = "connectors"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(50), primary_key=True, index=True)
     name = Column(String(255), unique=True, nullable=False, index=True)
     url = Column(String(512), nullable=False)
     bpn = Column(String(255), nullable=True)
     version = Column(String(50), default="0.6.0", nullable=True)
     status = Column(String(50), default="unknown")
-    config = Column(JSON, nullable=True)
+    config = Column(JSON, nullable=True,  default=lambda: {})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -39,7 +38,7 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    connector_id = Column(Integer, nullable=True)
+    connector_id = Column(Uuid, nullable=True)
     connector_name = Column(String(255), nullable=True)
     action = Column(String(100), nullable=False)
     details = Column(Text, nullable=True)

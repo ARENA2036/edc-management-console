@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, Uuid
 from sqlalchemy.orm import sessionmaker, Session
 from models.database import Base, Connector, ActivityLog
 from typing import List, Optional
@@ -12,34 +12,38 @@ class DatabaseManager:
         self.database_url = database_url
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-#         self.create_tables()
+        self.create_tables()
 
     def create_tables(self):
+        Base.metadata.drop_all(bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
         logger.info("[DatabaseManager] Database tables created successfully")
-        try:
-            with self.engine.connect() as conn:
-                # result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
-                # if not result.fetchone():
+        # try:
+        #     with self.engine.connect() as conn:
+        #         # result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
+        #         # if not result.fetchone():
 
-                conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
-                conn.commit()
-                logger.info("[DatabaseManager] Added version column to connectors table")
-        except Exception as e:
-            logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
+        #         conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
+        #         conn.commit()
+        #         logger.info("[DatabaseManager] Added version column to connectors table")
+        # except Exception as e:
+        #     logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
 
     def get_session(self) -> Session:
         return self.SessionLocal()
 
-    def create_connector(self, id: int, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
+    def create_connector(self, id: str, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
         session = self.get_session()
         try:
-            connector = Connector(id=id, name=name, url=url, bpn=bpn, version=version or "0.6.0", config=config)
+            connector = Connector(id=id, name=name, url=url, bpn=bpn, version=version)
+            # logger.info(f"{connector}")
+            print(connector)
             session.add(connector)
             session.commit()
             session.refresh(connector)
             logger.info(f"[DatabaseManager] Created connector: {name}")
             return connector
+            # Add exception catch and session rollback
         finally:
             session.close()
 

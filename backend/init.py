@@ -9,13 +9,14 @@ from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from managers import init_db, init_edc, init_activity
 from auth.keycloak_config import keycloak_openid
-from managers import database_manager, edc_manager, activity_manager
-from managers import DatabaseManager, edc_manager, activity_manager
+# from managers import database_manager, edc_manager, activity_managerr
 from models.requests import ConnectorCreate, ConnectorUpdate
 from models.connector import Connector
+# from models.database import Connector
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager
+from managers.databaseManager import DatabaseManager
 from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
 from utilities.operators import op
@@ -107,11 +108,10 @@ async def list_connectors(request: Request):
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        ##edcService = EdcService()
         response: dict = edcService.get_all_connectors(namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
         if (response.get("status_code", 0) != 200):
             raise
-        data: dict = response.get("data", {}).split("\n")
+        data = response.get("data", {}).split("\n")
         if (len(data) == 2):
             return HttpUtils.response(
                 status=200,
@@ -119,36 +119,51 @@ async def list_connectors(request: Request):
                 message="No EDCs found"
             )
 
+        existingDeployments = databaseManager.get_all_connectors()
+        connectorMap: dict = {}
+        for cnctor in existingDeployments:
+            connectorMap[cnctor.name] = cnctor 
+
+        
         json_list: list = []
-        for index, value in  enumerate(data):
-            # skip the 0th index, its the header
-            if (len(data) != (index+1)):
-                formatted_response: dict = data[index+1].split("\t")
-                if (formatted_response[0] != ""):
-                    json_object: dict = {
-                        "id": str(uuid.uuid4()),
-                        "Name": str(formatted_response[0]).replace(' ',''),
-                        "Namespace": str(formatted_response[1]).replace(' ',''),
-                        "Revision": str(formatted_response[2]).replace(' ',''),
-                        "Updated": str(formatted_response[3]).replace(' ',''),
-                        "Status": str(formatted_response[4]).replace(' ',''),
-                        "Chart": str(formatted_response[5]).replace(' ',''),
-                        "App_Version": str(formatted_response[6]).replace(' ','')
-                    }
-                    json_list.append(json_object)
+        # iterate from first to second last element (last is empty string)
+        for i in range(1, len(data) - 1):
+            name,  namespace, revision, updated, status, chart, version = data[i].split('\t')
+            json_list.append({
+                "id": connectorMap.get(name).id,
+                "name": name,
+                "url": connectorMap.get(name).url,
+                "bpn": connectorMap.get(name).bpn,
+                "status": status,
+                "namespace": namespace,
+                "revision": revision,
+                "updated": updated,
+                "chart": chart,
+                "version": version                 
+            })
+
+        # for index, value in  enumerate(data):
+        #     # skip the 0th index, its the header
+        #     if (len(data) != (index+1)):
+        #         formatted_response: dict = data[index+1].split("\t")
+        #         if (formatted_response[0] != ""):
+        #             json_object: dict = {
+        #                 "id": str(uuid.uuid4()),
+        #                 "name": str(formatted_response[0]).replace(' ',''),
+        #                 "url": str(formatted_response[1]).replace(' ',''),
+        #                 "Revision": str(formatted_response[2]).replace(' ',''),
+        #                 "Updated": str(formatted_response[3]).replace(' ',''),
+        #                 "status": str(formatted_response[4]).replace(' ',''),
+        #                 "Chart": str(formatted_response[5]).replace(' ',''),
+        #                 "version": str(formatted_response[6]).replace(' ','')
+        #             }
+        #             json_list.append(json_object)
 
 
         return HttpUtils.response(
             status=200,
-            data=json_list)
-
-        # connectors = database_manager.get_all_connectors()
-        # if connectors is not None:
-        #     logger.info(f"Retrieving list of connectors...")
-        #
-        # return {
-        #     "data": [conn.to_dict() for conn in connectors]
-        # }
+            data=json_list
+        )
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
@@ -174,51 +189,38 @@ async def add_connector(connector: Connector, request: Request):
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        # set edc helm chart directory
-        edcManager.add_edc(connector)
-        #edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
-        response: dict = edcService.install_helm_chart(deployment_name=connector.connector_name, values_files=["install_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
-        if (response.get("status_code", 0) != 200):
-            raise Exception(response.get("data",{}).split('Error')[1])
 
-        data: dict = response.get("data", {}).split("\n")
+        existingDeployments = edcService.get_connector_by_name(
+            connector_name=connector.name,
+            namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
+        )
+        print(existingDeployments)
+        if len(existingDeployments.get("data")) == 0:
+            # set edc helm chart directory
+            edcManager.add_edc(connector)
+            #edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
+            response: dict = edcService.install_helm_chart(deployment_name=connector.name, 
+                                                           values_files=["install_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
+                                                        )
+            if (response.get("status_code", 0) != 200):
+                raise Exception(response.get("data",{}).split('Error')[1])
+
+
         connector_id = str(uuid.uuid4())
 
-        # existing = database_manager.get_connector_by_name(connector.name)
-        # if existing:
-        #     return HttpUtils.get_error_response(status=400, message="Connector already exists")
-        #
-        # version = connector.config.get('version') if connector.config else None
-        # new_connector = databaseManager.create_connector(
-        #     id=1,
-        #     name=connector.connector_name,
-        #     url=connector.connector_url,
-        #     bpn=connector.bpn,
-        #     config={}
-        #  )
-        #
-        # databaseManager.log_activity(
-        #     action="CREATE_CONNECTOR",
-        #     connector_id=new_connector.id,
-        #     connector_name=new_connector.name,
-        #     details=f"Connector created",
-        #     status="success"
-        # )
+        connector_db = databaseManager.create_connector(
+            id = connector_id,
+            name = connector.name,
+            url=connector.url,
+            bpn=connector.bpn,
+        )
+
 
         return HttpUtils.response(
             status=200,
-            data={
-                "id": connector_id,
-                "Name": str(data[0].split()[1]),
-                "Namespace": str(data[2].split()[1]),
-                "Status": str(data[3].split()[1]),
-                "Revision": str(data[4].split()[1])
-            })
+            data=connector_db.to_dict()
+        )
 
-        # return {
-        #     "message": f"Connector created by {user['preferred_username']}",
-        #     "data": new_connector.to_dict()
-        # }
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

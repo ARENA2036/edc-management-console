@@ -114,11 +114,10 @@ class EdcService:
             logger.error(f"[EdcService] Internal Server error, list EDCs failed: {str(e)}")
             return {"status_code": 500, "data": e}
 
-    def get_connector_by_id(self, namespace, connector_id):
+    def get_connector_by_name(self, namespace, connector_name):
         try:
             ## TODO: get connector_name by Id
-            connector_name = connector_id
-            result = subprocess.run(f"helm list {connector_name} --namespace {namespace}", shell=True, capture_output=True, text=True)
+            result = subprocess.run(f"helm list --namespace {namespace} | grep -i {connector_name}", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to get the EDC, return code: {str(result.returncode)}")
                 raise
