@@ -25,6 +25,7 @@ function Dashboard() {
       console.error('Failed to load connectors:', error);
     }
   };
+  console.log(loadConnectors);
 
   const loadActivityLogs = async () => {
     try {
@@ -40,7 +41,7 @@ function Dashboard() {
       const token = localStorage.getItem('keycloak_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'X-Api-Key': `emc-api-key`
         }
       });
       const data = await response.json();
@@ -82,7 +83,7 @@ function Dashboard() {
     }
   };
 
-  const activeConnectors = connectors.filter(c => c.status === 'connected').length;
+  const activeConnectors = connectors.filter(c => c.status === 'deployed').length;
 
   return (
     <>

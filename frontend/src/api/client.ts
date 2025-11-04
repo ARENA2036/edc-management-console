@@ -6,29 +6,30 @@ export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'X-Api-Key': 'emc-api-key',
   },
 });
 
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// apiClient.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem('token');
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   }
+// );
 
 export const connectorApi = {
   getAll: () => apiClient.get('/connectors'),
   getById: (id: number) => apiClient.get(`/connectors/${id}`),
-  create: (data: any) => apiClient.post('/connectors', data),
+  create: (data: any) => apiClient.post('/connector', data),
   update: (id: number, data: any) => apiClient.put(`/connectors/${id}`, data),
   delete: (id: number) => apiClient.delete(`/connectors/${id}`),
-  checkHealth: (id: number) => apiClient.get(`/connectors/${id}/health`),
+  checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
 };
 
 export const healthApi = {

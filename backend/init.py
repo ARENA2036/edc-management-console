@@ -466,6 +466,12 @@ def init_app(host: str, port: int, log_level: str = "info"):
     init_edc(settings)
     init_activity()
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=['*'],
+        allow_methods=['*'],
+        allow_headers=['*']
+    )
 
     uvicorn.run(app, host=host, port=port, log_level=log_level)
 
