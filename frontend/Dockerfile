@@ -1,7 +1,7 @@
 #################################################################################
-# Tractus-X - Industry Flag Service
+# ARENA - Industry Flag Service
 #
-# Copyright (c) 2025 CGI Deutschland B.V. & Co. KG
+# Copyright (c) 2025 ARENA2036 e.V.
 # Copyright (c) 2025 Contributors to the Eclipse Foundation
 #
 # See the NOTICE file(s) distributed with this work for additional

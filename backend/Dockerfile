@@ -1,43 +1,51 @@
-FROM alpine:3.19
+FROM python:3.14.0-alpine3.22 AS builder
 
 USER root
 
-## Move all the files from the project to the metareg directory
-COPY ./ /backend
-
-WORKDIR /backend
-
-RUN apk add --no-cache python3 py3-pip
-
-# Create a virtual environment
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Upgrade pip and install dependencies in the venv
-RUN pip install --upgrade pip -r ./requirements.txt
-
-
-## Create user groups
+# Create user groups
 RUN addgroup -g 3000 appgroup \
 	&& adduser -u 1000 -g 3000 -h /home/nonroot -D nonroot
 
-## Specify the volumes
+COPY . /app
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    python3-dev \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    bzip2-dev \
+    zlib-dev \
+    xz-dev \
+    readline-dev \
+    sqlite-dev \
+    rust \
+    cargo
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --upgrade pip setuptools wheel && \
+    pip install pydantic-core==2.33.2 && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Specify the volumes
 VOLUME ./data ./logs
 
-## Create the directories
-RUN mkdir -p ./logs
-RUN mkdir -p ./data
+# Create the directories
+RUN mkdir -p ./logs && \
+    mkdir -p ./data
 
 ## Update user permissions
-RUN chown -R 1000:3000 /backend && chmod -R 775 /backend/
+RUN chown -R 1000:3000 /app && chmod -R 775 /app/
 
-COPY ./resources/docs/* ./resources/docs
-
-## Choose the user
+# Choose the user
 USER 1000:3000
 
 ## Expose default port
-EXPOSE 8000
+EXPOSE 8001
 
 ## Execute the application
-CMD ["python3","./init.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3","./init.py", "--host", "0.0.0.0", "--port", "8001"]
