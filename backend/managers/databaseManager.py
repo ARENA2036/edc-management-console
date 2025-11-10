@@ -12,7 +12,7 @@ class DatabaseManager:
         self.database_url = database_url
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-     #   self.create_tables()
+        self.create_tables()
 
     def create_tables(self):
         Base.metadata.drop_all(bind=self.engine)

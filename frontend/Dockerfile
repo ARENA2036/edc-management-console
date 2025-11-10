@@ -1,7 +1,7 @@
 #################################################################################
-# Tractus-X - Industry Flag Service
+# Tractus-X - EDC Management Console
 #
-# Copyright (c) 2025 CGI Deutschland B.V. & Co. KG
+# Copyright (c) 2025 ARENA2036 e.V.
 # Copyright (c) 2025 Contributors to the Eclipse Foundation
 #
 # See the NOTICE file(s) distributed with this work for additional
@@ -20,6 +20,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #################################################################################
+
 
 # stage1 as builder
 FROM node:lts-alpine as builder

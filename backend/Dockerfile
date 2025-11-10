@@ -1,7 +1,7 @@
 #################################################################################
-# Tractus-X - Industry Flag Service
+# Tractus-X - EDC Management Console
 #
-# Copyright (c) 2025 CGI Deutschland B.V. & Co. KG
+# Copyright (c) 2025 ARENA2036 e.V.
 # Copyright (c) 2025 Contributors to the Eclipse Foundation
 #
 # See the NOTICE file(s) distributed with this work for additional
@@ -77,7 +77,7 @@ RUN chown -R 1000:3000 /backend && chmod -R 775 /backend/ \
 USER 1000:3000
 
 ## Expose default port
-EXPOSE 8000
+EXPOSE 8001
 
 ## Execute the application
-CMD ["python3","./init.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3","./init.py", "--host", "0.0.0.0", "--port", "8001"]
