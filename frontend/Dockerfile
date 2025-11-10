@@ -1,5 +1,5 @@
 #################################################################################
-# ARENA - Industry Flag Service
+# Tractus-X - EDC Management Console
 #
 # Copyright (c) 2025 ARENA2036 e.V.
 # Copyright (c) 2025 Contributors to the Eclipse Foundation
@@ -20,6 +20,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #################################################################################
+
 
 # stage1 as builder
 FROM node:lts-alpine as builder
@@ -69,6 +70,6 @@ USER 10000:10001
 
 EXPOSE 8080
 
-ENTRYPOINT ["sh","/entrypoint.sh"]
+# ENTRYPOINT ["sh","/entrypoint.sh"]
 
 CMD ["nginx", "-g", "daemon off;"]
