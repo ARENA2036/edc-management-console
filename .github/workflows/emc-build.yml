@@ -24,7 +24,7 @@ name: emc-build
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "backend"]
   workflow_dispatch:
     inputs:
       image_tag:
