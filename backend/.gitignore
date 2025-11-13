@@ -36,3 +36,5 @@ logs/
 *~
 backend/.env
 *.db
+tractusx-connector/*edc*.yaml
+tractusx-connector/*.db
