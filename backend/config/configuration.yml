@@ -64,7 +64,20 @@ edc:
     view_edr: "/request"
     transfer_edr: "/dataaddress?auto_refresh=true"
     dsp: "/api/v1/dsp"
+  hostname:
+    cp: controlplane.arena2036-x.de
+    dp: dataplane.arena2036-x.de
 
 database:
   url: "${DATABASE_URL}"
   echo: false
+
+files:
+  charts:
+    v9: /Chart_v9.yaml
+    v10: /Chart_v10.yaml
+    v11: /Chart_v11.yaml
+  values:
+    v9: /values_v9.yaml
+    v10: /values_v10.yaml
+    v11: /values_v11.yaml

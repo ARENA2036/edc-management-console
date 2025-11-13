@@ -2,12 +2,13 @@ import base64
 import subprocess
 import os
 import urllib.parse
-import logging.config
-
+import requests
 import yaml
 from urllib import *
+import logging
 
 from models.connector import Connector
+logger = logging.getLogger(__name__)
 
 SUB_DIR = "charts/umbrella"
 DEFAULT_VALUES_FILE = "values.yaml"
@@ -60,48 +61,56 @@ def upgrade_helm_chart(deployment_name:str, values_files:list, namespace:str):
     subprocess.run(f"helm upgrade -i {deployment_name} {formatted_files} --namespace {namespace} --debug .")
     print(f"Upgrade helm chart successful...")
 
-def parse_yaml(connector: Connector, helm_chart_dir:str, action:str ="install"):
-    try:
-        if helm_chart_dir is None:
-            return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
+def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files_config: dict = {}):
+    # try:
+    if helm_chart_dir is None:
+        return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
+    print(connector.version)
+    version_no = int(connector.version.split('.')[1])
+    if version_no == 9:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v9")
+    elif version_no == 10:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v10")
+    elif version_no == 11:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v11")
+    
+    # Step 1: Open and parse the existing YAML file
+    with open(os.path.abspath(full_path), "r") as file:
+        data = yaml.safe_load(file)
 
-        full_path = helm_chart_dir + "/values.yaml"
+    # # Step 2: Append or update values
+    # # Example: updating participant.id
+    data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
+    data.setdefault("iatp", {})["id"] = f"{connector.iatp_id}"
+    data.setdefault("iatp", {})["trustedIssuers"][0] = f"{connector.trustedIssuers}"
+    data.setdefault("iatp", {})["sts"]["dim"]["url"] = f"{connector.sts_dim_url}"
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("dim",{})["url"] = connector.sts_dim_url
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{})["token_url"] = connector.sts_oauth_tokenUrl
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["id"] = connector.sts_oauth_client_id
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["secret_alias"] = connector.sts_oauth_secretAlias
 
-        # Step 1: Open and parse the existing YAML file
-        with open(full_path, "r") as file:
-            data = yaml.safe_load(file)
+    data.setdefault("controlplane", {}).setdefault("bdrs", {}).setdefault("server",{})["url"] = connector.cp_bdrs_server_url
+    data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.cp_hostname
+    #data.setdefault("controlplane", {}).setdefault("ingresses", {})[1]["hostname"] = f"ax-{connector.cp_hostname}"
+    data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.dp_hostname
 
-        # # Step 2: Append or update values
-        # # Example: updating participant.id
-        data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
-        data.setdefault("iatp", {})["id"] = f"{connector.iatp_id}"
-        data.setdefault("iatp", {})["trustedIssuers"][0] = f"{connector.trustedIssuers}"
-        data.setdefault("iatp", {})["sts"]["dim"]["url"] = f"{connector.sts_dim_url}"
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("dim",{})["url"] = connector.sts_dim_url
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{})["token_url"] = connector.sts_oauth_tokenUrl
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["id"] = connector.sts_oauth_client_id
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["secret_alias"] = connector.sts_oauth_secretAlias
+    data.setdefault("postgresql", {}).setdefault("auth", {})["database"] = connector.db_name
+    data.setdefault("postgresql", {}).setdefault("auth", {})["username"] = connector.db_username
+    data.setdefault("postgresql", {}).setdefault("auth", {})["password"] = connector.db_password
 
-        data.setdefault("controlplane", {}).setdefault("bdrs", {}).setdefault("server",{})["url"] = connector.cp_bdrs_server_url
-        data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.cp_hostname
-        #data.setdefault("controlplane", {}).setdefault("ingresses", {})[1]["hostname"] = f"ax-{connector.cp_hostname}"
-        data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.dp_hostname
+    # Save updated YAML
+    file_path = f"{helm_chart_dir}/{connector.name}_values_{version_no}.yaml"
+    # full_path = os.path.abspath(file_path)
+    with open(file_path, "w") as file:
+        yaml.dump(data, file, sort_keys=False)
 
-        data.setdefault("postgresql", {}).setdefault("auth", {})["database"] = connector.db_name
-        data.setdefault("postgresql", {}).setdefault("auth", {})["username"] = connector.db_username
-        data.setdefault("postgresql", {}).setdefault("auth", {})["password"] = connector.db_password
+    return f"{connector.name}_values_{version_no}.yaml"
+    # except Exception as e:
+    #     logging.error(f"It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
+    #     return {"error": str(e)}
 
-        # Save updated YAML
-        with open(f"{helm_chart_dir}/{action}_values.yaml", "w") as file:
-            yaml.dump(data, file, sort_keys=False)
-
-
-    except Exception as e:
-        logging.error(f"It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
-        return {"error": str(e)}
 
 def delete_file(file_path):
-
     try:
         # Check if the file exists before attempting to delete it
         if os.path.exists(file_path):

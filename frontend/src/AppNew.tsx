@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Database, Activity, Server } from 'lucide-react';
-import { connectorApi, activityApi } from './api/client';
+import { connectorApi, activityApi, edcAPI } from './api/client';
 import type { Connector, ActivityLog } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -16,16 +16,21 @@ function Dashboard() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [dataspaceName, setDataspaceName] = useState('Loading...');
   const [dataspaceBpn, setDataspaceBpn] = useState('');
+  const connectorsRef = useRef<Connector[]>([]);
 
-  const loadConnectors = async () => {
-    try {
-      const response = await connectorApi.getAll();
-      setConnectors(response.data.data || []);
-    } catch (error) {
-      console.error('Failed to load connectors:', error);
-    }
-  };
-  console.log(loadConnectors);
+  useEffect(() => {
+    connectorsRef.current = connectors;
+  }, [connectors])
+
+    const loadConnectors = async () => {
+      try {
+        const response = await connectorApi.getAll();
+        console.log(response.data.data);
+        setConnectors(Array.isArray(response.data.data) ? response.data.data : []);  
+      } catch (error) {
+        console.error('Failed to load connectors:', error);
+      }
+    };
 
   const loadActivityLogs = async () => {
     try {
@@ -55,12 +60,14 @@ function Dashboard() {
     }
   };
 
+
   useEffect(() => {
     loadConnectors();
     loadActivityLogs();
     loadDataspace();
     const interval = setInterval(() => {
       loadActivityLogs();
+      loadConnectors();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -71,9 +78,9 @@ function Dashboard() {
         name: connector.name,
         url: connector.url,
         bpn: connector.bpn,
-        config: { 
-          version: connector.version || '0.6.0'
-        }
+        version: connector.version || '0.6.0',
+        db_username: 'user',  
+        db_password: 'password'
       });
       loadConnectors();
       loadActivityLogs();
@@ -83,8 +90,7 @@ function Dashboard() {
     }
   };
 
-  const activeConnectors = connectors.filter(c => c.status === 'deployed').length;
-
+  const activeConnectors = connectors.filter(c => c.status === 'healthy').length;
   return (
     <>
       <div className="p-6">
@@ -205,7 +211,7 @@ function Settings() {
         const token = localStorage.getItem('keycloak_token');
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'X-Api-Key': 'emc-api-key'
           }
         });
         const data = await response.json();

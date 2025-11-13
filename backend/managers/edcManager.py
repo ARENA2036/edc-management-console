@@ -1,19 +1,20 @@
 import requests
 import logging
 import yaml
+import os
 from typing import Dict, Optional
 from urllib.parse import urlparse
-
+import subprocess
 
 from models.connector import Connector
 from utilities.common import parse_yaml
 
-logger = logging.getLogger('staging')
-
+logger = logging.getLogger(__name__)
 
 class EdcManager:
-    def __init__(self, cluster_config: dict, edc_config:dict, dataspace_config: dict):
+    def __init__(self, cluster_config: dict, edc_config:dict, dataspace_config: dict, files_config: dict):
         self.cluster_config = cluster_config
+        self.files_config = files_config
         self.default_url = edc_config.get("default_url", "")
         self.endpoints = edc_config.get("endpoints", {})
         self.helm_chart_directory = edc_config.get("helm_chart_directory", None)
@@ -31,7 +32,7 @@ class EdcManager:
             "readiness": "unknown",
             "healthy": False
         }
-
+        logger.info(liveness_endpoint)
         try:
             liveness_response = requests.get(liveness_endpoint, timeout=5, verify=False)
             result["liveness"] = "healthy" if liveness_response.status_code == 200 else "unhealthy"
@@ -39,13 +40,15 @@ class EdcManager:
             logger.error(f"[EdcManager] Liveness check failed: {str(e)}")
             result["liveness"] = "unhealthy"
 
+        logger.info(readiness_endpoint)
         try:
             readiness_response = requests.get(readiness_endpoint, timeout=5, verify=False)
             result["readiness"] = "ready" if readiness_response.status_code == 200 else "not ready"
         except Exception as e:
             logger.error(f"[EdcManager] Readiness check failed: {str(e)}")
             result["readiness"] = "not ready"
-
+        
+        logger.info(result)
         result["healthy"] = result["liveness"] == "healthy" and result["readiness"] == "ready"
         return result
 
@@ -98,11 +101,17 @@ class EdcManager:
             connector.sts_oauth_client_id = connector.bpn
             connector.sts_oauth_secretAlias = "edc-wallet-secret"
             connector.cp_bdrs_server_url = f"{self.ssi_wallet_url}/api/v1/directory"
-            connector.cp_hostname = f"{connector.connector_name}-controlplane"
-            connector.dp_hostname = f"{connector.connector_name}-dataplane"
+            connector.cp_hostname = f"{connector.name}-controlplane.arena2036-x.de"
+            connector.dp_hostname = f"{connector.name}-dataplane.arena2036-x.de"
 
-            parse_yaml(connector=connector, helm_chart_dir=self.helm_chart_directory, action="install")
 
+            values_file_name = parse_yaml(connector=connector,
+                       helm_chart_dir=self.helm_chart_directory,
+                       action="install",
+                       files_config=self.files_config
+                       )
+            self.copy_chart_version(connector.version)
+            return values_file_name
         except Exception as e:
             logger.error(f"[EDC Manager] It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
             return {"error": str(e)}
@@ -120,34 +129,35 @@ class EdcManager:
             connector.sts_oauth_client_id = connector.bpn
             connector.sts_oauth_secretAlias = "edc-wallet-secret"
             connector.cp_bdrs_server_url = f"{self.ssi_wallet_url}/api/v1/directory"
-            connector.cp_hostname = f"{connector.connector_name}-controlplane"
-            connector.dp_hostname = f"{connector.connector_name}-dataplane"
+            connector.cp_hostname = f"{connector.connector_name}-controlplane.arena2036-x.de"
+            connector.dp_hostname = f"{connector.connector_name}-dataplane.arena2036-x.de"
 
             parse_yaml(connector=connector, helm_chart_dir=self.helm_chart_directory, action="upgrade")
 
         except Exception as e:
             logger.error(f"[EDC Manager] It was not possible to do the PUT request to the EDC! Reason: [{str(e)}]")
             return {"error": str(e)}
+    
 
+    def copy_chart_version(self, version):
+        logger.info("Copy charts to match version")
+        version_no = int(version.split('.')[1])
+        if version_no == 9:
+            full_path = self.helm_chart_directory + self.files_config.get("charts", {}).get("v9")
+        elif version_no == 10:
+            full_path = self.helm_chart_directory + self.files_config.get("charts", {}).get("v10")
+        elif version_no == 11:
+            full_path = self.helm_chart_directory + self.files_config.get("charts", {}).get("v11")
 
-    def get_connectors(self):
-        try:
-            pass
-        except Exception as e:
-            logger.error(f"[EDC Manager] It was not possible to do the GET request to the EDC! Reason: [{str(e)}]")
-            return {"error": str(e)}
+        # Copy the version charts to Chart.yaml
+        # org_path = os.path.abspa
 
-    def get_connector_by_id(self, connector_id):
-        try:
-            pass
-        except Exception as e:
-            logger.error(f"[EDC Manager] It was not possible to do the GET request to the EDC! Reason: [{str(e)}]")
-            return {"error": str(e)}
-
-    def delete_edc(self, connector: Connector):
-        try:
-            pass
-        except Exception as e:
-            logger.error(f"[EDC Manager] It was not possible to do the DELETE request to the EDC! Reason: [{str(e)}]")
-            return {"error": str(e)}
-
+        org_path = os.path.abspath(full_path)
+        copy_path = os.path.abspath(f"{self.helm_chart_directory}/Chart.yaml")
+        # logger.info(f"cp -rf {org_path} {copy_path}")
+        # subprocess.run(f"cp -rf {org_path} {copy_path}")
+        with open(org_path, "r") as f:
+            data = yaml.safe_load(f)
+        
+        with open(copy_path, "w") as f:
+            yaml.dump(data, f, sort_keys=False)

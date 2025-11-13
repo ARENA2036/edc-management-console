@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useForm } from "react-hook-form" ;
 import { X, CheckCircle, Copy } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Connector } from '../types';
+import { getUserInfo } from '../keycloak';
 
 interface Props {
   onClose: () => void;
@@ -14,12 +16,11 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const [submodelMode, setSubmodelMode] = useState<'new' | 'existing'>('new');
   const [hasSkipped, setHasSkipped] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-
   const [formData, setFormData] = useState({
     name: '',
     url: '',
     bpn: '',
-    version: '0.6.0',
+    version: '0.8.0',
     submodelServiceUrl: '',
     submodelApiKey: '',
     registryUrl: '',
@@ -27,6 +28,17 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   });
 
   const totalSteps = 4;
+
+  const { register} = useForm();
+
+  React.useEffect(()=>{
+    if (formData.name) {
+      setFormData((prev) => ({
+        ...prev, 
+        url: `https://${prev.name.toLowerCase()}.arena2036-x.de`
+      }));
+    }
+  }, [formData.name]);
 
   const handleDeploySubmodel = async () => {
     try {
@@ -158,6 +170,8 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
+
+            {/* Add the corresponding forms for the auth type dynamically */}
 
             {submodelMode === 'new' && (
               <div>
@@ -319,8 +333,8 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                   EDC Name
                 </label>
                 <input
+                  {...register("name")}
                   type="text"
-                  value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
@@ -340,9 +354,10 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                   }
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 >
-                  <option value="0.6.0">0.6.0</option>
-                  <option value="0.7.0">0.7.0</option>
                   <option value="0.8.0">0.8.0</option>
+                  <option value="0.9.0">0.9.0</option>
+                  <option value="0.10.0">0.10.0</option>
+                  <option value="0.11.0">0.11.0</option>
                 </select>
               </div>
 
@@ -353,10 +368,11 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 <input
                   type="text"
                   value={formData.url}
+                  readOnly
                   onChange={(e) =>
                     setFormData({ ...formData, url: e.target.value })
                   }
-                  placeholder="https://edc.example.com"
+                  placeholder="https://edc.arena2036-x.de"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>

@@ -1,4 +1,24 @@
-# Set up imports configuration
+###############################################################
+# Tractus-X - EDC Management Console
+#
+# Copyright (c) 2025 ARENA2036 e.V.
+# Copyright (c) 2025 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+###############################################################
 import argparse
 import logging.config
 import yaml
@@ -7,12 +27,11 @@ import uvicorn
 import uuid
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from managers import init_db, init_edc, init_activity
+
 from auth.keycloak_config import keycloak_openid
-# from managers import database_manager, edc_manager, activity_managerr
-from models.requests import ConnectorCreate, ConnectorUpdate
+
 from models.connector import Connector
-# from models.database import Connector
+from models.database import ConnectorDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager
@@ -47,7 +66,7 @@ with open('./config/logging.yml', 'rt') as f:
     log_config["handlers"]["file"]["filename"] = f'logs/{date}/{op.get_filedatetime()}-emc.log'
     logging.config.dictConfig(log_config)
 
-logger = logging.getLogger('staging')
+logger = logging.getLogger(__name__)
 
 # Load the configuration for the application
 with open('./config/configuration.yml', 'rt') as f:
@@ -108,57 +127,28 @@ async def list_connectors(request: Request):
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        response: dict = edcService.get_all_connectors(namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
-        if (response.get("status_code", 0) != 200):
-            raise
-        data = response.get("data", {}).split("\n")
-        if (len(data) == 2):
-            return HttpUtils.response(
-                status=200,
-                data="[]",
-                message="No EDCs found"
-            )
-
         existingDeployments = databaseManager.get_all_connectors()
         connectorMap: dict = {}
-        for cnctor in existingDeployments:
-            connectorMap[cnctor.name] = cnctor 
-
-        
         json_list: list = []
-        # iterate from first to second last element (last is empty string)
-        for i in range(1, len(data) - 1):
-            name,  namespace, revision, updated, status, chart, version = data[i].split('\t')
-            json_list.append({
-                "id": connectorMap.get(name).id,
-                "name": name,
-                "url": connectorMap.get(name).url,
-                "bpn": connectorMap.get(name).bpn,
-                "status": status,
-                "namespace": namespace,
-                "revision": revision,
-                "updated": updated,
-                "chart": chart,
-                "version": version                 
-            })
+        for cnctor in existingDeployments:
+            connectorMap[cnctor.name] = cnctor
+            status = edcManager.check_health('https://' + cnctor.cp_hostname)
+            logger.info("Health check status %s", status)
+            cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
+            databaseManager.update_connector(cnctor)
+            
+            url_list = []
+            for endpoint in app_configuration.get("edc", {}).get("endpoints", {}).keys():
+                url_list.append(
+                    'https://' + cnctor.cp_hostname + app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
+                )
 
-        # for index, value in  enumerate(data):
-        #     # skip the 0th index, its the header
-        #     if (len(data) != (index+1)):
-        #         formatted_response: dict = data[index+1].split("\t")
-        #         if (formatted_response[0] != ""):
-        #             json_object: dict = {
-        #                 "id": str(uuid.uuid4()),
-        #                 "name": str(formatted_response[0]).replace(' ',''),
-        #                 "url": str(formatted_response[1]).replace(' ',''),
-        #                 "Revision": str(formatted_response[2]).replace(' ',''),
-        #                 "Updated": str(formatted_response[3]).replace(' ',''),
-        #                 "status": str(formatted_response[4]).replace(' ',''),
-        #                 "Chart": str(formatted_response[5]).replace(' ',''),
-        #                 "version": str(formatted_response[6]).replace(' ','')
-        #             }
-        #             json_list.append(json_object)
-
+            connector_dict = cnctor.to_dict()
+            connector_dict["urls"] = url_list
+            logger.info("Fetching all connectors %s", connector_dict)
+            json_list.append(
+                connector_dict
+            )
 
         return HttpUtils.response(
             status=200,
@@ -171,7 +161,7 @@ async def list_connectors(request: Request):
 @app.get("/api/connectors/{connector_id}", tags=["EDC"])
 async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_current_user)):
     try:
-        connector = database_manager.get_connector_by_id(connector_id)
+        connector = databaseManager.get_connector_by_id(connector_id)
         if not connector:
             return HttpUtils.get_error_response(status=404, message="Connector not found")
         return {
@@ -194,27 +184,34 @@ async def add_connector(connector: Connector, request: Request):
             connector_name=connector.name,
             namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
         )
-        print(existingDeployments)
-        if len(existingDeployments.get("data")) == 0:
+        if existingDeployments.get("status_code") != 200:
             # set edc helm chart directory
-            edcManager.add_edc(connector)
-            #edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
-            response: dict = edcService.install_helm_chart(deployment_name=connector.name, 
-                                                           values_files=["install_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
+            value_file_name = edcManager.add_edc(connector)
+            response: dict = edcService.install_helm_chart(deployment_name=connector.name,
+                                                           values_files=[value_file_name],
+                                                           namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
                                                         )
             if (response.get("status_code", 0) != 200):
                 raise Exception(response.get("data",{}).split('Error')[1])
 
-
-        connector_id = str(uuid.uuid4())
-
-        connector_db = databaseManager.create_connector(
-            id = connector_id,
-            name = connector.name,
-            url=connector.url,
-            bpn=connector.bpn,
-        )
-
+        connector_db = databaseManager.get_connector_by_name(connector.name)
+        if connector_db is None:
+            logger.info(f"Entry not found in database, creating entry for {connector.name}")
+            connector_db = ConnectorDB(
+                id=str(uuid.uuid4()),
+                name=connector.name,
+                bpn=connector.bpn,
+                url = connector.url,
+                version = connector.version,
+                namespace = app_configuration.get("clusterConfig", {}).get("namespace", None),
+                status = "unhealthy",
+                cp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("cp"),
+                dp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("dp"),
+                db_name = 'edc',
+                db_username = connector.db_username,
+                db_password = connector.db_password
+            )
+            connector_db = databaseManager.create_connector(connector=connector_db)
 
         return HttpUtils.response(
             status=200,
@@ -255,46 +252,21 @@ async def upgrade_connector(connector_id: str, connector: Connector, request: Re
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-    #     updated = database_manager.update_connector(
-    #         connector_id=connector_id,
-    #         name=connector.name,
-    #         url=connector.url,
-    #         bpn=connector.bpn,
-    #         config=connector.config
-    #     )
-    #
-    #     if not updated:
-    #         return HttpUtils.get_error_response(status=404, message="Connector not found")
-    #
-    #     database_manager.log_activity(
-    #         action="UPDATE_CONNECTOR",
-    #         connector_id=connector_id,
-    #         connector_name=updated.name,
-    #         details=f"Connector updated by {user['preferred_username']}",
-    #         status="success"
-    #     )
-    #
-    #     return {
-    #         "message": f"Connector updated by {user['preferred_username']}",
-    #         "data": updated.to_dict()
-    #     }
-    # except Exception as e:
-    #     logger.exception(str(e))
-    #     return HttpUtils.get_error_response(status=500, message=str(e))
-
-@app.delete("/api/connectors/{connector_id}", tags=["EDC"])
-async def delete_connector(connector_id: str, connector: Connector, request: Request):
+@app.delete("/api/connectors/{connector_name}", tags=["EDC"])
+async def delete_connector(connector_name: str, request: Request):
 
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        # set edc helm chart directory
-        # edcManager.delete_edc(connector)
-        response:dict = edcService.uninstall_helm_chart(connector_id=connector.connector_name, namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        connector = databaseManager.get_connector_by_name(name=connector_name)
+
+        response:dict = edcService.uninstall_helm_chart(connector_id=connector.name, namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
         if (response.get("status_code", 0) != 200):
             raise Exception(response.get("data",{}).split('Error')[1])
+
+        databaseManager.delete_connector(connector_id=connector.id)
 
         return HttpUtils.response(
             status=200,
@@ -303,26 +275,7 @@ async def delete_connector(connector_id: str, connector: Connector, request: Req
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
-        # try:
-        #     connector = database_manager.get_connector_by_id(connector_id)
-        #     if not connector:
-        #         return HttpUtils.get_error_response(status=404, message="Connector not found")
-        #
-        #     success = database_manager.delete_connector(connector_id)
-        #     if success:
-        #         database_manager.log_activity(
-        #             action="DELETE_CONNECTOR",
-        #             connector_id=connector_id,
-        #             connector_name=connector.name,
-        #             details=f"Connector deleted by {user['preferred_username']}",
-        #             status="success"
-        #         )
-        #         return {"message": f"Connector deleted by {user['preferred_username']}"}
 
-        return HttpUtils.get_error_response(status=500, message="Failed to delete")
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.post("/api/submodel", tags=["Submodel"])
 async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
@@ -454,22 +407,24 @@ def init_app(host: str, port: int, log_level: str = "info"):
     if auth_enabled:
         api_key: dict = auth_config.get("apiKey", {"key": "X-Api-Key", "value": "password"})
         authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
-                                  configured_api_key=api_key.get("value", "password"), auth_enabled=True)
+                                configured_api_key=api_key.get("value", "password"), auth_enabled=True)
 
     edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
 
     ## Get environment specific configurations
     cluster_config: dict = app_configuration["clusterConfig"]
-
+    file_config: dict = app_configuration["files"]
     edc_config: dict = app_configuration.get("edc", {})
-
-    edcManager = EdcManager(cluster_config=cluster_config,edc_config=edc_config, dataspace_config=app_configuration.get("dataspaceConfig",{}))
+    logger.info(edc_config)
+    edcManager = EdcManager(
+        cluster_config=cluster_config,
+        edc_config=edc_config,
+        dataspace_config=app_configuration.get("dataspaceConfig",{}),
+        files_config=file_config
+    )
 
     ## Initialize database manager
     databaseManager = DatabaseManager(database_url="sqlite:///edc_manager.db")
-    init_db()
-    init_edc(settings)
-    init_activity()
 
     app.add_middleware(
         CORSMiddleware,

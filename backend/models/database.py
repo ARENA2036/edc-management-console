@@ -7,18 +7,31 @@ from sqlalchemy.orm import Session
 Base = declarative_base()
 
 
-class Connector(Base):
+class ConnectorDB(Base):
+    """
+        Connector class, should act as the single source of truth
+        all frontend connector related information must be fetched from this class
+    """
     __tablename__ = "connectors"
 
     id = Column(String(50), primary_key=True, index=True)
     name = Column(String(255), unique=True, nullable=False, index=True)
     url = Column(String(512), nullable=False)
-    bpn = Column(String(255), nullable=True)
-    version = Column(String(50), default="0.6.0", nullable=True)
+    bpn = Column(String(255), nullable=False)
+    chart = Column(String(50), nullable=True)
+    version = Column(String(50), default="0.9.0", nullable=True)
+    namespace = Column(String(50), nullable=False)
     status = Column(String(50), default="unknown")
     config = Column(JSON, nullable=True,  default=lambda: {})
+    iatp_id = Column(String(255), nullable=True)
+    cp_hostname = Column(String(255), nullable=True)
+    dp_hostname = Column(String(255), nullable=True)
+    db_name = Column(String(50), nullable=True)
+    db_username = Column(String(50), nullable=True)
+    db_password = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(String(255), nullable=True)
 
     def to_dict(self):
         return {
@@ -26,15 +39,23 @@ class Connector(Base):
             "name": self.name,
             "url": self.url,
             "bpn": self.bpn,
+            "chart": self.chart,
             "version": self.version,
+            "namespace": self.namespace,
             "status": self.status,
             "config": self.config,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "cp_hostname": self.cp_hostname,
+            "dp_hostname": self.dp_hostname
         }
 
 
 class ActivityLog(Base):
+    """
+        Activity log to keep track of user activity
+        Monitor tab in EMC frontend can use information in this table
+    """
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)

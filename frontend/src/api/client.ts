@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL + '/api' || '/api';
+const EDC_BASE_URL = import.meta.env.EDC_HOSTNAME;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -10,25 +11,25 @@ export const apiClient = axios.create({
   },
 });
 
-// apiClient.interceptors.request.use(
-//   (config) => {
-//     const token = localStorage.getItem('token');
-//     if (token) {
-//       config.headers.Authorization = `Bearer ${token}`;
-//     }
-//     return config;
-//   },
-//   (error) => {
-//     return Promise.reject(error);
-//   }
-// );
+
+export const edcClient = (name: string) => {
+  console.log(`https://${name}-controlplane.arena2036-x.de`)
+  axios.create({
+    baseURL: `https://${name}-controlplane.arena2036-x.de`,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Header': '*',
+      'Access-Control-Allow-Origin': '*'
+      },
+  }).get('/api/check/liveness')
+}
 
 export const connectorApi = {
   getAll: () => apiClient.get('/connectors'),
   getById: (id: number) => apiClient.get(`/connectors/${id}`),
   create: (data: any) => apiClient.post('/connector', data),
   update: (id: number, data: any) => apiClient.put(`/connectors/${id}`, data),
-  delete: (id: number) => apiClient.delete(`/connectors/${id}`),
+  delete: (name: string) => apiClient.delete(`/connectors/${name}`),
   checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
 };
 
@@ -38,9 +39,13 @@ export const healthApi = {
 };
 
 export const activityApi = {
-  getRecentLogs: (limit = 50) => apiClient.get(`/activity-logs?limit=${limit}`),
+  getRecentLogs: (limit = 50) => apiClient.get(`/logs?limit=${limit}`),
 };
 
 export const configApi = {
   getConfig: () => apiClient.get('/config'),
+};
+
+export const edcAPI = {
+  getHealth: (name: string) => edcClient(name), 
 };

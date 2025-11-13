@@ -1,10 +1,10 @@
 from sqlalchemy import create_engine, text, Uuid
 from sqlalchemy.orm import sessionmaker, Session
-from models.database import Base, Connector, ActivityLog
+from models.database import Base, ConnectorDB, ActivityLog
 from typing import List, Optional
 import logging
 
-logger = logging.getLogger('staging')
+logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
@@ -15,69 +15,54 @@ class DatabaseManager:
         self.create_tables()
 
     def create_tables(self):
-        Base.metadata.drop_all(bind=self.engine)
         Base.metadata.create_all(bind=self.engine)
         logger.info("[DatabaseManager] Database tables created successfully")
-        # try:
-        #     with self.engine.connect() as conn:
-        #         # result = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='connectors' AND column_name='version'"))
-        #         # if not result.fetchone():
-
-        #         conn.execute(text("ALTER TABLE connectors ADD COLUMN version VARCHAR(50) DEFAULT '0.6.0'"))
-        #         conn.commit()
-        #         logger.info("[DatabaseManager] Added version column to connectors table")
-        # except Exception as e:
-        #     logger.warning(f"[DatabaseManager] Migration check/execution failed (may be SQLite): {str(e)}")
 
     def get_session(self) -> Session:
         return self.SessionLocal()
 
-    def create_connector(self, id: str, name: str, url: str, bpn: Optional[str] = None, version: Optional[str] = None, config: Optional[dict] = None) -> Connector:
+    def create_connector(self, connector: ConnectorDB) -> ConnectorDB:
         session = self.get_session()
         try:
-            connector = Connector(id=id, name=name, url=url, bpn=bpn, version=version)
-            # logger.info(f"{connector}")
-            print(connector)
             session.add(connector)
             session.commit()
             session.refresh(connector)
-            logger.info(f"[DatabaseManager] Created connector: {name}")
+            logger.info(f"[DatabaseManager] Created connector: {connector.name}")
             return connector
             # Add exception catch and session rollback
         finally:
             session.close()
 
-    def get_connector_by_id(self, connector_id: int) -> Optional[Connector]:
+    def get_connector_by_id(self, connector_id: int) -> Optional[ConnectorDB]:
         session = self.get_session()
         try:
             return session.query(Connector).filter(Connector.id == connector_id).first()
         finally:
             session.close()
 
-    def get_connector_by_name(self, name: str) -> Optional[Connector]:
+    def get_connector_by_name(self, name: str) -> Optional[ConnectorDB]:
         session = self.get_session()
         try:
-            return session.query(Connector).filter(Connector.name == name).first()
+            return session.query(ConnectorDB).filter(ConnectorDB.name == name).first()
         finally:
             session.close()
 
-    def get_all_connectors(self) -> List[Connector]:
+    def get_all_connectors(self) -> List[ConnectorDB]:
         session = self.get_session()
         try:
-            return session.query(Connector).all()
+            return session.query(ConnectorDB).all()
         finally:
             session.close()
 
-    def update_connector(self, connector_id: int, **kwargs) -> Optional[Connector]:
+    def update_connector(self, connector: ConnectorDB) -> Optional[ConnectorDB]:
         session = self.get_session()
         try:
-            connector = session.query(Connector).filter(Connector.id == connector_id).first()
-            if connector:
-                for key, value in kwargs.items():
-                    if hasattr(connector, key) and value is not None:
-                        setattr(connector, key, value)
+            existing = session.query(ConnectorDB).filter(ConnectorDB.id == connector.id).first()
+            if existing:
+                existing.status = connector.status
+                session.add(existing)
                 session.commit()
-                session.refresh(connector)
+                session.refresh(existing)
                 logger.info(f"[DatabaseManager] Updated connector: {connector.name}")
             return connector
         finally:
@@ -86,7 +71,7 @@ class DatabaseManager:
     def delete_connector(self, connector_id: int) -> bool:
         session = self.get_session()
         try:
-            connector = session.query(Connector).filter(Connector.id == connector_id).first()
+            connector = session.query(ConnectorDB).filter(ConnectorDB.id == connector_id).first()
             if connector:
                 session.delete(connector)
                 session.commit()

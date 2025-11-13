@@ -8,7 +8,7 @@ from typing import Dict, Optional, List
 from utilities import httpUtils
 from utilities.common import delete_file
 
-logger = logging.getLogger('staging')
+logger = logging.getLogger(__name__)
 
 SUB_DIR = "charts/umbrella"
 DEFAULT_VALUES_FILE = "values.yaml"
@@ -16,9 +16,10 @@ DEFAULT_VALUES_FILE = "values.yaml"
 
 class EdcService:
     def __init__(self, helm_chart_directory="./tractusx-connector"):
+       self.helm_directory = helm_chart_directory
        self.ensure_kubectl_installed()
        self.ensure_helm_installed()
-       self.update_helm_dependencies(helm_chart_directory)
+       self.update_helm_dependencies()
 
     def ensure_kubectl_installed(self):
         try:
@@ -47,17 +48,20 @@ class EdcService:
             # subprocess.run("helm version --client")
             print("kubectl installed successfully.")
 
-    def update_helm_dependencies(self, dir):
-        os.chdir(f"{dir}")
+    def update_helm_dependencies(self):
+        os.chdir(f"{self.helm_directory}")
         print(f"Working directory: {os.getcwd()}")
         subprocess.run("helm dependency update", shell=True)
+        os.chdir("..")
 
     def install_helm_chart(self, deployment_name:str, values_files:list, namespace:str):
         try:
+            self.update_helm_dependencies()
+            os.chdir(f"{self.helm_directory}")
             formatted_files = " ".join([" -f " + file for file in values_files])
             print(f"Installing helm chart with values from {values_files}...")
             result = subprocess.run(f"helm install {deployment_name} \
-            {formatted_files} --namespace {namespace} --create-namespace --debug .", shell=True, capture_output=True, text=True)
+            {formatted_files} --namespace {namespace} --set log4j2.config=\"default log4j2 config placeholder\" --create-namespace --debug .", shell=True, capture_output=True, text=True)
             if (result.returncode !=0):
                 logger.error(f"[EdcService] It was not possible to install EDC, return code: {str(result.returncode)}")
                 return {"status_code": 500, "data": result.stderr}
@@ -65,7 +69,8 @@ class EdcService:
             logger.debug(f"stderr: {result.stderr}")
 
             # delete a file(s) after the installation
-            [ delete_file(f"{os.getcwd()}/{file}") for file in values_files ]
+            # [ delete_file(f"{os.getcwd()}/{file}") for file in values_files ]
+            os.chdir("..")
             return {"status_code": 200, "data": result.stdout}
 
         except subprocess.CalledProcessError as err:

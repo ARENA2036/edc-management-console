@@ -8,6 +8,7 @@ interface Props {
 }
 
 export default function YamlViewModal({ connector, onClose }: Props) {
+  
   const yamlContent = yaml.dump(connector, { indent: 2 });
 
   const handleCopy = () => {

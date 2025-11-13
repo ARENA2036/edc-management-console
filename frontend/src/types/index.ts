@@ -8,6 +8,10 @@ export interface Connector {
   config?: any;
   created_at?: string;
   updated_at?: string;
+  cp_hostname?: string;
+  dp_hostname?: string;
+  urls: [];
+  created_by: string;
 }
 
 export interface ActivityLog {
