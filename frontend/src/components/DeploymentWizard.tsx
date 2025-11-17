@@ -20,7 +20,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     name: '',
     url: '',
     bpn: '',
-    version: '0.8.0',
+    version: '0.9.0',
     submodelServiceUrl: '',
     submodelApiKey: '',
     registryUrl: '',
@@ -354,7 +354,6 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                   }
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 >
-                  <option value="0.8.0">0.8.0</option>
                   <option value="0.9.0">0.9.0</option>
                   <option value="0.10.0">0.10.0</option>
                   <option value="0.11.0">0.11.0</option>
