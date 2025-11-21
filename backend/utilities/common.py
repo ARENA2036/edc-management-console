@@ -61,7 +61,7 @@ def upgrade_helm_chart(deployment_name:str, values_files:list, namespace:str):
     subprocess.run(f"helm upgrade -i {deployment_name} {formatted_files} --namespace {namespace} --debug .")
     print(f"Upgrade helm chart successful...")
 
-def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files_config: dict = {}):
+def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files_config: dict = {}, is_registry_enabled: bool = False):
     # try:
     if helm_chart_dir is None:
         return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
@@ -78,6 +78,13 @@ def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files
     with open(os.path.abspath(full_path), "r") as file:
         data = yaml.safe_load(file)
 
+    if is_registry_enabled:
+        # update dtr details in value file
+        data.setdefault("digital-twin-registry", {})["enabled"] = True
+        data.setdefault("digital-twin-registry", {})["nameOverride"] = f"{connector.name}-dtr"
+        data['digital-twin-registry']['registry']['ingress']['hosts'][0]['host'] = connector.registry.url
+        data['digital-twin-registry']['registry']['host'] = connector.registry.url
+        data['digital-twin-registry']['registry']['ingress']['tls'][0]['hosts'][0] = connector.registry.url
     # # Step 2: Append or update values
     # # Example: updating participant.id
     data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")

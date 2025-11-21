@@ -80,7 +80,8 @@ function Dashboard() {
         bpn: connector.bpn,
         version: connector.version || '0.6.0',
         db_username: 'user',  
-        db_password: 'password'
+        db_password: 'password',
+        registry: connector.registry
       });
       loadConnectors();
       loadActivityLogs();

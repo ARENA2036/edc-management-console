@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.keycloak_config import keycloak_openid
 
 from models.connector import Connector
-from models.database import ConnectorDB
+from models.database import ConnectorDB, DigitalTwinRegistryDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager
@@ -50,7 +50,7 @@ databaseManager: DatabaseManager
 
 urllib3.disable_warnings()
 logging.captureWarnings(True)
-
+logger = logging.getLogger(__name__)
 # ------------------------------------------------------------
 # Logging Setup
 # ------------------------------------------------------------
@@ -142,6 +142,7 @@ async def list_connectors(request: Request):
                 url_list.append(
                     'https://' + cnctor.cp_hostname + app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
                 )
+            url_list.append(f'https://{cnctor.registry}')
 
             connector_dict = cnctor.to_dict()
             connector_dict["urls"] = url_list
@@ -179,14 +180,19 @@ async def add_connector(connector: Connector, request: Request):
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
+        #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
+        #We can then call the endpoint when the user clicks on the DeployEDC button itself.
+        logger.info(connector)
+        is_registry_enabled = True if len(connector.registry.url) != 0 else False
 
+       
         existingDeployments = edcService.get_connector_by_name(
             connector_name=connector.name,
             namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
         )
         if existingDeployments.get("status_code") != 200:
             # set edc helm chart directory
-            value_file_name = edcManager.add_edc(connector)
+            value_file_name = edcManager.add_edc(connector, is_registry_enabled=is_registry_enabled)
             response: dict = edcService.install_helm_chart(deployment_name=connector.name,
                                                            values_files=[value_file_name],
                                                            namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
@@ -197,6 +203,11 @@ async def add_connector(connector: Connector, request: Request):
         connector_db = databaseManager.get_connector_by_name(connector.name)
         if connector_db is None:
             logger.info(f"Entry not found in database, creating entry for {connector.name}")
+
+            dtr_db = DigitalTwinRegistryDB(
+                url=connector.registry.url,
+                credentials=connector.registry.credentials
+            )
             connector_db = ConnectorDB(
                 id=str(uuid.uuid4()),
                 name=connector.name,
@@ -209,7 +220,8 @@ async def add_connector(connector: Connector, request: Request):
                 dp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("dp"),
                 db_name = 'edc',
                 db_username = connector.db_username,
-                db_password = connector.db_password
+                db_password = connector.db_password,
+                registry_rel=dtr_db
             )
             connector_db = databaseManager.create_connector(connector=connector_db)
 
@@ -337,17 +349,17 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.get("/api/logs", tags=["Logs"])
-async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
-    try:
-        logs = activity_manager.get_recent_logs(limit)
-        return {
-            "user": user["preferred_username"],
-            "data": logs
-        }
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+# @app.get("/api/logs", tags=["Logs"])
+# async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
+#     try:
+#         logs = activity_manager.get_recent_logs(limit)
+#         return {
+#             "user": user["preferred_username"],
+#             "data": logs
+#         }
+#     except Exception as e:
+#         logger.exception(str(e))
+#         return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.get("/api/config", tags=["Config"])
 async def get_config(user=Depends(keycloak_openid.get_current_user)):
@@ -387,7 +399,7 @@ async def get_dataspace_settings(request: Request):
             },
             "discovery": {
                 "discovery_finder_url": semantics_url + dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
-                "bpn_discovery_url": semantics_url + dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
+               "bpn_discovery_url": semantics_url + dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },
         })
 
@@ -485,4 +497,3 @@ if __name__ == "__main__":
     init_app(host=args.host, port=args.port, log_level=("debug" if args.debug else "info"))
 
     print("\nClosing the application... Thank you for using the EDC Management Console (EMC)!")
-

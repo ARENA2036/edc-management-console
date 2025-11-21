@@ -641,6 +641,45 @@ networkPolicy:
     from:
     - namespaceSelector: {}
 
+digital-twin-registry:
+    nameOverride: dataprovider-dtr
+    postgresql:
+      image:
+        # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
+        repository: "bitnamilegacy/postgresql"
+        # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
+        tag: "16.2.0-debian-12-r10"
+      nameOverride: dataprovider-dtr-db
+      auth:
+        password: "dbpassworddtrdataprovider"
+        existingSecret: dataprovider-secret-dtr-postgres-init
+    registry:
+      image:
+        registry:  arena2036.azurecr.io
+        repository: tractusx/sldt-digital-twin-registry
+        version: "0.6.3-patched"
+      ingress:
+        enabled: true
+        className: ""
+        annotations:
+          # uncomment the following line for tls
+          kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+          # nginx.ingress.kubernetes.io/proxy-body-size: 50m
+          nginx.ingress.kubernetes.io/rewrite-target: /$2
+          nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+        hosts:
+        - host: "dataprovider-dtr-test.arena2036-x.de"
+          paths:
+            - path: "/semantics/registry(/|$)(.*)"
+              pathType: "Prefix"
+        tls:
+        - secretName: "dataprovider-dtr-test.tx.test-tls"
+          hosts:
+            - "dataprovider-dtr-test.arena2036-x.de"
+      host: dataprovider-dtr-test.arena2036-x.de
+
+
 serviceAccount:
   # -- Specifies whether a service account should be created
   create: true

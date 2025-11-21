@@ -4,6 +4,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 ## Define here the search parameters or filters 
+class DigitalTwinRegistry(BaseModel):
+    url: str
+    credentials: str
+
 class Connector(BaseModel):
     name: str
     bpn: str
@@ -21,12 +25,4 @@ class Connector(BaseModel):
     db_name: Optional[str] = "edc"
     db_username: Optional[str] = "user"
     db_password: Optional[str] = ""
-
-    def to_dict() -> dict:
-        return 
-
-class DigitalTwinRegistry:
-    pass
-
-class SubmodelService:
-    pass
+    registry: Optional[DigitalTwinRegistry] = None

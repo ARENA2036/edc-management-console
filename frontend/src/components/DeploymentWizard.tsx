@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from "react-hook-form" ;
 import { X, CheckCircle, Copy } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { Connector } from '../types';
+import type { Connector, DigitalTwinRegistry } from '../types';
 import { getUserInfo } from '../keycloak';
 
 interface Props {
@@ -91,7 +91,12 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       version: formData.version,
       status: 'connected',
       created_at: new Date().toISOString(),
+      registry: {
+        url: formData.registryUrl,
+        credentials: formData.registryCredentials
+      }
     };
+    console.log(newConnector);
     onDeploy(newConnector);
     onClose();
   };
@@ -102,7 +107,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   endpoint: ${formData.url || '<https://edc.example.com>'}
   bpn: ${formData.bpn || '<BPNL000000000000>'}
   registry:
-    url: ${formData.registryUrl || '<https://registry.example.com>'}
+    url: ${formData.registryUrl || '<registry.example.com>'}
     credentials: ${formData.registryCredentials ? '******' : '<none>'}
 `;
 
@@ -220,52 +225,6 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 </button>
               )}
             </div>
-            
-            {submodelMode === 'new' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  value={formData.submodelApiKey}
-                  onChange={(e) => setFormData({ ...formData, submodelApiKey: e.target.value })}
-                  placeholder="Enter API key"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            )}
-            
-            <div className="flex gap-3 pt-4 border-t">
-              {submodelMode === 'new' ? (
-                <>
-                  <button
-                    onClick={handleDeploySubmodel}
-                    disabled={!formData.submodelServiceUrl}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    Deploy Submodel Service
-                  </button>
-                  {submodelDeployed && (
-                    <button
-                      onClick={handleRegisterSubmodel}
-                      disabled={!formData.bpn}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                    >
-                      Register Service
-                    </button>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={handleRegisterSubmodel}
-                  disabled={!formData.submodelServiceUrl || !formData.bpn}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  Connect Existing Service
-                </button>
-              )}
-            </div>
           </div>
         );
 
@@ -288,7 +247,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 onChange={(e) =>
                   setFormData({ ...formData, registryUrl: e.target.value })
                 }
-                placeholder="https://registry.example.com"
+                placeholder="registry.arena2036-x.de"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>

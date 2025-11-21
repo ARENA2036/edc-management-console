@@ -1,3 +1,8 @@
+export interface DigitalTwinRegistry{
+  url: string;
+  credentials: string;
+}
+
 export interface Connector {
   id: number;
   name: string;
@@ -12,6 +17,7 @@ export interface Connector {
   dp_hostname?: string;
   urls: [];
   created_by: string;
+  registry?: DigitalTwinRegistry;
 }
 
 export interface ActivityLog {
