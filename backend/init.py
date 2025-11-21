@@ -39,6 +39,7 @@ from managers.databaseManager import DatabaseManager
 from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
 from utilities.operators import op
+from utilities.auth_utils import get_oauth2_token
 
 op.make_dir("logs")
 
@@ -304,15 +305,27 @@ async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_curr
     """Deploy a submodel service independently"""
     try:
         url = data.get("url")
-        api_key = data.get("apiKey")
         service_type = data.get("type", "submodel-service")
+
+        auth_config = {
+            "authType": data.get("submodelAuthType", "none"),
+            "apiKey": data.get("submodelApiKey"),
+            "bearerToken": data.get("submodelBearerToken"),
+            "oauth2": {
+                "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
+                "clientId": data.get("submodelOAuthClientId"),
+                "clientSecret": data.get("submodelOAuthClientSecret"),
+                "scope": data.get("submodelOAuthScope"),
+                "clientAuth": data.get("submodelOAuthClientAuth")
+            }
+        }
 
         if not url:
             return HttpUtils.get_error_response(status=400, message="URL is required")
 
         database_manager.log_activity(
             action="DEPLOY_SUBMODEL",
-            details=f"Submodel service deployed by {user['preferred_username']}: {url}",
+            details=f"Submodel service deployed by {user['preferred_username']}: {url} | Auth: {auth_config['authType']}",
             status="success"
         )
 
@@ -321,6 +334,7 @@ async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_curr
             "data": {
                 "url": url,
                 "type": service_type,
+                "auth": auth_config,
                 "status": "deployed"
             }
         }
@@ -334,9 +348,35 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
     try:
         url = data.get("url")
         bpn = data.get("bpn")
+        auth_type = data.get("authType", "none")
+
+        headers = {"Content-Type": "application/json"}
+
+        if auth_type == "apiKey":
+            headers["X-API-Key"] = data.get("apiKey")
+        elif auth_type == "bearer":
+            headers["Authorization"] = f"Bearer {data.get('bearerToken')}"
+        elif auth_type == "oauth2":
+            oauth_config = {
+                "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
+                "clientId": data.get("submodelOAuthClientId"),
+                "clientSecret": data.get("submodelOAuthClientSecret"),
+                "scope": data.get("submodelOAuthScope", "openid"),
+                "clientAuth": data.get("submodelOAuthClientAuth", "basic")
+            }
+            token = get_oauth2_token(oauth_config)
+            headers["Authorization"] = f"Bearer {token}"
 
         if not url or not bpn:
             return HttpUtils.get_error_response(status=400, message="URL and BPN are required")
+
+        import requests
+        health_url = f"{url.rstrip('/')}/api/health"
+        try:
+            check = requests.get(health_url, headers=headers, timeout=5)
+            reachable = check.status_code == 200
+        except Exception:
+            reachable = False
 
         database_manager.log_activity(
             action="CONNECT_SUBMODEL",
@@ -387,16 +427,17 @@ async def get_dataspace_settings(request: Request):
         response: :obj:`data object with the dataspace settings`
     """
     try:
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
+        dataspace_config = settings.get("dataspaceConfig", {})
+        edc_config = settings.get("edc", {})
 
-        dataspace_config = app_configuration.get("dataspaceConfig", {})
+        dataspace_name = user.get("realm", "ARENA2036-X")
+        bpn = user.get("bpn", "BPNL000000000000")
 
-        semantics_url:str = dataspace_config.get("discovery", {}).get("semantics", {}).get("url", "")
-
-        return HttpUtils.response({
-            "name": dataspace_config.get("name", None),
-            "authority_id": dataspace_config.get("authority_id", None),
+        dataspace_settings = {
+            "name": dataspace_name,
+            "bpn": bpn,
+            "realm": user.get("realm", "CX-Central"),
+            "username": user["preferred_username"],
             "centralidp": {
                 "url": dataspace_config.get("centralidp", {}).get("url", ""),
                 "realm": dataspace_config.get("centralidp", {}).get("realm", "")
@@ -408,11 +449,21 @@ async def get_dataspace_settings(request: Request):
                 "url": dataspace_config.get("portal", {}).get("url", "")
             },
             "discovery": {
-                "discovery_finder_url": semantics_url + dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
-               "bpn_discovery_url": semantics_url + dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
+                "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
+                "discovery_finder": data.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
+                "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },
-        })
+            "edc": {
+                "default_url": edc_config.get("default_url", ""),
+                "cluster_context": edc_config.get("clusterConfig", {}).get("context", "")
+            },
+            "readonly": True
+        }
 
+        return {
+            "user": user["preferred_username"],
+            "data": dataspace_settings
+        }
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

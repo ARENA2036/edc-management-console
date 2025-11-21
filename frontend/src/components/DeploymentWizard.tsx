@@ -10,6 +10,8 @@ interface Props {
   onDeploy: (connector: Connector) => void;
 }
 
+type AuthType = 'none' | 'apiKey' | 'bearer' | 'oauth2';
+
 export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [submodelDeployed, setSubmodelDeployed] = useState(false);
@@ -25,6 +27,26 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     submodelApiKey: '',
     registryUrl: '',
     registryCredentials: '',
+    edcUsername: '',
+    edcPassword: '',
+
+    // --- NEU: Auth-Konfiguration ---
+    submodelAuthType: 'none' as AuthType,
+    submodelBearerToken: '',
+    submodelOAuthAccessTokenUrl: '',
+    submodelOAuthClientId: '',
+    submodelOAuthClientSecret: '',
+    submodelOAuthScope: 'openid',
+    submodelOAuthClientAuth: 'basic', // basic | body
+
+    registryAuthType: 'none' as AuthType,
+    registryApiKey: '',
+    registryBearerToken: '',
+    registryOAuthAccessTokenUrl: '',
+    registryOAuthClientId: '',
+    registryOAuthClientSecret: '',
+    registryOAuthScope: 'openid',
+    registryOAuthClientAuth: 'basic',
   });
 
   const totalSteps = 4;
@@ -44,7 +66,11 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     try {
       await apiClient.post('/submodel/deploy', {
         url: formData.submodelServiceUrl,
-        apiKey: formData.submodelApiKey,
+        // bestehendes Verhalten beibehalten:
+        apiKey:
+          formData.submodelAuthType === 'apiKey'
+            ? formData.submodelApiKey
+            : undefined,
         type: 'submodel-service',
       });
       setSubmodelDeployed(true);
@@ -66,6 +92,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       const response = await apiClient.post('/submodel/connect', {
         url: formData.submodelServiceUrl,
         bpn: formData.bpn || null,
+        // hier könntest du später die Auth-Infos mitgeben
       });
 
       if (response.status === 200) {
@@ -105,19 +132,242 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     onClose();
   };
 
+const shouldShowSkip = () => {
+  if (currentStep === totalSteps) return false; // Step 4: kein Skip
+
+  switch (currentStep) {
+    case 1: // Submodel Service
+      return !formData.submodelServiceUrl || formData.submodelServiceUrl.trim() === '';
+    case 2: // Digital Twin Registry
+      return !formData.registryUrl || formData.registryUrl.trim() === '';
+    case 3: // EDC Configuration
+      return !formData.name || !formData.url || !formData.bpn;
+    default:
+      return false;
+  }
+};
   const yamlPreview = `edc:
   name: ${formData.name || '<EDC Name>'}
   version: ${formData.version || '<Version>'}
   endpoint: ${formData.url || '<https://edc.example.com>'}
   bpn: ${formData.bpn || '<BPNL000000000000>'}
+   authentication:
+      username: ${formData.edcUsername || '<username>'}
+      password: ${formData.edcPassword ? '********' : '<password>'}
   registry:
     url: ${formData.registryUrl || '<registry.example.com>'}
     credentials: ${formData.registryCredentials ? '******' : '<none>'}
+
 `;
 
   const copyYaml = async () => {
     await navigator.clipboard.writeText(yamlPreview);
     alert('YAML-Konfiguration kopiert!');
+  };
+
+  const renderAuthSection = (
+    prefix: 'submodel' | 'registry',
+    authType: AuthType
+  ) => {
+    switch (authType) {
+      case 'apiKey':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              API Key
+            </label>
+            <input
+              type="text"
+              value={
+                prefix === 'submodel'
+                  ? formData.submodelApiKey
+                  : formData.registryApiKey
+              }
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  ...(prefix === 'submodel'
+                    ? { submodelApiKey: e.target.value }
+                    : { registryApiKey: e.target.value }),
+                })
+              }
+              placeholder="API Key"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+        );
+      case 'bearer':
+        return (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Bearer Token
+            </label>
+            <input
+              type="text"
+              value={
+                prefix === 'submodel'
+                  ? formData.submodelBearerToken
+                  : formData.registryBearerToken
+              }
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  ...(prefix === 'submodel'
+                    ? { submodelBearerToken: e.target.value }
+                    : { registryBearerToken: e.target.value }),
+                })
+              }
+              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+        );
+      case 'oauth2':
+        const accessTokenUrl =
+          prefix === 'submodel'
+            ? formData.submodelOAuthAccessTokenUrl
+            : formData.registryOAuthAccessTokenUrl;
+        const clientId =
+          prefix === 'submodel'
+            ? formData.submodelOAuthClientId
+            : formData.registryOAuthClientId;
+        const clientSecret =
+          prefix === 'submodel'
+            ? formData.submodelOAuthClientSecret
+            : formData.registryOAuthClientSecret;
+        const scope =
+          prefix === 'submodel'
+            ? formData.submodelOAuthScope
+            : formData.registryOAuthScope;
+        const clientAuth =
+          prefix === 'submodel'
+            ? formData.submodelOAuthClientAuth
+            : formData.registryOAuthClientAuth;
+
+        const setField = (field: string, value: string) => {
+          if (prefix === 'submodel') {
+            setFormData({
+              ...formData,
+              [field]: value,
+            } as any);
+          } else {
+            setFormData({
+              ...formData,
+              [field]: value,
+            } as any);
+          }
+        };
+
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Access Token URL
+              </label>
+              <input
+                type="text"
+                value={accessTokenUrl}
+                onChange={(e) =>
+                  setField(
+                    prefix === 'submodel'
+                      ? 'submodelOAuthAccessTokenUrl'
+                      : 'registryOAuthAccessTokenUrl',
+                    e.target.value
+                  )
+                }
+                placeholder="{{centralidpUrl}}/auth/realms/CX-Central/protocol/openid-connect/token"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Client ID
+                </label>
+                <input
+                  type="text"
+                  value={clientId}
+                  onChange={(e) =>
+                    setField(
+                      prefix === 'submodel'
+                        ? 'submodelOAuthClientId'
+                        : 'registryOAuthClientId',
+                      e.target.value
+                    )
+                  }
+                  placeholder="client-id"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Client Secret
+                </label>
+                <input
+                  type="password"
+                  value={clientSecret}
+                  onChange={(e) =>
+                    setField(
+                      prefix === 'submodel'
+                        ? 'submodelOAuthClientSecret'
+                        : 'registryOAuthClientSecret',
+                      e.target.value
+                    )
+                  }
+                  placeholder="••••••••••••"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Scope
+                </label>
+                <input
+                  type="text"
+                  value={scope}
+                  onChange={(e) =>
+                    setField(
+                      prefix === 'submodel'
+                        ? 'submodelOAuthScope'
+                        : 'registryOAuthScope',
+                      e.target.value
+                    )
+                  }
+                  placeholder="openid"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Client Authentication
+                </label>
+                <select
+                  value={clientAuth}
+                  onChange={(e) =>
+                    setField(
+                      prefix === 'submodel'
+                        ? 'submodelOAuthClientAuth'
+                        : 'registryOAuthClientAuth',
+                      e.target.value
+                    )
+                  }
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="basic">Send as Basic Auth header</option>
+                  <option value="body">Send client credentials in body</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        );
+      case 'none':
+      default:
+        return null;
+    }
   };
 
   const renderStepContent = () => {
@@ -169,7 +419,10 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                 type="text"
                 value={formData.submodelServiceUrl}
                 onChange={(e) =>
-                  setFormData({ ...formData, submodelServiceUrl: e.target.value })
+                  setFormData({
+                    ...formData,
+                    submodelServiceUrl: e.target.value,
+                  })
                 }
                 placeholder={
                   submodelMode === 'new'
@@ -180,24 +433,30 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               />
             </div>
 
-            {/* Add the corresponding forms for the auth type dynamically */}
+            {/* NEU: Auth Type für Submodel Service */}
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Auth Type
+              </label>
+              <select
+                value={formData.submodelAuthType}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    submodelAuthType: e.target
+                      .value as AuthType,
+                  })
+                }
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="none">No Auth</option>
+                <option value="apiKey">API Key</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="oauth2">OAuth 2.0</option>
+              </select>
 
-            {submodelMode === 'new' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  value={formData.submodelApiKey}
-                  onChange={(e) =>
-                    setFormData({ ...formData, submodelApiKey: e.target.value })
-                  }
-                  placeholder="Enter API key"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            )}
+              {renderAuthSection('submodel', formData.submodelAuthType)}
+            </div>
 
             <div className="flex gap-3 pt-4 border-t">
               {submodelMode === 'new' ? (
@@ -256,20 +515,49 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               />
             </div>
 
-            <div>
+            {/* NEU: Auth Type für Registry */}
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Auth Type
+              </label>
+              <select
+                value={formData.registryAuthType}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    registryAuthType: e.target.value as AuthType,
+                  })
+                }
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="none">No Auth</option>
+                <option value="apiKey">API Key</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="oauth2">OAuth 2.0</option>
+              </select>
+
+              {renderAuthSection('registry', formData.registryAuthType)}
+            </div>
+
+            {/* altes Credentials-Feld kannst du bei Bedarf entfernen oder lassen */}
+{/*            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credentials (z. B. API Key oder Token)
+                Credentials (optional)
               </label>
               <input
                 type="password"
                 value={formData.registryCredentials}
                 onChange={(e) =>
-                  setFormData({ ...formData, registryCredentials: e.target.value })
+                  setFormData({
+                    ...formData,
+                    registryCredentials: e.target.value,
+                  })
                 }
                 placeholder="••••••••"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
+            */}
 
             <button
               disabled={!formData.registryUrl}
@@ -353,7 +641,38 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
-            </div>
+              <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.edcUsername}
+                          onChange={(e) =>
+                            setFormData({ ...formData, edcUsername: e.target.value })
+                          }
+                          placeholder="EDC Benutzername"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+              </div>
+              <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Password
+                        </label>
+                        <input
+                          type="password"
+                          value={formData.edcPassword}
+                          onChange={(e) =>
+                            setFormData({ ...formData, edcPassword: e.target.value })
+                          }
+                          placeholder="••••••••"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+
+
 
             {/* YAML Preview */}
             <div className="mt-6">
@@ -385,11 +704,21 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Review & Deploy</h3>
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <p><strong>EDC Name:</strong> {formData.name}</p>
-              <p><strong>Version:</strong> {formData.version}</p>
-              <p><strong>Endpoint:</strong> {formData.url}</p>
-              <p><strong>BPN:</strong> {formData.bpn}</p>
-              <p><strong>Registry:</strong> {formData.registryUrl}</p>
+              <p>
+                <strong>EDC Name:</strong> {formData.name}
+              </p>
+              <p>
+                <strong>Version:</strong> {formData.version}
+              </p>
+              <p>
+                <strong>Endpoint:</strong> {formData.url}
+              </p>
+              <p>
+                <strong>BPN:</strong> {formData.bpn}
+              </p>
+              <p>
+                <strong>Registry:</strong> {formData.registryUrl}
+              </p>
             </div>
           </div>
         );
@@ -438,12 +767,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
 
         <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-xl">
           <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-            >
-              Cancel
-            </button>
+
             {currentStep > 1 && (
               <button
                 onClick={() => setCurrentStep(currentStep - 1)}
@@ -456,9 +780,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
           <div className="flex gap-3">
             <button
               onClick={
-                currentStep < totalSteps
-                  ? () => setCurrentStep(currentStep + 1)
-                  : handleSubmit
+                currentStep < totalSteps ? () => setCurrentStep(currentStep + 1) : handleSubmit
               }
               className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
             >
