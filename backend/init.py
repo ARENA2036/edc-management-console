@@ -8,6 +8,7 @@ from auth.keycloak_config import keycloak_openid
 from managers import database_manager, edc_manager, activity_manager
 from models.requests import ConnectorCreate, ConnectorUpdate
 from utilities.httpUtils import HttpUtils
+from utilities.auth_utils import get_oauth2_token
 
 load_dotenv()
 
@@ -38,7 +39,6 @@ origins = [
     "http://localhost:5000",
     "http://127.0.0.1:5000",
     "https://centralidp.arena2036-x.de",
-    "https://*.replit.dev",
     "*"
 ]
 app.add_middleware(
@@ -73,7 +73,7 @@ async def list_connectors(user=Depends(keycloak_openid.get_current_user)):
     try:
         connectors = database_manager.get_all_connectors()
         return {
-            "user": user["preferred_username"], 
+            "user": user["preferred_username"],
             "data": [conn.to_dict() for conn in connectors]
         }
     except Exception as e:
@@ -100,7 +100,7 @@ async def create_connector(connector: ConnectorCreate, user=Depends(keycloak_ope
         existing = database_manager.get_connector_by_name(connector.name)
         if existing:
             return HttpUtils.get_error_response(status=400, message="Connector already exists")
-        
+
         version = connector.config.get('version') if connector.config else None
         new_connector = database_manager.create_connector(
             name=connector.name,
@@ -109,7 +109,7 @@ async def create_connector(connector: ConnectorCreate, user=Depends(keycloak_ope
             version=version,
             config=connector.config
         )
-        
+
         database_manager.log_activity(
             action="CREATE_CONNECTOR",
             connector_id=new_connector.id,
@@ -117,9 +117,9 @@ async def create_connector(connector: ConnectorCreate, user=Depends(keycloak_ope
             details=f"Connector created by {user['preferred_username']}",
             status="success"
         )
-        
+
         return {
-            "message": f"Connector created by {user['preferred_username']}", 
+            "message": f"Connector created by {user['preferred_username']}",
             "data": new_connector.to_dict()
         }
     except Exception as e:
@@ -136,10 +136,10 @@ async def update_connector(connector_id: int, connector: ConnectorUpdate, user=D
             bpn=connector.bpn,
             config=connector.config
         )
-        
+
         if not updated:
             return HttpUtils.get_error_response(status=404, message="Connector not found")
-        
+
         database_manager.log_activity(
             action="UPDATE_CONNECTOR",
             connector_id=connector_id,
@@ -147,7 +147,7 @@ async def update_connector(connector_id: int, connector: ConnectorUpdate, user=D
             details=f"Connector updated by {user['preferred_username']}",
             status="success"
         )
-        
+
         return {
             "message": f"Connector updated by {user['preferred_username']}",
             "data": updated.to_dict()
@@ -162,7 +162,7 @@ async def delete_connector(connector_id: int, user=Depends(keycloak_openid.get_c
         connector = database_manager.get_connector_by_id(connector_id)
         if not connector:
             return HttpUtils.get_error_response(status=404, message="Connector not found")
-        
+
         success = database_manager.delete_connector(connector_id)
         if success:
             database_manager.log_activity(
@@ -173,7 +173,7 @@ async def delete_connector(connector_id: int, user=Depends(keycloak_openid.get_c
                 status="success"
             )
             return {"message": f"Connector deleted by {user['preferred_username']}"}
-        
+
         return HttpUtils.get_error_response(status=500, message="Failed to delete")
     except Exception as e:
         logger.exception(str(e))
@@ -184,23 +184,36 @@ async def deploy_submodel_service(data: dict, user=Depends(keycloak_openid.get_c
     """Deploy a submodel service independently"""
     try:
         url = data.get("url")
-        api_key = data.get("apiKey")
         service_type = data.get("type", "submodel-service")
-        
+
+        auth_config = {
+            "authType": data.get("submodelAuthType", "none"),
+            "apiKey": data.get("submodelApiKey"),
+            "bearerToken": data.get("submodelBearerToken"),
+            "oauth2": {
+                "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
+                "clientId": data.get("submodelOAuthClientId"),
+                "clientSecret": data.get("submodelOAuthClientSecret"),
+                "scope": data.get("submodelOAuthScope"),
+                "clientAuth": data.get("submodelOAuthClientAuth")
+            }
+        }
+
         if not url:
             return HttpUtils.get_error_response(status=400, message="URL is required")
-        
+
         database_manager.log_activity(
             action="DEPLOY_SUBMODEL",
-            details=f"Submodel service deployed by {user['preferred_username']}: {url}",
+            details=f"Submodel service deployed by {user['preferred_username']}: {url} | Auth: {auth_config['authType']}",
             status="success"
         )
-        
+
         return {
             "message": f"Submodel service deployed by {user['preferred_username']}",
             "data": {
                 "url": url,
                 "type": service_type,
+                "auth": auth_config,
                 "status": "deployed"
             }
         }
@@ -217,20 +230,36 @@ async def connect_existing_submodel_service(
     try:
         url = data.get("url")
         bpn = data.get("bpn")
+        auth_type = data.get("authType", "none")
+
+        headers = {"Content-Type": "application/json"}
+
+        if auth_type == "apiKey":
+            headers["X-API-Key"] = data.get("apiKey")
+        elif auth_type == "bearer":
+            headers["Authorization"] = f"Bearer {data.get('bearerToken')}"
+        elif auth_type == "oauth2":
+            oauth_config = {
+                "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
+                "clientId": data.get("submodelOAuthClientId"),
+                "clientSecret": data.get("submodelOAuthClientSecret"),
+                "scope": data.get("submodelOAuthScope", "openid"),
+                "clientAuth": data.get("submodelOAuthClientAuth", "basic")
+            }
+            token = get_oauth2_token(oauth_config)
+            headers["Authorization"] = f"Bearer {token}"
 
         if not url:
             return HttpUtils.get_error_response(status=400, message="URL is required")
 
-        # Optional: Überprüfe, ob der Service erreichbar ist
         import requests
         health_url = f"{url.rstrip('/')}/api/health"
         try:
-            check = requests.get(health_url, timeout=5)
+            check = requests.get(health_url, headers=headers, timeout=5)
             reachable = check.status_code == 200
         except Exception:
             reachable = False
 
-        # Logge den Connect-Vorgang
         database_manager.log_activity(
             action="CONNECT_SUBMODEL",
             details=f"Existing submodel service connected by {user['preferred_username']}: {url} (BPN: {bpn})",
@@ -256,7 +285,7 @@ async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current
     try:
         logs = activity_manager.get_recent_logs(limit)
         return {
-            "user": user["preferred_username"], 
+            "user": user["preferred_username"],
             "data": logs
         }
     except Exception as e:
@@ -276,10 +305,10 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
     try:
         dataspace_config = settings.get("dataspaceConfig", {})
         edc_config = settings.get("edc", {})
-        
+
         dataspace_name = user.get("realm", "ARENA2036-X")
         bpn = user.get("bpn", "BPNL000000000000")
-        
+
         dataspace_settings = {
             "name": dataspace_name,
             "bpn": bpn,
@@ -294,7 +323,7 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
             },
             "discovery": {
                 "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
-                "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
+                "discovery_finder": data.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
                 "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },
             "edc": {
@@ -303,7 +332,7 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
             },
             "readonly": True
         }
-        
+
         return {
             "user": user["preferred_username"],
             "data": dataspace_settings
