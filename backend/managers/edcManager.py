@@ -88,7 +88,7 @@ class EdcManager:
             logger.error(f"[EdcManager] Failed to get contracts: {str(e)}")
             return {"error": str(e)}
 
-    def add_edc(self, connector: Connector, is_registry_enabled: bool):
+    def add_edc(self, connector: Connector, is_registry_enabled: bool, is_submodel_enabled: bool):
         try:
             if connector is None:
                 logger.error(f"[EDC Manager] No edc configuration was found")
@@ -109,7 +109,8 @@ class EdcManager:
                        helm_chart_dir=self.helm_chart_directory,
                        action="install",
                        files_config=self.files_config,
-                       is_registry_enabled=is_registry_enabled
+                       is_registry_enabled=is_registry_enabled,
+                       is_submodel_enabled=is_submodel_enabled
                        )
             self.copy_chart_version(connector.version)
             return values_file_name

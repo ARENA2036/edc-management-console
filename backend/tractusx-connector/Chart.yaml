@@ -32,3 +32,7 @@ dependencies:
   version: 0.6.3
   repository: https://eclipse-tractusx.github.io/charts/dev
   condition: digital-twin-registry.enabled
+- name: simple-data-backend
+  repository: https://eclipse-tractusx.github.io/charts/dev
+  version: 0.1.0
+  condition: simple-data-backend.enabled

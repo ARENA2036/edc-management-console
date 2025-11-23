@@ -703,6 +703,31 @@ digital-twin-registry:
             - "dataprovider-dtr-test.arena2036-x.de"
       host: dataprovider-dtr-test.arena2036-x.de
 
+simple-data-backend:
+  enabled: false
+  nameOverride: dataprovider-submodelserver
+  ingress:
+    enabled: true
+    className: "webapprouting.kubernetes.azure.com"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+    - host: "dataprovider-submodelserver.arena2036-x.de"
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+    tls:
+      - secretName: "submodelserver.tx.test-tls"
+        hosts:
+          - "dataprovider-submodelserver.arena2036-x.de"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
+
 networkPolicy:
   # -- If `true` network policy will be created to restrict access to control- and dataplane
   enabled: false

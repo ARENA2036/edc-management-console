@@ -81,7 +81,8 @@ function Dashboard() {
         version: connector.version || '0.6.0',
         db_username: 'user',  
         db_password: 'password',
-        registry: connector.registry
+        registry: connector.registry,
+        submodel: connector.submodel
       });
       loadConnectors();
       loadActivityLogs();

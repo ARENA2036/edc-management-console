@@ -8,6 +8,10 @@ class DigitalTwinRegistry(BaseModel):
     url: str
     credentials: str
 
+class SubModelServer(BaseModel):
+    url: str
+    credentials: str
+
 class Connector(BaseModel):
     name: str
     bpn: str
@@ -26,3 +30,4 @@ class Connector(BaseModel):
     db_username: Optional[str] = "user"
     db_password: Optional[str] = ""
     registry: Optional[DigitalTwinRegistry] = None
+    submodel: Optional[SubModelServer] = None

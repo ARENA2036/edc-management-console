@@ -61,7 +61,13 @@ def upgrade_helm_chart(deployment_name:str, values_files:list, namespace:str):
     subprocess.run(f"helm upgrade -i {deployment_name} {formatted_files} --namespace {namespace} --debug .")
     print(f"Upgrade helm chart successful...")
 
-def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files_config: dict = {}, is_registry_enabled: bool = False):
+def parse_yaml(connector: Connector,
+               helm_chart_dir:str,
+               action="install",
+               files_config: dict = {}, 
+               is_registry_enabled: bool = False,
+               is_submodel_enabled: bool = False
+               ):
     # try:
     if helm_chart_dir is None:
         return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
@@ -77,6 +83,12 @@ def parse_yaml(connector: Connector, helm_chart_dir:str, action="install", files
     # Step 1: Open and parse the existing YAML file
     with open(os.path.abspath(full_path), "r") as file:
         data = yaml.safe_load(file)
+
+    if is_submodel_enabled:
+        data.setdefault("simple-data-backend", {})["enabled"] = True
+        data.setdefault("simple-data-backend", {})["nameOverride"] = f"{connector.name}-submodelserver"
+        data['simple-data-backend']['ingress']['hosts'][0]['host'] = connector.submodel.url
+        data['simple-data-backend']['ingress']['tls'][0]['hosts'][0] = connector.submodel.url
 
     if is_registry_enabled:
         # update dtr details in value file

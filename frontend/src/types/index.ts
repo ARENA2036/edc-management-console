@@ -3,6 +3,11 @@ export interface DigitalTwinRegistry{
   credentials: string;
 }
 
+export interface SubmodelServer{
+  url: string;
+  credentials: string;
+}
+
 export interface Connector {
   id: number;
   name: string;
@@ -18,6 +23,7 @@ export interface Connector {
   urls: [];
   created_by: string;
   registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
 }
 
 export interface ActivityLog {

@@ -22,6 +22,20 @@ class DigitalTwinRegistryDB(Base):
             "credentials": self.credentials
         }
 
+class SubModelServerDB(Base):
+    """
+        Submodel class that has 1:1 mapping with connector
+    """
+    __tablename__ = "submodel_server"
+
+    url = Column(String(512), primary_key=True, index=True)
+    credentials = Column(String(256), nullable=True)
+
+    def to_dict(self):
+        return {
+            "url": self.url,
+            "credentials": self.credentials
+        }
 
 class ConnectorDB(Base):
     """
@@ -49,7 +63,9 @@ class ConnectorDB(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(String(255), nullable=True)
     registry = Column(String(512), ForeignKey("digital_twin_registry.url"), nullable=True)
+    submodel = Column(String(512), ForeignKey("submodel_server.url"), nullable=True)
 
+    submodel_rel = relationship("SubModelServerDB", backref="connectors")
     registry_rel = relationship("DigitalTwinRegistryDB", backref="connectors")
 
     def to_dict(self):
@@ -67,7 +83,8 @@ class ConnectorDB(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "cp_hostname": self.cp_hostname,
             "dp_hostname": self.dp_hostname,
-            "registry": self.registry
+            "registry": self.registry,
+            "submodel": self.submodel
         }
 
 

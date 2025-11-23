@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.keycloak_config import keycloak_openid
 
 from models.connector import Connector
-from models.database import ConnectorDB, DigitalTwinRegistryDB
+from models.database import ConnectorDB, DigitalTwinRegistryDB, SubModelServerDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager
@@ -183,8 +183,8 @@ async def add_connector(connector: Connector, request: Request):
         #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
         #We can then call the endpoint when the user clicks on the DeployEDC button itself.
         logger.info(connector)
-        is_registry_enabled = True if len(connector.registry.url) != 0 else False
-
+        is_registry_enabled = len(connector.registry.url) != 0
+        is_submodel_enabled = len(connector.submodel.url) != 0
        
         existingDeployments = edcService.get_connector_by_name(
             connector_name=connector.name,
@@ -192,7 +192,11 @@ async def add_connector(connector: Connector, request: Request):
         )
         if existingDeployments.get("status_code") != 200:
             # set edc helm chart directory
-            value_file_name = edcManager.add_edc(connector, is_registry_enabled=is_registry_enabled)
+            value_file_name = edcManager.add_edc(
+                connector, 
+                is_registry_enabled=is_registry_enabled,
+                is_submodel_enabled=is_submodel_enabled
+            )
             response: dict = edcService.install_helm_chart(deployment_name=connector.name,
                                                            values_files=[value_file_name],
                                                            namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
@@ -208,6 +212,11 @@ async def add_connector(connector: Connector, request: Request):
                 url=connector.registry.url,
                 credentials=connector.registry.credentials
             )
+
+            submodel_db = SubModelServerDB(
+                url=connector.submodel.url,
+                credentials=connector.submodel.credentials
+            )
             connector_db = ConnectorDB(
                 id=str(uuid.uuid4()),
                 name=connector.name,
@@ -221,7 +230,8 @@ async def add_connector(connector: Connector, request: Request):
                 db_name = 'edc',
                 db_username = connector.db_username,
                 db_password = connector.db_password,
-                registry_rel=dtr_db
+                registry_rel=dtr_db,
+                submodel_rel=submodel_db
             )
             connector_db = databaseManager.create_connector(connector=connector_db)
 

@@ -94,6 +94,10 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       registry: {
         url: formData.registryUrl,
         credentials: formData.registryCredentials
+      },
+      submodel: {
+        url: formData.submodelServiceUrl,
+        credentials: formData.submodelApiKey
       }
     };
     console.log(newConnector);
