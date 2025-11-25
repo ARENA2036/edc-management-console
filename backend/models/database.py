@@ -7,35 +7,35 @@ from sqlalchemy import ForeignKey
 
 Base = declarative_base()
 
-class DigitalTwinRegistryDB(Base):
-    """
-        DTR class, holds DTR information has 1:1 mapping with the connector
-    """
-    __tablename__ = "digital_twin_registry"
+# class DigitalTwinRegistryDB(Base):
+#     """
+#         DTR class, holds DTR information has 1:1 mapping with the connector
+#     """
+#     __tablename__ = "digital_twin_registry"
 
-    url = Column(String(512), primary_key=True, index=True)
-    credentials = Column(String(256), nullable=True)
+#     url = Column(String(512), primary_key=True, nullable=False)
+#     credentials = Column(String(256), nullable=True)
 
-    def to_dict(self):
-        return {
-            "url": self.url,
-            "credentials": self.credentials
-        }
+#     def to_dict(self):
+#         return {
+#             "url": self.url,
+#             "credentials": self.credentials
+#         }
 
-class SubModelServerDB(Base):
-    """
-        Submodel class that has 1:1 mapping with connector
-    """
-    __tablename__ = "submodel_server"
+# class SubModelServerDB(Base):
+#     """
+#         Submodel class that has 1:1 mapping with connector
+#     """
+#     __tablename__ = "submodel_server"
 
-    url = Column(String(512), primary_key=True, index=True)
-    credentials = Column(String(256), nullable=True)
+#     url = Column(String(512), primary_key=True, index=True)
+#     credentials = Column(String(256), nullable=True)
 
-    def to_dict(self):
-        return {
-            "url": self.url,
-            "credentials": self.credentials
-        }
+#     def to_dict(self):
+#         return {
+#             "url": self.url,
+#             "credentials": self.credentials
+#         }
 
 class ConnectorDB(Base):
     """
@@ -62,11 +62,11 @@ class ConnectorDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(String(255), nullable=True)
-    registry = Column(String(512), ForeignKey("digital_twin_registry.url"), nullable=True)
-    submodel = Column(String(512), ForeignKey("submodel_server.url"), nullable=True)
+    registry = Column(String(512), nullable=True)
+    submodel = Column(String(512), nullable=True)
 
-    submodel_rel = relationship("SubModelServerDB", backref="connectors")
-    registry_rel = relationship("DigitalTwinRegistryDB", backref="connectors")
+    # submodel_rel = relationship("SubModelServerDB", backref="connectors")
+    # registry_rel = relationship("DigitalTwinRegistryDB", backref="connectors")
 
     def to_dict(self):
         return {
