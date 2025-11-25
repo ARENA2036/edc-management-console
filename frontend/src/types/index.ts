@@ -22,6 +22,8 @@ export interface Connector {
   dp_hostname?: string;
   urls: [];
   created_by: string;
+  db_username: string;
+  db_password: string;
   registry?: DigitalTwinRegistry;
   submodel?: SubmodelServer;
 }

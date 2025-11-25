@@ -118,13 +118,15 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       version: formData.version,
       status: 'connected',
       created_at: new Date().toISOString(),
+      db_username: formData.edcUsername,
+      db_password: formData.edcPassword,
       registry: {
-        url: formData.registryUrl,
-        credentials: formData.registryCredentials
+        url: formData.registryUrl ? formData.registryUrl: "",
+        credentials: ""
       },
       submodel: {
-        url: formData.submodelServiceUrl,
-        credentials: formData.submodelApiKey
+        url: formData.submodelServiceUrl ? formData.submodelServiceUrl : "",
+        credentials: ""
       }
     };
     console.log(newConnector);
@@ -157,7 +159,6 @@ const shouldShowSkip = () => {
   registry:
     url: ${formData.registryUrl || '<registry.example.com>'}
     credentials: ${formData.registryCredentials ? '******' : '<none>'}
-
 `;
 
   const copyYaml = async () => {
@@ -404,8 +405,10 @@ const shouldShowSkip = () => {
                   submodelMode === 'existing'
                     ? 'bg-orange-500 text-white'
                     : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
+                }
+                disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
+                `}
+              disabled>
                 Existierenden Server verbinden
               </button>
             </div>
@@ -426,7 +429,7 @@ const shouldShowSkip = () => {
                 }
                 placeholder={
                   submodelMode === 'new'
-                    ? 'https://new-submodel-service.example.com'
+                    ? 'https://new-submodel-service.arena2036-x.de'
                     : 'https://existing-submodel-service.example.com'
                 }
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -447,7 +450,9 @@ const shouldShowSkip = () => {
                       .value as AuthType,
                   })
                 }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"} 
+                  disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed`}
+                disabled
               >
                 <option value="none">No Auth</option>
                 <option value="apiKey">API Key</option>
@@ -458,7 +463,7 @@ const shouldShowSkip = () => {
               {renderAuthSection('submodel', formData.submodelAuthType)}
             </div>
 
-            <div className="flex gap-3 pt-4 border-t">
+            {/* <div className="flex gap-3 pt-4 border-t">
               {submodelMode === 'new' ? (
                 <>
                   <button
@@ -487,7 +492,7 @@ const shouldShowSkip = () => {
                   {isConnecting ? 'Connecting...' : 'Connect Existing Service'}
                 </button>
               )}
-            </div>
+            </div> */}
           </div>
         );
 
@@ -499,6 +504,31 @@ const shouldShowSkip = () => {
             <p className="text-sm text-gray-500">
               Verbinde deinen Digital Twin Registry Service.
             </p>
+                        {/* Auswahl: Neuer oder bestehender Service */}
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <button
+                onClick={() => setSubmodelMode('new')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  submodelMode === 'new'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Neuen DTR hinzufügen
+              </button>
+              <button
+                onClick={() => setSubmodelMode('existing')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  submodelMode === 'existing'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }
+                disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
+                `}
+              disabled>
+                Existierenden DTR verbinden
+              </button>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -528,7 +558,9 @@ const shouldShowSkip = () => {
                     registryAuthType: e.target.value as AuthType,
                   })
                 }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"} 
+                  disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed`}
+                disabled
               >
                 <option value="none">No Auth</option>
                 <option value="apiKey">API Key</option>
@@ -559,13 +591,13 @@ const shouldShowSkip = () => {
             </div>
             */}
 
-            <button
+            {/* <button
               disabled={!formData.registryUrl}
               onClick={() => setCurrentStep(currentStep + 1)}
               className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
             >
               Connect Registry
-            </button>
+            </button> */}
           </div>
         );
 
@@ -606,8 +638,8 @@ const shouldShowSkip = () => {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 >
                   <option value="0.9.0">0.9.0</option>
-                  <option value="0.10.0">0.10.0</option>
-                  <option value="0.11.0">0.11.0</option>
+                  <option value="0.10.2">0.10.2</option>
+                  {/* <option value="0.11.0">0.11.0</option>`` */}
                 </select>
               </div>
 
@@ -778,6 +810,14 @@ const shouldShowSkip = () => {
             )}
           </div>
           <div className="flex gap-3">
+              {(currentStep == 1 || currentStep == 2) && (
+              <button
+                onClick={() => setCurrentStep(currentStep + 1)}
+                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+              >
+                Skip
+              </button>
+            )}
             <button
               onClick={
                 currentStep < totalSteps ? () => setCurrentStep(currentStep + 1) : handleSubmit

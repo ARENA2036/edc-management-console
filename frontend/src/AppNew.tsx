@@ -79,8 +79,8 @@ function Dashboard() {
         url: connector.url,
         bpn: connector.bpn,
         version: connector.version || '0.6.0',
-        db_username: 'user',  
-        db_password: 'password',
+        db_username: connector.db_username,  
+        db_password: connector.db_password,
         registry: connector.registry,
         submodel: connector.submodel
       });
