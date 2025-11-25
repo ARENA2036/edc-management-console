@@ -26,7 +26,6 @@ FROM python:3.13-alpine
 ENV HELM_VERSION="v3.18.4"
 ENV KUBECTL_VERSION="v1.33.3"
 
-
 USER root
 
 ## Move all the files from the project to the metareg directory
@@ -40,7 +39,6 @@ RUN ls -la
 ## Install Python
 RUN apk add py3-pip libpq curl bash ca-certificates --no-cache
 
-
 # Install kubectl
 RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
@@ -52,6 +50,25 @@ RUN curl -LO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
     && mv linux-amd64/helm /usr/local/bin/helm \
     && rm -rf linux-amd64 helm-${HELM_VERSION}-linux-amd64.tar.gz
 
+## Install Python and build dependencies
+RUN apk add --no-cache \
+    py3-pip \
+    libpq \
+    curl \
+    bash \
+    ca-certificates \
+    gcc \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    make \
+    git \
+    jq
+    
+# Install Azure CLI
+RUN pip3 install --upgrade pip \
+    && pip3 install azure-cli
+
 # Verify installation
 RUN kubectl version --client && helm version
 
@@ -59,8 +76,15 @@ RUN kubectl version --client && helm version
 RUN pip3 install --break-system-packages --no-cache-dir --upgrade -r ./requirements.txt
 
 ## Create user groups
-RUN addgroup -g 3000 appgroup \
-	&& adduser -u 1000 -g 3000 -h /home/nonroot -D nonroot
+RUN adduser -u 1000 -g 3000 -h /home/nonroot -D nonroot
+
+# Create Kubernetes config directory and ensure it's accessible by nonroot
+RUN mkdir -p /home/nonroot/.kube && \
+    chown -R nonroot:nonroot /home/nonroot/.kube
+
+# Make setup script executable
+COPY ./scripts/setup_kube.sh /backend/setup_kube.sh
+RUN chmod +x /backend/setup_kube.sh
 
 ## Specify the volumes
 VOLUME ./data ./logs
@@ -73,11 +97,16 @@ RUN mkdir -p ./data
 RUN chown -R 1000:3000 /backend && chmod -R 775 /backend/ \
     && chown -R 1000:3000 /backend && chmod -R 775 /backend/
 
-## Choose the user
-USER 1000:3000
-
 ## Expose default port
 EXPOSE 8001
 
+# Set PYTHONPATH so Python can find the backend module
+ENV PYTHONPATH=/backend
+
+USER 1000:3000
+
+# ENTRYPOINT: run the setup script
+ENTRYPOINT ["/backend/setup_kube.sh"]
+
 ## Execute the application
-CMD ["python3","./init.py", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python3", "./init.py", "--host", "0.0.0.0", "--port", "8001"]
