@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from backend.models.database import Base, Connector, ActivityLog
+# from backend.models.database import Base, Connector, ActivityLog
+from models.database import Base, Connector, ActivityLog
 from typing import List, Optional
 import logging
 

@@ -5,8 +5,10 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 
 
-from backend.models.connector import Connector
-from backend.utilities.common import parse_yaml
+# from backend.models.connector import Connector
+# from backend.utilities.common import parse_yaml
+from models.connector import Connector
+from utilities.common import parse_yaml
 
 logger = logging.getLogger('staging')
 
