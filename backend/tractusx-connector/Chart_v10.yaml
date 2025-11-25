@@ -41,12 +41,12 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.10.0
+version: 0.10.2
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "0.10.0"
+appVersion: "0.10.2"
 home: https://github.com/eclipse-tractusx/tractusx-edc/tree/main/charts/tractusx-connector
 sources:
   - https://github.com/eclipse-tractusx/tractusx-edc/tree/main/charts/tractusx-connector
@@ -65,6 +65,11 @@ dependencies:
     condition: install.postgresql
     # Digital Twin
   - name: digital-twin-registry
-    version: 0.6.3
+    version: 0.8.0
     repository: https://eclipse-tractusx.github.io/charts/dev
     condition: digital-twin-registry.enabled
+    # Submodel server
+  - name: simple-data-backend
+    repository: https://eclipse-tractusx.github.io/charts/dev
+    version: 0.1.0
+    condition: simple-data-backend.enabled

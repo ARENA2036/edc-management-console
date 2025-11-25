@@ -86,17 +86,27 @@ def parse_yaml(connector: Connector,
 
     if is_submodel_enabled:
         data.setdefault("simple-data-backend", {})["enabled"] = True
-        data.setdefault("simple-data-backend", {})["nameOverride"] = f"{connector.name}-submodelserver"
+        data.setdefault("simple-data-backend", {})["fullnameOverride"] = f"{connector.name}-submodelserver"
         data['simple-data-backend']['ingress']['hosts'][0]['host'] = connector.submodel.url
         data['simple-data-backend']['ingress']['tls'][0]['hosts'][0] = connector.submodel.url
 
     if is_registry_enabled:
         # update dtr details in value file
         data.setdefault("digital-twin-registry", {})["enabled"] = True
-        data.setdefault("digital-twin-registry", {})["nameOverride"] = f"{connector.name}-dtr"
+        data['digital-twin-registry']['enableKeycloak'] = True
+        data['digital-twin-registry']['enablePostgres'] = True
+        data.setdefault("digital-twin-registry", {})["fullnameOverride"] = f"{connector.name}-dtr"
+
+        data['digital-twin-registry']['keycloak']['fullnameOverride'] = f"{connector.name}-keycloak"
+        data['digital-twin-registry']['keycloak']['externalDatabase']['existingSecret'] = f"{connector.name}-keycloak-database-credentials"
+        data['digital-twin-registry']['registry']['fullnameOveride'] = f"{connector.name}-registry"
         data['digital-twin-registry']['registry']['ingress']['hosts'][0]['host'] = connector.registry.url
         data['digital-twin-registry']['registry']['host'] = connector.registry.url
-        data['digital-twin-registry']['registry']['ingress']['tls'][0]['hosts'][0] = connector.registry.url
+
+        if version_no == 9:
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['hosts'][0] = connector.registry.url
+        elif version_no == 10:
+            data['digital-twin-registry']['registry']['ingress']['tls']['enabled'] = True
     # # Step 2: Append or update values
     # # Example: updating participant.id
     data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")

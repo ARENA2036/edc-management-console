@@ -75,9 +75,11 @@ class EdcService:
 
         except subprocess.CalledProcessError as err:
             logger.error(f"[EdcService] error occurred in install EDC: {str(err.stderr)}")
+            os.chdir("..")
             return {"status_code": 500, "data": err}
         except Exception as e:
             logger.error(f"[EdcService] Install EDC failed: {str(e)}")
+            os.chdir("..")
             return {"status_code": 500, "data": e}
 
 

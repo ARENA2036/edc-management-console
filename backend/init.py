@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth.keycloak_config import keycloak_openid
 
 from models.connector import Connector
-from models.database import ConnectorDB, DigitalTwinRegistryDB, SubModelServerDB
+from models.database import ConnectorDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager
@@ -143,7 +143,10 @@ async def list_connectors(request: Request):
                 url_list.append(
                     'https://' + cnctor.cp_hostname + app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
                 )
-            url_list.append(f'https://{cnctor.registry}')
+            if len(cnctor.registry) != 0:
+                url_list.append(f'https://{cnctor.registry}/semantics/registry/')
+            if len(cnctor.submodel) != 0:
+                url_list.append(f'https://{cnctor.submodel}/')
 
             connector_dict = cnctor.to_dict()
             connector_dict["urls"] = url_list
@@ -209,15 +212,15 @@ async def add_connector(connector: Connector, request: Request):
         if connector_db is None:
             logger.info(f"Entry not found in database, creating entry for {connector.name}")
 
-            dtr_db = DigitalTwinRegistryDB(
-                url=connector.registry.url,
-                credentials=connector.registry.credentials
-            )
+            # dtr_db = DigitalTwinRegistryDB(
+            #     url=connector.registry.url,
+            #     credentials=connector.registry.credentials
+            # )
 
-            submodel_db = SubModelServerDB(
-                url=connector.submodel.url,
-                credentials=connector.submodel.credentials
-            )
+            # submodel_db = SubModelServerDB(
+            #     url=connector.submodel.url,
+            #     credentials=connector.submodel.credentials
+            # )
             connector_db = ConnectorDB(
                 id=str(uuid.uuid4()),
                 name=connector.name,
@@ -231,8 +234,8 @@ async def add_connector(connector: Connector, request: Request):
                 db_name = 'edc',
                 db_username = connector.db_username,
                 db_password = connector.db_password,
-                registry_rel=dtr_db,
-                submodel_rel=submodel_db
+                registry=connector.registry.url,
+                submodel=connector.submodel.url
             )
             connector_db = databaseManager.create_connector(connector=connector_db)
 

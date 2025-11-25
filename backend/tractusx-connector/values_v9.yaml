@@ -666,14 +666,19 @@ vault:
 
 digital-twin-registry:
     enabled: false
-    nameOverride: dataprovider-dtr
+    enableKeycloak: false
+    enablePostgres: true
+    fullnameOverride: dataprovider-dtr
+    keycloak:
+      fullnameOverride: registry-keycloak
+      externalDatabase:
+        existingSecret: keycloak-database-credentials
     postgresql:
       image:
         # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
         repository: "bitnamilegacy/postgresql"
         # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
         tag: "16.2.0-debian-12-r10"
-      nameOverride: dataprovider-dtr-db
       auth:
         password: "dbpassworddtrdataprovider"
         existingSecret: dataprovider-secret-dtr-postgres-init
@@ -705,7 +710,7 @@ digital-twin-registry:
 
 simple-data-backend:
   enabled: false
-  nameOverride: dataprovider-submodelserver
+  fullnameOverride: dataprovider-submodelserver
   ingress:
     enabled: true
     className: "webapprouting.kubernetes.azure.com"
