@@ -46,58 +46,74 @@ data:
         handlers: [console, file]
 
   configuration.yml: |-
-    authorization:
-      enabled: {{ .Values.backend.authorization.enabled }}
-      apiKey: 
-        key: {{ .Values.backend.authorization.apiKey.key }}
-        value: {{ .Values.backend.authorization.apiKey.value }}
+    appConfig:
+      name: "ARENA2036 EDC Management Console"
+      client_id: "CX-EDC"
+      version: "1.0.0"
+      port: 5000
+      host: "0.0.0.0"
 
-    flags:
-      {{- toYaml .Values.backend.flags | nindent 12 }}
+    authorization:
+      enabled: true
+      apiKey:
+        key: "X-Api-Key"
+        value: "emc-api-key"
 
     startup:
-      checks: {{ .Values.backend.startup.checks }}
-      refresh_interval: {{ .Values.backend.startup.refresh_interval }}
+      checks: true
+      refresh_interval: 10
 
-    ifs:
-      ## Refresh interval for the cache of applications
-      refresh_interval: {{ .Values.backend.ifs.refresh_interval }}
-      ## DCT Type used to find the applications in the cache
-      dct_type: {{ .Values.backend.ifs.dct_type }}
-      ## JSON array of policies that are allowed to be used
-      policies: 
-        {{- toYaml .Values.backend.ifs.policies | nindent 12 }}
-    
-    
-    edc:
-      url: {{ .Values.backend.edc.url }}
-      apis:
-        readiness: {{ .Values.backend.edc.apis.readiness }}
-        catalog: {{ .Values.backend.edc.apis.catalog }}
-        edr_prefix: {{ .Values.backend.edc.apis.edr_prefix }}
-        view_edr: {{ .Values.backend.edc.apis.view_edr }}
-        transfer_edr: {{ .Values.backend.edc.apis.transfer_edr }}
-        dsp: {{ .Values.backend.edc.apis.dsp }}
-
-      oauth:
-        apiKey: {{ .Values.backend.edc.oauth.apiKey}}
-
-      participantId: {{ .Values.backend.edc.participantId }}
-    
-      dct_type_key: {{ .Values.backend.edc.dct_type_key | quote }}
-
-      cache:
-        expiration_time: {{ .Values.backend.edc.cache.expiration_time }}
-
-    discovery:
-      url: {{ .Values.backend.discovery.url }}
-      keys:
-        edc_discovery: {{ .Values.backend.discovery.keys.edc_discovery }}
-
-    catenax:
+    dataspaceConfig:
+      name: "ARENA2036-X"
+      authority_id: "BPNL00000003CRHK"
       centralidp:
-        url: {{ .Values.backend.catenax.centralidp.url }}
-        realm: {{ .Values.backend.catenax.centralidp.realm }}
-        clientid: {{ .Values.backend.catenax.centralidp.clientid }}
-        clientsecret: {{ .Values.backend.catenax.centralidp.clientsecret }}
+        url: "https://centralidp.arena2036-x.de/auth/"
+        realm: "CX-Central"
+        client_id: "${CENTRALIDP_CLIENT_ID}"
+        client_secret: "${CENTRALIDP_CLIENT_SECRET}"
+      ssi_wallet:
+        url: "https://ssi-dim-wallet-stub.arena2036-x.de"
+        client_id: "${SSI_WALLET_CLIENT_ID}"
+        client_secret: "${SSI_WALLET_CLIENT_SECRET}"
+      portal:
+        url: "https://portal.arena2036-x.de"
+        client_id: "${PORTAL_CLIENT_ID}"
+        client_secret: "${PORTAL_CLIENT_SECRET}"
+      discovery:
+        semantics:
+          url: "https://semantics.arena2036-x.de"
+        discoveryFinder:
+          endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
+          keys:
+            edc_discovery: "bpn"
+          client_id: "${DISCOVERY_FINDER_CLIENT_ID}"
+          client_secret: "${DISCOVERY_FINDER_CLIENT_SECRET}"
+        bpnDiscovery:
+          endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
+          client_id: "${BPN_DISCOVERY_CLIENT_ID}"
+          client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
+
+
+    clusterConfig:
+      context: "arena2036-x-fed-services"
+      namespace: "edc-test"
+
+    edc:
+      default_url: "https://dataconsumer-controlplane.arena2036-x.de"
+      helm_chart_directory: "../tractusx-connector"
+      endpoints:
+        assets: "/v3/assets"
+        policies: "/v3/policydefinitions"
+        contracts: "/v3/contractdefinitions"
+        readiness: "/api/check/readiness"
+        liveness: "/api/check/liveness"
+        catalog: "/management/v3/catalog/request"
+        edr_prefix: "/management/v3/edrs"
+        view_edr: "/request"
+        transfer_edr: "/dataaddress?auto_refresh=true"
+        dsp: "/api/v1/dsp"
+
+    database:
+      url: "${DATABASE_URL}"
+      echo: false
 {{- end }}

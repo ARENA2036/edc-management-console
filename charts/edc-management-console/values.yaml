@@ -14,16 +14,21 @@ backend:
   replicaCount: 1
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
-    repository: nginx
+    # repository: nginx
+    repository: "arena2036.azurecr.io/emc-backend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: "latest"
+  envFrom:
+    - secretRef:
+        name: emc-azure-credentials
   ingress:
     enabled: true
-    ingressClassName: "nginx"
-    className: "nginx"
+    ingressClassName: "webapprouting.kubernetes.azure.com"
+    # className: "nginx"
     annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       # kubernetes.io/tls-acme: "true"
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
@@ -163,11 +168,11 @@ backend:
     # -- persist the backend configuration
     - name: emc-backend-config
       configMap:
-        name: "{{ .Release.Name }}-emc-backend-config"
+        name: "emc-backend-config"
     # -- persist the backend data directories
     - name: pvc-emc-backend
       persistentVolumeClaim:
-        claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
+        claimName: "pvc-emc-backend-data"
     # -- temporary file system mount
     - name: tmpfs
       emptyDir: {}
@@ -199,11 +204,12 @@ frontend:
   replicaCount: 1
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
-    repository: nginx
+    # repository: nginx
+    repository: "arena2036.azurecr.io/emc-frontend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: "latest"
   imagePullSecrets:
     - name: acr-pull-secret
 
@@ -212,9 +218,10 @@ frontend:
     port: 8080
   ingress:
     enabled: true
-    ingressClassName: "nginx"
-    className: "nginx"
+    ingressClassName: "webapprouting.kubernetes.azure.com"
+    # className: "nginx"
     annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       # kubernetes.io/tls-acme: "true"
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
