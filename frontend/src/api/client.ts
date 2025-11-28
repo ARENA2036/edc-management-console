@@ -1,13 +1,12 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL + '/api' || '/api';
-const EDC_BASE_URL = import.meta.env.EDC_HOSTNAME;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'X-Api-Key': 'emc-api-key',
+    'X-Api-Key': `${import.meta.env.VITE_API_KEY}`,
   },
 });
 

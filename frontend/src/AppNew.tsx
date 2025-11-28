@@ -142,12 +142,26 @@ function Dashboard() {
                 <p className="text-sm text-gray-500">Manage your EDC instances and connections</p>
               </div>
             </div>
-            <button
-              onClick={() => setIsWizardOpen(true)}
-              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
-            >
-              Add EDC
-            </button>
+
+            <div className="relative inline-block group">
+              <button
+                onClick={() => setIsWizardOpen(true)}
+                disabled={connectors.length >=2 }
+                className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+                  connectors.length >= 2
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
+              >
+                Add Connector
+              </button>
+              {connectors.length >=  2 && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                  More than 2 edc present, please delete existing edc to add more
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              )}
+            </div>
           </div>
 
           <ConnectorTableNew
@@ -210,10 +224,11 @@ function Settings() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        // Move this call to client.ts
         const token = localStorage.getItem('keycloak_token');
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
           headers: {
-            'X-Api-Key': 'emc-api-key'
+            'X-Api-Key': `${import.meta.env.VITE_API_KEY}`
           }
         });
         const data = await response.json();
