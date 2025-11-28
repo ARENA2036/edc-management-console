@@ -433,14 +433,14 @@ async def get_dataspace_settings(request: Request):
         dataspace_config = settings.get("dataspaceConfig", {})
         edc_config = settings.get("edc", {})
 
-        dataspace_name = user.get("realm", "ARENA2036-X")
-        bpn = user.get("bpn", "BPNL000000000000")
+        dataspace_name = dataspace_config.get("name", "ARENA2036-X")
+        bpn = dataspace_config.get("authority_id", "BPNL000000000000")
 
         dataspace_settings = {
             "name": dataspace_name,
             "bpn": bpn,
-            "realm": user.get("realm", "CX-Central"),
-            "username": user["preferred_username"],
+            "realm": dataspace_config.get("name", "CX-Central"),
+            "username": dataspace_config.get("preferred_username", "user"),
             "centralidp": {
                 "url": dataspace_config.get("centralidp", {}).get("url", ""),
                 "realm": dataspace_config.get("centralidp", {}).get("realm", "")
@@ -453,7 +453,7 @@ async def get_dataspace_settings(request: Request):
             },
             "discovery": {
                 "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
-                "discovery_finder": data.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
+                "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
                 "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },
             "edc": {
@@ -464,7 +464,7 @@ async def get_dataspace_settings(request: Request):
         }
 
         return {
-            "user": user["preferred_username"],
+            "user": dataspace_config.get("preferred_username", "user"),
             "data": dataspace_settings
         }
     except Exception as e:
