@@ -5,8 +5,10 @@ import json
 import subprocess
 import yaml
 from typing import Dict, Optional, List
-from backend.utilities import httpUtils
-from backend.utilities.common import delete_file
+from utilities import httpUtils
+from utilities.common import delete_file
+# from backend.utilities import httpUtils
+# from backend.utilities.common import delete_file
 
 logger = logging.getLogger('staging')
 

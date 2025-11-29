@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from managers import init_db, init_edc, init_activity
 from auth.keycloak_config import keycloak_openid
 from managers import database_manager, edc_manager, activity_manager
-from backend.managers import DatabaseManager, edc_manager, activity_manager
+# from backend.managers import DatabaseManager, edc_manager, activity_manager
+from managers import DatabaseManager, edc_manager, activity_manager
 from models.requests import ConnectorCreate, ConnectorUpdate
 from models.connector import Connector
 from tractusx_sdk.dataspace.managers import AuthManager
