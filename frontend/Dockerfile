@@ -70,6 +70,6 @@ USER 10000:10001
 
 EXPOSE 8080
 
-# ENTRYPOINT ["sh","/entrypoint.sh"]
+ENTRYPOINT ["sh","/entrypoint.sh"]
 
 CMD ["nginx", "-g", "daemon off;"]
