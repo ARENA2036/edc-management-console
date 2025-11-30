@@ -25,6 +25,7 @@ function Dashboard() {
       console.error('Failed to load connectors:', error);
     }
   };
+  console.log(loadConnectors);
 
   const loadActivityLogs = async () => {
     try {
@@ -38,9 +39,9 @@ function Dashboard() {
   const loadDataspace = async () => {
     try {
       const token = localStorage.getItem('keycloak_token');
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'}/api/dataspace`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'X-Api-Key': `emc-api-key`
         }
       });
       const data = await response.json();
@@ -82,7 +83,7 @@ function Dashboard() {
     }
   };
 
-  const activeConnectors = connectors.filter(c => c.status === 'connected').length;
+  const activeConnectors = connectors.filter(c => c.status === 'deployed').length;
 
   return (
     <>
@@ -202,9 +203,9 @@ function Settings() {
     const loadSettings = async () => {
       try {
         const token = localStorage.getItem('keycloak_token');
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8001'}/api/dataspace`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'}/api/dataspace`, {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'X-Api-Key': `emc-api-key`
           }
         });
         const data = await response.json();
@@ -374,11 +375,14 @@ function Settings() {
 }
 
 function AppNew() {
-  const username = keycloak.tokenParsed?.preferred_username || 'User';
-  const user = {
-    name: username,
-    role: 'Administrator'
-  };
+const firstName = keycloak.tokenParsed?.given_name || '';
+const lastName = keycloak.tokenParsed?.family_name || '';
+const fullName = `${firstName} ${lastName}`.trim() || keycloak.tokenParsed?.preferred_username || 'User';
+
+const user = {
+  name: fullName,
+  role: 'Administrator'
+};
 
   const handleLogout = () => {
     keycloak.logout();
