@@ -18,8 +18,8 @@ DEFAULT_VALUES_FILE = "values.yaml"
 
 class EdcService:
     def __init__(self, helm_chart_directory="../tractusx-connector"):
-       self.ensure_kubectl_installed()
-       self.ensure_helm_installed()
+       # self.ensure_kubectl_installed()
+       # self.ensure_helm_installed()
        self.update_helm_dependencies(helm_chart_directory)
 
     def ensure_kubectl_installed(self):
