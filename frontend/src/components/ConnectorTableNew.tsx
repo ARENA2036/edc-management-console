@@ -4,6 +4,7 @@ import type { Connector } from '../types';
 import DeleteModal from './DeleteModal';
 import EditModal from './EditModal';
 import YamlViewModal from './YamlViewModal';
+import { connectorApi } from '../api/client';
 
 interface Props {
   connectors: Connector[];
@@ -11,10 +12,21 @@ interface Props {
   onConnectorUpdated: () => void;
 }
 
+
+
 export default function ConnectorTableNew({ connectors, onConnectorDeleted, onConnectorUpdated }: Props) {
   const [deleteModalConnector, setDeleteModalConnector] = useState<Connector | null>(null);
   const [editModalConnector, setEditModalConnector] = useState<Connector | null>(null);
   const [yamlModalConnector, setYamlModalConnector] = useState<Connector | null>(null);
+
+  const handleDelete = async () => {
+    if (!deleteModalConnector) return;
+    try {
+      await connectorApi.delete(deleteModalConnector.name);
+    } catch (error) {
+      console.error('Failed to delete connector:', error);
+    }
+  };
 
   return (
     <>
@@ -57,15 +69,19 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                      connector.status === 'connected'
+                      connector.status === 'healthy'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-red-100 text-red-700'
                     }`}>
-                      {connector.status === 'connected' ? 'Connected' : 'Disconnected'}
+                      {connector.status === 'healthy' ? 'Connected' : 'Disconnected'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                    {connector.url}
+                    <ul>
+                      {connector.urls.map((url) => (
+                        <li>{url}</li>
+                      ))}
+                    </ul>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
@@ -112,7 +128,8 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
         <DeleteModal
           connector={deleteModalConnector}
           onClose={() => setDeleteModalConnector(null)}
-          onDelete={() => {
+          onConfirm={async () => {
+            await handleDelete();
             setDeleteModalConnector(null);
             onConnectorDeleted();
           }}
@@ -123,7 +140,7 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
         <EditModal
           connector={editModalConnector}
           onClose={() => setEditModalConnector(null)}
-          onUpdate={() => {
+          onUpdated={() => {
             setEditModalConnector(null);
             onConnectorUpdated();
           }}

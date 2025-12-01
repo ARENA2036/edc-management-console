@@ -64,7 +64,7 @@ RUN apk add --no-cache \
     make \
     git \
     jq
-    
+
 # Install Azure CLI
 RUN pip3 install --upgrade pip \
     && pip3 install azure-cli

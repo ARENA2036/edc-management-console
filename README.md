@@ -17,7 +17,6 @@ EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances
 - **PostgreSQL** database with SQLAlchemy ORM
 - **API Key Authentication** (Keycloak integration ready)
 
-
 ### Frontend
 - **React 18** with TypeScript
 - **Tailwind CSS** for styling
