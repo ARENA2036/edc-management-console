@@ -89,7 +89,7 @@ def parse_yaml(connector: Connector,
         data.setdefault("simple-data-backend", {})["fullnameOverride"] = f"{connector.name}-submodelserver"
         data['simple-data-backend']['ingress']['hosts'][0]['host'] = connector.submodel.url
         data['simple-data-backend']['ingress']['tls'][0]['hosts'][0] = connector.submodel.url
-        data['simple-data-backend']['ingress']['tls'][0]['secretName'] = f"{connector.name}-submodel.tx.test-tls"
+        data['simple-data-backend']['ingress']['tls'][0]['secretName'] = f"{connector.name}-submodel-txcd-tls"
     if is_registry_enabled:
         # update dtr details in value file
         data.setdefault("digital-twin-registry", {})["enabled"] = True
@@ -105,10 +105,10 @@ def parse_yaml(connector: Connector,
 
         if version_no == 9:
             data['digital-twin-registry']['registry']['ingress']['tls'][0]['hosts'][0] = connector.registry.url
-            data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr.tx.test-tls"
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr-txcd-tls"
         elif version_no == 10:
             data['digital-twin-registry']['registry']['ingress']['tls']['enabled'] = True
-            data['digital-twin-registry']['registry']['ingress']['tls']['secretName'] = f"{connector.name}-dtr.tx.test-tls"
+            data['digital-twin-registry']['registry']['ingress']['tls']['secretName'] = f"{connector.name}-dtr-txcd-tls"
     # # Step 2: Append or update values
     # # Example: updating participant.id
     data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
@@ -122,10 +122,10 @@ def parse_yaml(connector: Connector,
 
     data.setdefault("controlplane", {}).setdefault("bdrs", {}).setdefault("server",{})["url"] = connector.cp_bdrs_server_url
     data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.cp_hostname
-    data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-cp.tx.test-tls"
+    data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-cp-txcd-tls"
     #data.setdefault("controlplane", {}).setdefault("ingresses", {})[1]["hostname"] = f"ax-{connector.cp_hostname}"
     data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.dp_hostname
-    data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-dp.tx.test-tls"
+    data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-dp-txcd-tls"
 
     data.setdefault("postgresql", {}).setdefault("auth", {})["database"] = connector.db_name
     data.setdefault("postgresql", {}).setdefault("auth", {})["username"] = connector.db_username
