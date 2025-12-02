@@ -430,8 +430,8 @@ async def get_dataspace_settings(request: Request):
         response: :obj:`data object with the dataspace settings`
     """
     try:
-        dataspace_config = settings.get("dataspaceConfig", {})
-        edc_config = settings.get("edc", {})
+        dataspace_config = app_configuration.get("dataspaceConfig", {})
+        edc_config = app_configuration.get("edc", {})
 
         dataspace_name = dataspace_config.get("name", "ARENA2036-X")
         bpn = dataspace_config.get("authority_id", "BPNL000000000000")
@@ -458,10 +458,11 @@ async def get_dataspace_settings(request: Request):
             },
             "edc": {
                 "default_url": edc_config.get("default_url", ""),
-                "cluster_context": edc_config.get("clusterConfig", {}).get("context", "")
+                "cluster_context": app_configuration.get("clusterConfig", {}).get("context", "")
             },
             "readonly": True
         }
+        logger.info("%s", dataspace_settings)
 
         return {
             "user": dataspace_config.get("preferred_username", "user"),
