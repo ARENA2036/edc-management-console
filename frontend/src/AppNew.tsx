@@ -322,16 +322,14 @@ function Settings() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Discovery Services</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* LEFT RECTANGLE */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Discovery Services</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* LEFT COLUMN */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Semantics URL
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Semantics URL</label>
                   <input
                     type="text"
                     value={settings.discovery?.semantics_url || ''}
@@ -341,9 +339,7 @@ function Settings() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Discovery Finder Endpoint
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discovery Finder Endpoint</label>
                   <input
                     type="text"
                     value={settings.discovery?.discovery_finder || ''}
@@ -353,9 +349,7 @@ function Settings() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    BPN Discovery Endpoint
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">BPN Discovery Endpoint</label>
                   <input
                     type="text"
                     value={settings.discovery?.bpn_discovery || ''}
@@ -364,14 +358,15 @@ function Settings() {
                   />
                 </div>
               </div>
+            </div>
 
-              {/* RIGHT COLUMN */}
+            {/* RIGHT RECTANGLE */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">SDE Configuration</h3>
+
               <div className="space-y-4">
-                {/* Add any matching fields to balance layout */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SDE URL
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">SDE URL</label>
                   <input
                     type="text"
                     value={settings.sde?.url || ''}
@@ -381,9 +376,7 @@ function Settings() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SDE Client ID
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">SDE Client ID</label>
                   <input
                     type="text"
                     value={settings.sde?.client_id || ''}
@@ -393,9 +386,7 @@ function Settings() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Provider EDC
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Provider EDC</label>
                   <input
                     type="text"
                     value={settings.sde?.providerEDC || ''}

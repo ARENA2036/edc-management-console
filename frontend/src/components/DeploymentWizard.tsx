@@ -23,8 +23,10 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     url: '',
     bpn: '',
     version: '0.9.0',
+    submodelName: '',
     submodelServiceUrl: '',
     submodelApiKey: '',
+    registryName: '',
     registryUrl: '',
     registryCredentials: '',
     edcUsername: '',
@@ -51,16 +53,18 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
 
   const totalSteps = 4;
 
-  const { register} = useForm();
+  const { register } = useForm();
 
-  React.useEffect(()=>{
-    if (formData.name) {
-      setFormData((prev) => ({
-        ...prev, 
-        url: `https://${prev.name.toLowerCase()}.arena2036-x.de`
-      }));
-    }
-  }, [formData.name]);
+
+  // React.useEffect(()=>{
+  //   if (formData.name) {
+  //     setFormData((prev) => ({
+  //       ...prev, 
+  //       url: `https://${prev.name.toLowerCase()}-txcd.arena2036-x.de`
+  //     }));
+  //   }
+
+  // }, [formData.name]);
 
   const handleDeploySubmodel = async () => {
     try {
@@ -415,12 +419,34 @@ const shouldShowSkip = () => {
 
             {/* Eingabefelder */}
             <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Submodel Service Name
+                </label>
+                <input
+                    type="text"
+                    value={formData.submodelName}
+                    {...register("submodelName")}
+                    onChange={(e) => {
+                      const sname = e.target.value;
+                      setFormData({
+                        ...formData,
+                        submodelName: sname,
+                        submodelServiceUrl:
+                          sname.length > 0 ? `${sname}-txcd.arena2036-x.de` : "",
+                      });
+                    }}
+                  placeholder="submodel"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Service URL
+                Submodel Hostname
               </label>
               <input
                 type="text"
                 value={formData.submodelServiceUrl}
+                readOnly
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -429,8 +455,8 @@ const shouldShowSkip = () => {
                 }
                 placeholder={
                   submodelMode === 'new'
-                    ? 'https://new-submodel-service.arena2036-x.de'
-                    : 'https://existing-submodel-service.example.com'
+                    ? 'submodel-txcd.arena2036-x.de'
+                    : 'existing-submodel-txcd.example.com'
                 }
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
@@ -463,36 +489,6 @@ const shouldShowSkip = () => {
               {renderAuthSection('submodel', formData.submodelAuthType)}
             </div>
 
-            {/* <div className="flex gap-3 pt-4 border-t">
-              {submodelMode === 'new' ? (
-                <>
-                  <button
-                    onClick={handleDeploySubmodel}
-                    disabled={!formData.submodelServiceUrl}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    Deploy Submodel Service
-                  </button>
-                  {submodelDeployed && (
-                    <button
-                      onClick={handleRegisterSubmodel}
-                      disabled={!formData.bpn}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                    >
-                      Register Service
-                    </button>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={handleRegisterSubmodel}
-                  disabled={!formData.submodelServiceUrl || isConnecting}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  {isConnecting ? 'Connecting...' : 'Connect Existing Service'}
-                </button>
-              )}
-            </div> */}
           </div>
         );
 
@@ -529,18 +525,43 @@ const shouldShowSkip = () => {
                 Existierenden DTR verbinden
               </button>
             </div>
-
+                    
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Registry Name
+                </label>
+                <input
+                  {...register("registryName")}
+                  type="text"
+                  value={formData.registryName}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setFormData({
+                      ...formData,
+                      registryName: name,
+                      // Auto-update registryUrl if the user types something simple
+                      registryUrl: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
+                    });
+                  }}
+                  placeholder="registry"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Registry URL
+                Registry Hostname
               </label>
               <input
                 type="text"
+                readOnly
                 value={formData.registryUrl}
                 onChange={(e) =>
-                  setFormData({ ...formData, registryUrl: e.target.value })
+                  setFormData({
+                    ...formData,
+                    registryUrl: e.target.value,
+                  })
                 }
-                placeholder="registry.arena2036-x.de"
+                placeholder="registry-txcd.arena2036-x.de"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
@@ -617,11 +638,18 @@ const shouldShowSkip = () => {
                 </label>
                 <input
                   {...register("name")}
+                  value={formData.name}
                   type="text"
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Provider EDC"
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setFormData({
+                      ...formData,
+                      name: name,
+                      // Auto-update registryUrl if the user types something simple
+                      url: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
+                    });
+                  }}
+                  placeholder="EDC"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
@@ -645,35 +673,46 @@ const shouldShowSkip = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Endpoint URL
+                  Endpoint Hostname
                 </label>
                 <input
                   type="text"
-                  value={formData.url}
-                  readOnly
+                  value={formData.url || ""}
                   onChange={(e) =>
-                    setFormData({ ...formData, url: e.target.value })
+                      setFormData({
+                        ...formData,
+                        url: e.target.value.length > 0 ? e.target.value : ""
+                      })               
                   }
-                  placeholder="https://edc.arena2036-x.de"
+                  placeholder="edc-txcd.arena2036-x.de"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Partner Number (BPN)
-                </label>
-                <input
-                  type="text"
-                  value={formData.bpn}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bpn: e.target.value })
-                  }
-                  placeholder="BPNL000000000000"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-              <div>
+                  <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Business Partner Number (BPN)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.bpn}
+                        onChange={(e) =>
+                          setFormData({ ...formData, bpn: e.target.value })
+                        }
+                        placeholder="BPNL00000003AYRE"
+                        className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                          formData.bpn.length > 0 && formData.bpn.length < 16
+                            ? "border-2 border-red-500"
+                            : "border border-gray-300"
+                        }`}
+                      />
+                      {formData.bpn.length > 0 && formData.bpn.length < 16 && (
+                        <p className="text-red-500 text-sm mt-1">
+                          BPN must be at least 16 characters
+                        </p>
+                      )}
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Username
                         </label>
@@ -683,7 +722,7 @@ const shouldShowSkip = () => {
                           onChange={(e) =>
                             setFormData({ ...formData, edcUsername: e.target.value })
                           }
-                          placeholder="EDC Benutzername"
+                          placeholder="test-user"
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                         />
               </div>
