@@ -5,7 +5,7 @@
     -   [Accessing the app](#accessing-the-app)
         - [Login](#login)
         - [Logout](#logout)
-    -   [Navigation Manage Your Connectors](#navigation-manage-your-connectors)
+    -   [Navigation: Manage Your Connectors](#navigation-manage-your-connectors)
     -   [Skip Deploy EDC Connector steps](#skip-deploy-edc-connector-steps)
     -   [Dataspace Settings Option](#dataspace-settings-option)
     -   [SDE Option](#sde-option)
@@ -46,7 +46,7 @@ EMC can be accessed via a web browser.
 
 ![alt text](images/logout.png)
 
-## Navigation Manage Your Connectors
+## Navigation: Manage Your Connectors
 
 You can manage and deploy EDC connectors through a guided 4‑step process.
 
@@ -94,77 +94,68 @@ Click Next.
 
 ![alt text](images/skip-button.png)
 
-## Dataspace Settings Option
+# Dataspace Settings Option
 
 The Dataspace Settings page displays configuration values that are automatically synchronized from Keycloak.
 
 ## General Information
 
 - Dataspace Name
-Name of the dataspace environment you are operating in.
-Example: ARENA2036-X
+    - Name of the dataspace environment you are operating in.
+    - Example: ARENA2036-X
 
 - BPN Number
-The Business Partner Number associated with your organization.
-Example: BPNL00000003CRHK
+    - The Business Partner Number associated with your organization.
+    - Example: BPNL00000003CRHK
 
 - Realm
-The Keycloak realm under which your user and identity settings are managed.
-Example: ARENA2036-X
+    - The Keycloak realm under which your user and identity settings are managed.
+    - Example: ARENA2036-X
 
 - Username
-The username of the account currently logged into EMC.
-Example: user
+    - The username of the account currently logged into EMC.
+    - Example: user
 
 ## Identity Provider
 Information about the identity provider configured for your organization.
 
 - Central IDP URL
-URL of the Central Identity Provider used for authentication.
-Example:
-https://centralidp-txcd.arena2036-x.de/auth/
+    - URL of the Central Identity Provider used for authentication.
+    - Example: https://centralidp-txcd.arena2036-x.de/auth/
 
 - Portal URL
-Link to the associated dataspace portal.
-Example:
-https://portal-txcd.arena2036-x.de
+    - Link to the associated dataspace portal.
+    - Example: https://portal-txcd.arena2036-x.de
 
 ## Discovery Services
 
 - Semantics URL
-URL for the semantics service used for ontology and semantic model lookups.
-Example:
-https://semantics-txcd.arena2036-x.de
+    - URL for the semantics service used for ontology and semantic model lookups.
+    - Example: https://semantics-txcd.arena2036-x.de
 
 - Discovery Finder Endpoint
-Endpoint for connector discovery within the dataspace.
-Example:
-/discoveryfinder/api/v1.0/administration/connectors/discovery/search
+    - Endpoint for connector discovery within the dataspace.
+    - Example: /discoveryfinder/api/v1.0/administration/connectors/discovery/search
 
 - BPN Discovery Endpoint
-Endpoint for discovering connectors based on BPN.
-Example:
-/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search
+    - Endpoint for discovering connectors based on BPN.
+    - Example: /bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search
 
 ## EDC Configuration
 
 - Default EDC URL
-
-The preconfigured default EDC Control Plane URL for your organization.
-Example:
-https://emc-edc-1-controlplane-txcd.arena2036-x.de
+    - The preconfigured default EDC Control Plane URL for your organization.
+    - Example: https://emc-edc-1-controlplane-txcd.arena2036-x.de
 
 - Cluster Context
-The Kubernetes cluster context used for EDC deployments and operations.
-Example:
-arena2036_txcd
+  - The Kubernetes cluster context used for EDC deployments and operations.
+  - Example: arena2036_txcd
 
 ![alt text](images/dataspace-setting.png)
 
-## SDE Option
+# SDE Option
 When you click on the SDE option it will redirect to the Simple Data Exchanger application automatically.
-If you need more information, visit the following link:
-
-[Simple Data Exchanger User Guide](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/blob/main/docs/user-guide/README.md)
+- If you need more information, visit the following link:
+- [Simple Data Exchanger User Guide](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/blob/main/docs/user-guide/README.md)
 
 ![alt text](images/SDE.png)
