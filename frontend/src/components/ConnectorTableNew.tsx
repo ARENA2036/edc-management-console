@@ -94,11 +94,20 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
                         <span className="text-xs ml-1">YAML</span>
                       </button>
                       <button
+                        disabled
                         onClick={() => setEditModalConnector(connector)}
-                        className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                        className="
+                          p-2 
+                          text-gray-400
+                          rounded-lg 
+                          transition-colors 
+                          cursor-not-allowed 
+                          opacity-50
+                          disabled:hover:bg-transparent
+                        "
                         title="Edit"
                       >
-                        <Edit size={16} />
+                        <Edit size={16}/>
                         <span className="text-xs ml-1">Edit</span>
                       </button>
                       <button
