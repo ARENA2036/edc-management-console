@@ -100,7 +100,7 @@ data:
 
     edc:
       default_url: "https://dataconsumer-controlplane.arena2036-x.de"
-      helm_chart_directory: "../tractusx-connector"
+      helm_chart_directory: "./tractusx-connector"
       endpoints:
         assets: "/v3/assets"
         policies: "/v3/policydefinitions"
