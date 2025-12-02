@@ -13,7 +13,7 @@ do
 	sed -i 's|__KEYCLOAK_URL__|'${VITE_KEYCLOAK_URL}'|g' $file
 	sed -i 's|__KEYCLOAK_REALM__|'${VITE_KEYCLOAK_REALM}'|g' $file
 	sed -i 's|__KEYCLOAK_CLIENT_ID__|'${VITE_KEYCLOAK_CLIENT_ID}'|g' $file
-
+	sed -i 's|__SDE_URL__|'${VITE_SDE_URL}'|g' $file
 done
 
 exec "$@"

@@ -45,6 +45,10 @@ export const configApi = {
   getConfig: () => apiClient.get('/config'),
 };
 
+export const dataspaceApi = {
+  getDataspace: () => apiClient.get('/dataspace'),
+};
+
 export const edcAPI = {
   getHealth: (name: string) => edcClient(name), 
 };

@@ -197,7 +197,7 @@ async def add_connector(connector: Connector, request: Request):
         if existingDeployments.get("status_code") != 200:
             # set edc helm chart directory
             value_file_name = edcManager.add_edc(
-                connector, 
+                connector,
                 is_registry_enabled=is_registry_enabled,
                 is_submodel_enabled=is_submodel_enabled
             )
@@ -451,8 +451,16 @@ async def get_dataspace_settings(request: Request):
             "portal": {
                 "url": dataspace_config.get("portal", {}).get("url", "")
             },
+            "sde": {
+                "url": app_configuration.get("sde", {}).get("url", ""),
+                "client_id": app_configuration.get("sde", {}).get("client_id", ""),
+                "manufacturerId": app_configuration.get("sde", {}).get("manufacturerId", ""),
+                "providerEDC": app_configuration.get("sde", {}).get("providerEDC", ""),
+                "consumerEDC": app_configuration.get("sde", {}).get("consumerEDC", ""),
+                "registryUrl": app_configuration.get("sde", {}).get("registryUrl", ""),
+            },
             "discovery": {
-                "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
+               "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
                 "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
                 "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
             },

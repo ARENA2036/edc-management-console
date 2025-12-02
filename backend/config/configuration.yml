@@ -47,8 +47,16 @@ dataspaceConfig:
 
 
 clusterConfig:
-  context: "arena2036-x-fed-services"
-  namespace: "edc-test"
+  context: "arena2036_txcd"
+  namespace: "edc-management-console"
+
+sde:
+  url: https://sde-1-txcd.arena2036-x.de
+  client_id: "SDE-1"
+  manufacturerId: BPNLA360COMPANY1
+  providerEDC:  https://emc-edc-1-controlplane-txcd.arena2036-x.de
+  consumerEDC: https://emc-edc-2-controlplane-txcd.arena2036-x.de
+  registryUrl: https://emc-edc-dtr-1-txcd.arena2036-x.de/semantics/registry
 
 edc:
   default_url: "https://dataconsumer-controlplane.arena2036-x.de"

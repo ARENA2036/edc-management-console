@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Database, Activity, Server } from 'lucide-react';
-import { connectorApi, activityApi, edcAPI } from './api/client';
+import { connectorApi, activityApi, dataspaceApi } from './api/client';
 import type { Connector, ActivityLog } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -43,13 +43,7 @@ function Dashboard() {
 
   const loadDataspace = async () => {
     try {
-      const token = localStorage.getItem('keycloak_token');
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'}/api/dataspace`, {
-        headers: {
-          'X-Api-Key': `emc-api-key`
-        }
-      });
-      const data = await response.json();
+      const data = await dataspaceApi.getDataspace();
       if (data.data) {
         setDataspaceName(data.data.name || 'ARENA2036-X');
         setDataspaceBpn(data.data.bpn || '');
@@ -195,10 +189,12 @@ function Monitor() {
   );
 }
 
-function SDE() {
+function SDE({ sdeUrl }) {
   useEffect(() => {
-    window.location.href = 'https://sde.arena2036-x.de';
-  }, []);
+    if (sdeUrl) {
+      window.open(sdeUrl, "_blank");
+    }
+  }, [sdeUrl]);
 
   return (
     <div className="p-6">
@@ -209,7 +205,10 @@ function SDE() {
             You will be redirected to the Simple Data Exchanger application.
           </p>
           <p className="text-sm text-gray-400 mt-4">
-            If you are not redirected, <a href="https://sde.arena2036-x.de" className="text-orange-500 hover:underline">click here</a>.
+            If you are not redirected,{" "}
+            <a href={sdeUrl} className="text-orange-500 hover:underline">
+              click here
+            </a>.
           </p>
         </div>
       </div>
@@ -225,13 +224,8 @@ function Settings() {
     const loadSettings = async () => {
       try {
         // Move this call to client.ts
-        const token = localStorage.getItem('keycloak_token');
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'}/api/dataspace`, {
-          headers: {
-            'X-Api-Key': `${import.meta.env.VITE_API_KEY}`
-          }
-        });
-        const data = await response.json();
+        const response = await dataspaceApi.getDataspace();
+        const data = response.data;
         setSettings(data.data);
       } catch (error) {
         console.error('Failed to load dataspace settings:', error);
@@ -330,33 +324,85 @@ function Settings() {
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Discovery Services</h3>
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semantics URL</label>
-                <input
-                  type="text"
-                  value={settings.discovery?.semantics_url || ''}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
-                />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* LEFT COLUMN */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Semantics URL
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.discovery?.semantics_url || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Discovery Finder Endpoint
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.discovery?.discovery_finder || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    BPN Discovery Endpoint
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.discovery?.bpn_discovery || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discovery Finder Endpoint</label>
-                <input
-                  type="text"
-                  value={settings.discovery?.discovery_finder || ''}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">BPN Discovery Endpoint</label>
-                <input
-                  type="text"
-                  value={settings.discovery?.bpn_discovery || ''}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
-                />
+
+              {/* RIGHT COLUMN */}
+              <div className="space-y-4">
+                {/* Add any matching fields to balance layout */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    SDE URL
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sde?.url || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    SDE Client ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sde?.client_id || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Provider EDC
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sde?.providerEDC || ''}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -407,6 +453,25 @@ const user = {
   role: 'Administrator'
 };
 
+  const [sdeUrl, setSDEUrl] = useState(`${import.meta.env.VITE_SDE_URL}`);
+
+  const loadSDEUrl = async () => {
+    try {
+      const response = await dataspaceApi.getDataspace();
+
+      if (response.data?.data?.sde?.url) {
+        setSDEUrl(response.data.data.sde.url);
+      }
+    } catch (error) {
+      console.error('Failed to load SDE Url:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadSDEUrl();
+  }, []);
+
+
   const handleLogout = () => {
     keycloak.logout();
   };
@@ -421,7 +486,7 @@ const user = {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/monitor" element={<Monitor />} />
-              <Route path="/sde" element={<SDE />} />
+              <Route path="/sde" element={<SDE sdeUrl={sdeUrl} />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
