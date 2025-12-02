@@ -46,6 +46,8 @@ spec:
           {{- end }}
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          envFrom:
+            {{- toYaml .Values.backend.envFrom | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.port }}

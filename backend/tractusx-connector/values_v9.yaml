@@ -673,6 +673,10 @@ digital-twin-registry:
     enablePostgres: true
     fullnameOverride: dataprovider-dtr
     keycloak:
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/keycloak
+        tag: 25.0.6-debian-12-r0
       fullnameOverride: registry-keycloak
       externalDatabase:
         existingSecret: keycloak-database-credentials
@@ -686,12 +690,13 @@ digital-twin-registry:
         password: "dbpassworddtrdataprovider"
         existingSecret: dataprovider-secret-dtr-postgres-init
     registry:
-      image:
-        registry:  arena2036.azurecr.io
-        repository: tractusx/sldt-digital-twin-registry
-        version: "0.6.3-patched"
+      # image:
+      #   registry:  arena2036.azurecr.io
+      #   repository: tractusx/sldt-digital-twin-registry
+      #   version: "0.6.3-patched"
       ingress:
         enabled: true
+        tls: true
         className: "webapprouting.kubernetes.azure.com"
         annotations:
           # uncomment the following line for tls
@@ -716,6 +721,7 @@ simple-data-backend:
   fullnameOverride: dataprovider-submodelserver
   ingress:
     enabled: true
+    tls: true
     className: "webapprouting.kubernetes.azure.com"
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod

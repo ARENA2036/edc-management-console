@@ -108,7 +108,7 @@ def parse_yaml(connector: Connector,
             data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr-txcd-tls"
         elif version_no == 10:
             data['digital-twin-registry']['registry']['ingress']['tls']['enabled'] = True
-            data['digital-twin-registry']['registry']['ingress']['tls']['secretName'] = f"{connector.name}-dtr-txcd-tls"
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr-txcd-tls"
     # # Step 2: Append or update values
     # # Example: updating participant.id
     data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
