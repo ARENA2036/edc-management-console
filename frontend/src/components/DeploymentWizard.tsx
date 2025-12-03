@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useForm } from "react-hook-form" ;
+import { useForm } from "react-hook-form";
 import { X, CheckCircle, Copy } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Connector, DigitalTwinRegistry } from '../types';
@@ -54,6 +54,12 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
   const totalSteps = 4;
 
   const { register } = useForm();
+
+  const isBpnInvalid =
+    formData.bpn.length > 0 && formData.bpn.length !== 16;
+
+  const isCredentialsMissing =
+    !formData.edcUsername.trim() || !formData.edcPassword.trim();
 
 
   // React.useEffect(()=>{
@@ -125,7 +131,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       db_username: formData.edcUsername,
       db_password: formData.edcPassword,
       registry: {
-        url: formData.registryUrl ? formData.registryUrl: "",
+        url: formData.registryUrl ? formData.registryUrl : "",
         credentials: ""
       },
       submodel: {
@@ -138,20 +144,20 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     onClose();
   };
 
-const shouldShowSkip = () => {
-  if (currentStep === totalSteps) return false; // Step 4: kein Skip
+  const shouldShowSkip = () => {
+    if (currentStep === totalSteps) return false; // Step 4: kein Skip
 
-  switch (currentStep) {
-    case 1: // Submodel Service
-      return !formData.submodelServiceUrl || formData.submodelServiceUrl.trim() === '';
-    case 2: // Digital Twin Registry
-      return !formData.registryUrl || formData.registryUrl.trim() === '';
-    case 3: // EDC Configuration
-      return !formData.name || !formData.url || !formData.bpn;
-    default:
-      return false;
-  }
-};
+    switch (currentStep) {
+      case 1: // Submodel Service
+        return !formData.submodelServiceUrl || formData.submodelServiceUrl.trim() === '';
+      case 2: // Digital Twin Registry
+        return !formData.registryUrl || formData.registryUrl.trim() === '';
+      case 3: // EDC Configuration
+        return !formData.name || !formData.url || !formData.bpn;
+      default:
+        return false;
+    }
+  };
   const yamlPreview = `edc:
   name: ${formData.name || '<EDC Name>'}
   version: ${formData.version || '<Version>'}
@@ -395,50 +401,52 @@ const shouldShowSkip = () => {
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <button
                 onClick={() => setSubmodelMode('new')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  submodelMode === 'new'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'new'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
               >
                 Neuen Submodel hinzufügen
               </button>
               <button
                 onClick={() => setSubmodelMode('existing')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  submodelMode === 'existing'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'existing'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }
                 disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
                 `}
-              disabled>
+                disabled>
                 Existierenden Server verbinden
               </button>
             </div>
 
             {/* Eingabefelder */}
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Submodel Service Name
-                </label>
-                <input
-                    type="text"
-                    value={formData.submodelName}
-                    {...register("submodelName")}
-                    onChange={(e) => {
-                      const sname = e.target.value;
-                      setFormData({
-                        ...formData,
-                        submodelName: sname,
-                        submodelServiceUrl:
-                          sname.length > 0 ? `${sname}-txcd.arena2036-x.de` : "",
-                      });
-                    }}
-                  placeholder="submodel"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
+              <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
+                Only lowercase letters and numbers allowed
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Submodel Service Name
+              </label>
+
+              <input
+                type="text"
+                value={formData.submodelName}
+                {...register("submodelName")}
+                onChange={(e) => {
+                  const sname = e.target.value;
+                  setFormData({
+                    ...formData,
+                    submodelName: sname,
+                    submodelServiceUrl:
+                      sname.length > 0 ? `${sname}-txcd.arena2036-x.de` : "",
+                  });
+                }}
+                placeholder="submodel"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Submodel Hostname
@@ -500,53 +508,56 @@ const shouldShowSkip = () => {
             <p className="text-sm text-gray-500">
               Verbinde deinen Digital Twin Registry Service.
             </p>
-                        {/* Auswahl: Neuer oder bestehender Service */}
+            {/* Auswahl: Neuer oder bestehender Service */}
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <button
                 onClick={() => setSubmodelMode('new')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  submodelMode === 'new'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'new'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
               >
                 Neuen DTR hinzufügen
               </button>
               <button
                 onClick={() => setSubmodelMode('existing')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  submodelMode === 'existing'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'existing'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }
                 disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
                 `}
-              disabled>
+                disabled>
                 Existierenden DTR verbinden
               </button>
             </div>
-                    
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Registry Name
-                </label>
-                <input
-                  {...register("registryName")}
-                  type="text"
-                  value={formData.registryName}
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setFormData({
-                      ...formData,
-                      registryName: name,
-                      // Auto-update registryUrl if the user types something simple
-                      registryUrl: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
-                    });
-                  }}
-                  placeholder="registry"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
+
+            <div>
+              <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
+                Only lowercase letters and numbers allowed
+              </p>
+
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Registry Name
+              </label>
+              <input
+                {...register("registryName")}
+                type="text"
+                value={formData.registryName}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setFormData({
+                    ...formData,
+                    registryName: name,
+                    // Auto-update registryUrl if the user types something simple
+                    registryUrl: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
+                  });
+                }}
+                placeholder="registry"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Registry Hostname
@@ -593,7 +604,7 @@ const shouldShowSkip = () => {
             </div>
 
             {/* altes Credentials-Feld kannst du bei Bedarf entfernen oder lassen */}
-{/*            <div>
+            {/*            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Credentials (optional)
               </label>
@@ -631,8 +642,13 @@ const shouldShowSkip = () => {
               Bitte gib die EDC-Informationen für den Deployment-Vorgang ein.
             </p>
 
+<p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
+                Only lowercase letters and numbers allowed
+              </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
               <div>
+                
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   EDC Name
                 </label>
@@ -679,71 +695,68 @@ const shouldShowSkip = () => {
                   type="text"
                   value={formData.url || ""}
                   onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        url: e.target.value.length > 0 ? e.target.value : ""
-                      })               
+                    setFormData({
+                      ...formData,
+                      url: e.target.value.length > 0 ? e.target.value : ""
+                    })
                   }
                   placeholder="edc-txcd.arena2036-x.de"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
 
-                  <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Business Partner Number (BPN)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.bpn}
-                        onChange={(e) =>
-                          setFormData({ ...formData, bpn: e.target.value })
-                        }
-                        placeholder="BPNL00000003AYRE"
-                        className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
-                          formData.bpn.length > 0 && formData.bpn.length < 16
-                            ? "border-2 border-red-500"
-                            : "border border-gray-300"
-                        }`}
-                      />
-                      {formData.bpn.length > 0 && formData.bpn.length < 16 && (
-                        <p className="text-red-500 text-sm mt-1">
-                          BPN must be at least 16 characters
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Username
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.edcUsername}
-                          onChange={(e) =>
-                            setFormData({ ...formData, edcUsername: e.target.value })
-                          }
-                          placeholder="test-user"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Business Partner Number (BPN)
+                </label>
+                <input
+                  type="text"
+                  value={formData.bpn}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bpn: e.target.value })
+                  }
+                  placeholder="BPNL00000003AYRE"
+                  className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${isBpnInvalid
+                    ? "border-2 border-red-500"
+                    : "border border-gray-300"
+                    }`}
+                />
+                {isBpnInvalid && (
+                  <p className="text-red-500 text-sm mt-1">
+                    BPN must be exactly 16 characters
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={formData.edcUsername}
+                  onChange={(e) =>
+                    setFormData({ ...formData, edcUsername: e.target.value })
+                  }
+                  placeholder="test-user"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
               <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Password
-                        </label>
-                        <input
-                          type="password"
-                          value={formData.edcPassword}
-                          onChange={(e) =>
-                            setFormData({ ...formData, edcPassword: e.target.value })
-                          }
-                          placeholder="••••••••"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-
-
-
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={formData.edcPassword}
+                  onChange={(e) =>
+                    setFormData({ ...formData, edcPassword: e.target.value })
+                  }
+                  placeholder="••••••••"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
 
             {/* YAML Preview */}
             <div className="mt-6">
@@ -799,6 +812,16 @@ const shouldShowSkip = () => {
     }
   };
 
+  const handleNext = () => {
+    if (currentStep === 3) {
+      if (isBpnInvalid || isCredentialsMissing) {
+        return;
+      }
+    }
+
+    setCurrentStep((prev) => prev + 1);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4">
@@ -825,9 +848,8 @@ const shouldShowSkip = () => {
               {[1, 2, 3, 4].map((step) => (
                 <div
                   key={step}
-                  className={`flex-1 h-2 rounded-full mx-1 ${
-                    step <= currentStep ? 'bg-orange-500' : 'bg-gray-200'
-                  }`}
+                  className={`flex-1 h-2 rounded-full mx-1 ${step <= currentStep ? 'bg-orange-500' : 'bg-gray-200'
+                    }`}
                 />
               ))}
             </div>
@@ -849,7 +871,7 @@ const shouldShowSkip = () => {
             )}
           </div>
           <div className="flex gap-3">
-              {(currentStep == 1 || currentStep == 2) && (
+            {(currentStep == 1 || currentStep == 2) && (
               <button
                 onClick={() => setCurrentStep(currentStep + 1)}
                 className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
@@ -859,9 +881,15 @@ const shouldShowSkip = () => {
             )}
             <button
               onClick={
-                currentStep < totalSteps ? () => setCurrentStep(currentStep + 1) : handleSubmit
+                currentStep < totalSteps ? handleNext : handleSubmit
               }
-              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
+              disabled={
+                currentStep === 3 && (isBpnInvalid || isCredentialsMissing)
+              }
+              className={`px-6 py-2.5 rounded-lg font-medium transition-colors text-white ${currentStep === 3 && (isBpnInvalid || isCredentialsMissing)
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-orange-500 hover:bg-orange-600"
+                }`}
             >
               {currentStep === totalSteps ? 'Deploy EDC' : 'Next'}
             </button>

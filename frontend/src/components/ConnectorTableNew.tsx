@@ -68,18 +68,19 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
                     {connector.bpn}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                      connector.status === 'healthy'
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${connector.status === 'healthy'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-red-100 text-red-700'
-                    }`}>
+                      }`}>
                       {connector.status === 'healthy' ? 'Connected' : 'Disconnected'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                    <ul>
+                  <td className="px-6 py-4 text-sm text-gray-600 align-top">
+                    <ul className="space-y-1">
                       {connector.urls.map((url) => (
-                        <li>{url}</li>
+                        <li key={url} className="break-all">
+                          {url}
+                        </li>
                       ))}
                     </ul>
                   </td>
@@ -107,7 +108,7 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
                         "
                         title="Edit"
                       >
-                        <Edit size={16}/>
+                        <Edit size={16} />
                         <span className="text-xs ml-1">Edit</span>
                       </button>
                       <button
@@ -124,7 +125,7 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
               ))}
             </tbody>
           </table>
-          
+
           {connectors.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               No connectors deployed yet. Click "Add EDC" to get started.
