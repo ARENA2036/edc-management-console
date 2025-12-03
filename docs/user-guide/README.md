@@ -50,26 +50,26 @@ EMC can be accessed via a web browser.
 
 You can manage and deploy EDC connectors through a guided 4‑step process.
 
-1. Navigate to the Add Connector button
+**1. Navigate to the Add Connector button**
 - Click Add Connector 
 
 ![alt text](images/add-connector.png)
 
-2. Step 1 - Deploy EDC Connector
+**2. Step 1 - Deploy EDC Connector**
 - Enter the Submodel Service
 - Submodel Hostname automatically populated after entering the Submodel Service
 - Click Next
 
 ![alt text](images/step1.png)
 
-3. Step 2 - Digital Twin Registry
+**3. Step 2 - Digital Twin Registry**
 - Enter the Registry Name
 - Registry Hostname automatically populated after entering the Registry Name
 - Click Next
 
 ![alt text](images/step2.png)
 
-4. Step 3 - EDC Deployment Configuration
+**4. Step 3 - EDC Deployment Configuration**
 Fill in the fields shown in the screenshot:
 - EDC Name
 - EDC Version (Options: 0.9.0 or 0.10.2 — select one)
@@ -82,14 +82,14 @@ You can also preview and copy the auto‑generated YAML using the Copy YAML opti
 
 ![alt text](images/step3.png)
 
-5. Step 4 - Deploy EDC Connector
+**5. Step 4 - Deploy EDC Connector**
 - If you want to review your inputs, click Previous.
 - After verifying the details, click Deploy EDC.
 - Once deployed, the connector will appear under Manage Your Connectors.
 
 ![alt text](images/step4.png)
 
-6. Manage Your Connectors
+**6. Manage Your Connectors**
 -   When a connector is added, the initial status may appear as Disconnected. This happens because the backend performs a series to check API calls to verify the connector’s availability. The system checks the liveness and readiness endpoints of the EDC.
 -   If all required EDC services are up and running, the status automatically updates to Connected, as shown in the screenshot below.
 
