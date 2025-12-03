@@ -47,15 +47,9 @@ The EDC Management Console is a comprehensive management platform designed to fa
 
 - Backend API: The backend API facilitates the connector logic, EDC API proxying, and storage operations, providing a robust interface for developers to extend and customize their integration with the EDC framework. 
 
-
-
 ### User Manual
 
-1. Start the EMC APP from the Portal
-2. Login with your company credentials
-3. Explore the existing EDCs
-4. Press "add EDC" and follow the wizzard
-
+The user manual to operate the EMC application can be found [here](https://github.com/ARENA2036/edc-management-console/tree/main/docs/user-guide)
 
 
 ## Step 3: SDE Application
@@ -65,31 +59,18 @@ The Simple Data Exchanger (SDE), Formerly known as Data Format Transformer (DFT)
 
 With the SDE, users can upload, request, and transfer files without needing to manually navigate connector configurations, policy definitions, or protocol specifics. Behind the scenes, SDE handles the necessary interactions with the Eclipse Dataspace Connector (EDC), making it an ideal entry point for newcomers who want to experience real data exchange quickly and reliably.
 
-[!INFO]
-> To get to know more about SDE, click here  
 
 ### User Manual
 
-1. Start the SDE APP from the EMC
-2. Login with your company credentials
-3. From the Dashboard, go to Data provider and start Data Provisioning
-    3.1. Click on Upload Data
-    3.2. ...  
-4. From the Dashboard, go to Data Consumer, and start Data Consumption
-    4.1. Click on Consumer Data
-    4.2. ...
+The user manual to operate the SDE application can be found [here](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/tree/main/docs/user-guide)
 
 
 ## Workshop Feedback
 
 To continuously improve this tutorial and the Tractus-X onboarding experience, we kindly ask all participants to share their feedback via Menti. We are especially interested in your thoughts on the following questions:
 
-- How did you find the overall workshop?
-
-- What did you like most during the workshop?
-
-- What did you learn from the workshop?
-
-- Do you have any suggestions or recommendations regarding the UI or functionality?
 
 Your input is extremely valuable and helps us refine both the tutorial and the supporting tools. Thank you for taking a moment to contribute.
+
+
+Congratulations! you have completed all steps of this tutorial.
