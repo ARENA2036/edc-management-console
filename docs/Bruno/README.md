@@ -6,7 +6,7 @@
 This document explains how to prepare and use Bruno collections for the EMC application. It is intended for developers working with EMC APIs. 
 The EMC (EDC Management Console) application exposes several backend APIs. This guide helps set up the Bruno collection by importing the provided Postman collection: 
 -   You can find the collection here :
-[EMC API Collection](<emc-collection/EMC Backend.postman_collection.json>)
+[EMC API Collection](<EMC Backend.postman_collection.json>)
 
 ### 2. Prerequisites 
 Before setting up the Bruno collection, ensure you have: 
