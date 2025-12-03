@@ -1,0 +1,425 @@
+{
+	"info": {
+		"_postman_id": "9f53b6e4-d5cb-413d-aef4-d403869f53ad",
+		"name": "EMC Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "41478110"
+	},
+	"item": [
+		{
+			"name": "Bonus Proxy",
+			"item": [
+				{
+					"name": "App GET Request",
+					"request": {
+						"auth": {
+							"type": "apikey",
+							"apikey": [
+								{
+									"key": "value",
+									"value": "ifs-api-key",
+									"type": "string"
+								},
+								{
+									"key": "key",
+									"value": "X-Api-Key",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"path\": \"/flags\",\r\n    \"policies\": [\r\n        {\r\n            \"odrl:permission\": [],\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n    ],\r\n    \"dct_type\": \"IndustryFlagService\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"url\": \"https://dataprovider-controlplane.arena2036-x.de\"\r\n}\r\n\r\n/*\r\n{\r\n            \"odrl:permission\": {\r\n                \"odrl:action\": {\r\n                    \"@id\": \"odrl:use\"\r\n                },\r\n                \"odrl:constraint\": {\r\n                    \"odrl:leftOperand\": {\r\n                        \"@id\": \"cx-policy:UsagePurpose\"\r\n                    },\r\n                    \"odrl:operator\": {\r\n                        \"@id\": \"odrl:eq\"\r\n                    },\r\n                    \"odrl:rightOperand\": \"basf.industryflagservice\"\r\n                }\r\n            },\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n*/",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/data/get",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"data",
+								"get"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "App POST Request",
+					"request": {
+						"auth": {
+							"type": "apikey",
+							"apikey": [
+								{
+									"key": "value",
+									"value": "ifs-api-key",
+									"type": "string"
+								},
+								{
+									"key": "key",
+									"value": "X-Api-Key",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"path\": \"/lookup/shellsByAssetLink\",\r\n    \"policies\": [\r\n        {\r\n            \"odrl:permission\": [],\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n    ],\r\n    \"dct_type\": \"https://w3id.org/catenax/taxonomy#DigitalTwinRegistry\",\r\n    \"bpn\": \"BPNL00000001VDGS\",\r\n    \"url\": \"https://cgi-prov-edc.dataspaceos.preprod.cofinity-x.com\",\r\n    \"body\": [\r\n        {\r\n        \"name\": \"partInstanceId\",\r\n        \"value\": \"DPPV-0011\"\r\n        }\r\n    ],\r\n    \"content_type\": \"application/json\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/data/post",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"data",
+								"post"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Get Dataspace Settings",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "emc-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8001/api/dataspace",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"api",
+						"dataspace"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Health",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Edc-Bpn",
+						"value": "BPNL0000000001",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8001/health",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Add New EDC",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "emc-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"connector_name\": \"demo-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.11.0\",\r\n    \"connector_url\": \"https://demo-edc.arena2036-x.de\",\r\n    \"db_username\": \"user\",\r\n    \"db_password\": \"password\"\r\n\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/api/connector",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"api",
+						"connector"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get All EDCs",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "emc-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/api/connectors",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"api",
+						"connectors"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update EDC",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "emc-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.arena2036-x.de\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/api/connectors/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"api",
+						"connectors",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Remove EDC",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "emc-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "DELETE",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.arena2036-x.de\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/api/connectors/1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"api",
+						"connectors",
+						"1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Flag Proof from BPN Copy",
+			"request": {
+				"auth": {
+					"type": "apikey",
+					"apikey": [
+						{
+							"key": "value",
+							"value": "ifs-api-key",
+							"type": "string"
+						},
+						{
+							"key": "key",
+							"value": "X-Api-Key",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"bpn\": \"BPNL00000001VDGS\",\r\n    \"id\": \"b3929de3-dabe-4a4b-9646-9fc18022a9c7\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/flags/proof",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"flags",
+						"proof"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "key",
+				"value": "X-Api-Key",
+				"type": "string"
+			},
+			{
+				"key": "value",
+				"value": "ifs-api-key",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

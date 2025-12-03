@@ -100,16 +100,13 @@ Below are the basic steps to deploy the EDC Management Console using Helm.
 -  Deploy release 
 -  helm upgrade --install edc-management-console ./charts/edc-management-console -n your-namespace -f values.yaml 
 
-3. Remove the Deployment
-
--  helm uninstall your-release-name -n your-namespace   
-
-4. Verify Deployment 
+3. Verify Deployment 
 
 -  kubectl get pods -n your-namespace 
 -  kubectl get svc -n your-namespace 
 -  kubectl get ingress -n your-namespace 
 
- 
+If you want to remove or uninstall a Deployment, run the following command:
+-  helm uninstall your-release-name -n your-namespace   
 
  
