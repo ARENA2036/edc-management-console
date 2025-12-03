@@ -77,8 +77,9 @@ Fill in the fields shown in the screenshot:
 - Business Partner Number (BPN)
 - Username
 - password
-You can also preview and copy the auto‑generated YAML using the Copy YAML option
 - Click Next
+
+You can also preview and copy the auto‑generated YAML using the Copy YAML option
 
 ![alt text](images/step3.png)
 
