@@ -81,7 +81,7 @@ This backend image includes:
 ### Frontend Dockerfile 
 
 FROM node:lts-alpine as builder
-[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/feature/frontend/frontend/Dockerfile)
+[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/main/frontend/Dockerfile)
 
 ### 🚀 Deployment Using Helm Chart 
 
