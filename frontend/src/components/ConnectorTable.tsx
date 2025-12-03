@@ -59,13 +59,16 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {connector.name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {connector.url}
+                </td> */}
+                <td className="px-6 py-4 text-sm text-gray-500 max-w-[250px] overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                   {connector.url}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      connector.status === 'healthy'
+                      connector.status === 'deployed'
                         ? 'bg-green-100 text-green-800'
                         : connector.status === 'unhealthy'
                         ? 'bg-red-100 text-red-800'

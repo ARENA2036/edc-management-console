@@ -50,6 +50,8 @@ spec:
             - name: http
               containerPort: {{ .Values.frontend.service.port }}
               protocol: TCP
+          env:
+            {{- toYaml .Values.frontend.env | nindent 12 }}
           {{- with .Values.frontend.resources }}
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}

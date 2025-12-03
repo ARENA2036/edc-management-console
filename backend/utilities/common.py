@@ -2,12 +2,13 @@ import base64
 import subprocess
 import os
 import urllib.parse
-import logging.config
-
+import requests
 import yaml
 from urllib import *
+import logging
 
-from backend.models.connector import Connector
+from models.connector import Connector
+logger = logging.getLogger(__name__)
 
 SUB_DIR = "charts/umbrella"
 DEFAULT_VALUES_FILE = "values.yaml"
@@ -60,48 +61,89 @@ def upgrade_helm_chart(deployment_name:str, values_files:list, namespace:str):
     subprocess.run(f"helm upgrade -i {deployment_name} {formatted_files} --namespace {namespace} --debug .")
     print(f"Upgrade helm chart successful...")
 
-def parse_yaml(connector: Connector, helm_chart_dir:str, action:str ="install"):
-    try:
-        if helm_chart_dir is None:
-            return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
+def parse_yaml(connector: Connector,
+               helm_chart_dir:str,
+               action="install",
+               files_config: dict = {},
+               is_registry_enabled: bool = False,
+               is_submodel_enabled: bool = False
+               ):
+    # try:
+    if helm_chart_dir is None:
+        return {"error": "EDC helm chart directory was not specified [ADD EDC]"}
+    print(connector.version)
+    version_no = int(connector.version.split('.')[1])
+    if version_no == 9:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v9")
+    elif version_no == 10:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v10")
+    elif version_no == 11:
+        full_path = helm_chart_dir + files_config.get("values", {}).get("v11")
 
-        full_path = helm_chart_dir + "/values.yaml"
+    # Step 1: Open and parse the existing YAML file
+    with open(os.path.abspath(full_path), "r") as file:
+        data = yaml.safe_load(file)
 
-        # Step 1: Open and parse the existing YAML file
-        with open(full_path, "r") as file:
-            data = yaml.safe_load(file)
+    if is_submodel_enabled:
+        data.setdefault("simple-data-backend", {})["enabled"] = True
+        data.setdefault("simple-data-backend", {})["fullnameOverride"] = f"{connector.name}-submodelserver"
+        data['simple-data-backend']['ingress']['hosts'][0]['host'] = connector.submodel.url
+        data['simple-data-backend']['ingress']['tls'][0]['hosts'][0] = connector.submodel.url
+        data['simple-data-backend']['ingress']['tls'][0]['secretName'] = f"{connector.name}-submodel-txcd-tls"
+    if is_registry_enabled:
+        # update dtr details in value file
+        data.setdefault("digital-twin-registry", {})["enabled"] = True
+        data['digital-twin-registry']['enableKeycloak'] = True
+        data['digital-twin-registry']['enablePostgres'] = True
+        data.setdefault("digital-twin-registry", {})["fullnameOverride"] = f"{connector.name}-dtr"
 
-        # # Step 2: Append or update values
-        # # Example: updating participant.id
-        data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
-        data.setdefault("iatp", {})["id"] = f"{connector.iatp_id}"
-        data.setdefault("iatp", {})["trustedIssuers"][0] = f"{connector.trustedIssuers}"
-        data.setdefault("iatp", {})["sts"]["dim"]["url"] = f"{connector.sts_dim_url}"
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("dim",{})["url"] = connector.sts_dim_url
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{})["token_url"] = connector.sts_oauth_tokenUrl
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["id"] = connector.sts_oauth_client_id
-        data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["secret_alias"] = connector.sts_oauth_secretAlias
+        data['digital-twin-registry']['keycloak']['fullnameOverride'] = f"{connector.name}-keycloak"
+        data['digital-twin-registry']['keycloak']['externalDatabase']['existingSecret'] = f"{connector.name}-keycloak-database-credentials"
+        data['digital-twin-registry']['registry']['fullnameOveride'] = f"{connector.name}-registry"
+        data['digital-twin-registry']['registry']['ingress']['hosts'][0]['host'] = connector.registry.url
+        data['digital-twin-registry']['registry']['host'] = connector.registry.url
 
-        data.setdefault("controlplane", {}).setdefault("bdrs", {}).setdefault("server",{})["url"] = connector.cp_bdrs_server_url
-        data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.cp_hostname
-        #data.setdefault("controlplane", {}).setdefault("ingresses", {})[1]["hostname"] = f"ax-{connector.cp_hostname}"
-        data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.dp_hostname
+        if version_no == 9:
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['hosts'][0] = connector.registry.url
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr-txcd-tls"
+        elif version_no == 10:
+            data['digital-twin-registry']['registry']['ingress']['tls']['enabled'] = True
+            data['digital-twin-registry']['registry']['ingress']['tls'][0]['secretName'] = f"{connector.name}-dtr-txcd-tls"
+    # # Step 2: Append or update values
+    # # Example: updating participant.id
+    data.setdefault("participant", {})["id"] = urllib.parse.quote_plus(f"{connector.bpn}")
+    data.setdefault("iatp", {})["id"] = f"{connector.iatp_id}"
+    data.setdefault("iatp", {})["trustedIssuers"][0] = f"{connector.trustedIssuers}"
+    data.setdefault("iatp", {})["sts"]["dim"]["url"] = f"{connector.sts_dim_url}"
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("dim",{})["url"] = connector.sts_dim_url
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{})["token_url"] = connector.sts_oauth_tokenUrl
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["id"] = connector.sts_oauth_client_id
+    data.setdefault("iatp", {}).setdefault("sts", {}).setdefault("oauth",{}).setdefault("client",{})["secret_alias"] = connector.sts_oauth_secretAlias
 
-        data.setdefault("postgresql", {}).setdefault("auth", {})["database"] = connector.db_name
-        data.setdefault("postgresql", {}).setdefault("auth", {})["username"] = connector.db_username
-        data.setdefault("postgresql", {}).setdefault("auth", {})["password"] = connector.db_password
+    data.setdefault("controlplane", {}).setdefault("bdrs", {}).setdefault("server",{})["url"] = connector.cp_bdrs_server_url
+    data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.cp_hostname
+    data.setdefault("controlplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-cp-txcd-tls"
+    #data.setdefault("controlplane", {}).setdefault("ingresses", {})[1]["hostname"] = f"ax-{connector.cp_hostname}"
+    data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["hostname"] = connector.dp_hostname
+    data.setdefault("dataplane", {}).setdefault("ingresses", {})[0]["tls"]["secretName"] = f"{connector.name}-dp-txcd-tls"
 
-        # Save updated YAML
-        with open(f"{helm_chart_dir}/{action}_values.yaml", "w") as file:
-            yaml.dump(data, file, sort_keys=False)
+    data.setdefault("postgresql", {}).setdefault("auth", {})["database"] = connector.db_name
+    data.setdefault("postgresql", {}).setdefault("auth", {})["username"] = connector.db_username
+    data.setdefault("postgresql", {}).setdefault("auth", {})["password"] = connector.db_password
 
+    # Save updated YAML
+    file_path = f"{helm_chart_dir}/{connector.name}_values_{version_no}.yaml"
+    # full_path = os.path.abspath(file_path)
+    with open(file_path, "w") as file:
+        yaml.dump(data, file, sort_keys=False)
 
-    except Exception as e:
-        logging.error(f"It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
-        return {"error": str(e)}
+    return f"{connector.name}_values_{version_no}.yaml"
+    # except Exception as e:
+    #     logging.error(f"It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
+    #     return {"error": str(e)}
+
 
 def delete_file(file_path):
-
     try:
         # Check if the file exists before attempting to delete it
         if os.path.exists(file_path):

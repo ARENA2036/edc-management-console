@@ -1,3 +1,13 @@
+export interface DigitalTwinRegistry{
+  url: string;
+  credentials: string;
+}
+
+export interface SubmodelServer{
+  url: string;
+  credentials: string;
+}
+
 export interface Connector {
   id: number;
   name: string;
@@ -8,6 +18,14 @@ export interface Connector {
   config?: any;
   created_at?: string;
   updated_at?: string;
+  cp_hostname?: string;
+  dp_hostname?: string;
+  urls: [];
+  created_by: string;
+  db_username: string;
+  db_password: string;
+  registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
 }
 
 export interface ActivityLog {

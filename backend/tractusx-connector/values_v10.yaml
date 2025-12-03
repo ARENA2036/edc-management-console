@@ -64,6 +64,43 @@ iatp:
 
 # -- Add custom ca certificates to the truststore
 customCaCerts: {}
+log4j2:
+  # -- Whether to enable the json log config in log4j2.config
+  enableJsonLogs: true
+  # -- Log4j2 configuration for json log formatting.
+  config: |-
+    Appenders:
+      Console:
+        name: CONSOLE
+        JsonTemplateLayout:
+          eventTemplate: |-
+            {
+              "timestamp": {
+                "$resolver": "timestamp",
+                "pattern": {
+                  "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSSS",
+                  "timeZone": "UTC"
+                }
+              },
+              "level": {
+                "$resolver": "level",
+                "field": "severity",
+                "severity": {
+                  "field": "keyword"
+                }
+              },
+              "message": {
+                "$resolver": "message"
+              }
+            }
+    Loggers:
+      Root:
+        level: "OFF"
+      Logger:
+        name: org.eclipse.edc.monitor.logger
+        level: DEBUG
+        AppenderRef:
+          ref: CONSOLE
 
 controlplane:
   image:
@@ -255,9 +292,11 @@ controlplane:
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
       hostname: "edc-control.local"
       # -- Additional ingress annotations to add
-      annotations: {}
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       # -- EDC endpoints exposed by this ingress resource
       endpoints:
+        - default
         - protocol
         - management
         - control
@@ -268,19 +307,20 @@ controlplane:
         # -- Enables TLS on the ingress resource
         enabled: true
         # -- If present overwrites the default secret name
-        secretName: ""
+        secretName: "default-controlplane-tx-tls"
       ## Adds [cert-manager](https://cert-manager.io/docs/) annotations to the ingress resource
       certManager:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: "letsencrypt-prod"
+        clusterIssuer: ""
     ## Private / Intranet facing Ingress
     - enabled: false
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
       hostname: "edc-control.intranet"
       # -- Additional ingress annotations to add
-      annotations: {}
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       # -- EDC endpoints exposed by this ingress resource
       endpoints:
         - management
@@ -523,7 +563,8 @@ dataplane:
       # -- The hostname to be used to precisely map incoming traffic onto the underlying network service
       hostname: "edc-data.local"
       # -- Additional ingress annotations to add
-      annotations: {}
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
       # -- EDC endpoints exposed by this ingress resource
       endpoints:
         - public
@@ -534,13 +575,13 @@ dataplane:
         # -- Enables TLS on the ingress resource
         enabled: true
         # -- If present overwrites the default secret name
-        secretName: ""
+        secretName: "default-dataplane-tx-tls"
       ## Adds [cert-manager](https://cert-manager.io/docs/) annotations to the ingress resource
       certManager:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: "letsencrypt-prod"
+        clusterIssuer: ""
 
   # -- declare where to mount [volumes](https://kubernetes.io/docs/concepts/storage/volumes/) into the container
   volumeMounts:
@@ -625,6 +666,82 @@ vault:
       secret: /v1/secret
       health: /v1/sys/health
       folder: ""
+
+digital-twin-registry:
+    enabled: false
+    enableKeycloak: false
+    enablePostgres: true
+    fullnameOverride: dataprovider-dtr
+    keycloak:
+      image:
+        registry: docker.io
+        repository: bitnamilegacy/keycloak
+        tag: 25.0.6-debian-12-r0
+      fullnameOverride: registry-keycloak
+      externalDatabase:
+        existingSecret: keycloak-database-credentials
+    postgresql:
+      image:
+        # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
+        repository: "bitnamilegacy/postgresql"
+        # -- workaround to use bitnamilegacy chart for version 12.12.x till committers align on new postgresql charts
+        tag: "16.2.0-debian-12-r10"
+      auth:
+        password: "dbpassworddtrdataprovider"
+        existingSecret: dataprovider-secret-dtr-postgres-init
+    registry:
+      # image:
+      #   registry:  arena2036.azurecr.io
+      #   repository: tractusx/sldt-digital-twin-registry
+      #   version: "0.6.3-patched"
+      ingress:
+        enabled: true
+        tls: true
+        className: "webapprouting.kubernetes.azure.com"
+        annotations:
+          # uncomment the following line for tls
+          kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+          # nginx.ingress.kubernetes.io/proxy-body-size: 50m
+          nginx.ingress.kubernetes.io/rewrite-target: /$2
+          nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+        hosts:
+        - host: "dataprovider-dtr-test.arena2036-x.de"
+          paths:
+            - path: "/semantics/registry(/|$)(.*)"
+              pathType: "Prefix"
+        tls:
+          enabled: true
+          secretName: "default-dtr-tx-tls"
+      host: dataprovider-dtr-test.arena2036-x.de
+
+simple-data-backend:
+  enabled: false
+  fullnameOverride: dataprovider-submodelserver
+  ingress:
+    enabled: true
+    tls: true
+    className: "webapprouting.kubernetes.azure.com"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+    hosts:
+    - host: "dataprovider-submodelserver.arena2036-x.de"
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+    tls:
+      - secretName: "submodelserver-tx-tls"
+        enabled: true
+        hosts:
+          - "dataprovider-submodelserver.arena2036-x.de"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1024Mi
+    requests:
+      cpu: 500m
+      memory: 1024Mi
 
 networkPolicy:
   # -- If `true` network policy will be created to restrict access to control- and dataplane

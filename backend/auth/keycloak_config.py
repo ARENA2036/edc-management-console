@@ -35,10 +35,13 @@ class KeycloakOpenID:
             
             username = decoded.get("preferred_username", "unknown")
             logger.info(f"[Keycloak] Authenticated user: {username}")
-            
+
             return {
                 "preferred_username": username,
                 "email": decoded.get("email", ""),
+                "given_name": decoded.get("given_name", ""),
+                "family_name": decoded.get("family_name", ""),
+                "name": decoded.get("name", ""),
                 "roles": decoded.get("realm_access", {}).get("roles", []),
                 "sub": decoded.get("sub", ""),
                 "token": token

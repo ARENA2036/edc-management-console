@@ -38,9 +38,12 @@ RUN npm install
 # Copy rest of the files
 COPY . .
 
-# Build the project
-RUN npm run build
+# # Build the project
+# RUN npm run build
 
+# Build Vite project
+RUN npm install -g vite
+RUN vite build
 
 
 FROM nginxinc/nginx-unprivileged:alpine
@@ -55,7 +58,8 @@ COPY ./entrypoint.sh /entrypoint.sh
 WORKDIR /app
 
 COPY ./.nginx/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/build /usr/share/nginx/html
+# COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # add permissions for a user
 RUN chown -R 10000:10001 /app && chmod -R 775 /app/
@@ -70,6 +74,6 @@ USER 10000:10001
 
 EXPOSE 8080
 
-# ENTRYPOINT ["sh","/entrypoint.sh"]
+ENTRYPOINT ["sh","/entrypoint.sh"]
 
 CMD ["nginx", "-g", "daemon off;"]
