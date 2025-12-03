@@ -70,6 +70,7 @@ You can manage and deploy EDC connectors through a guided 4‑step process.
 ![alt text](images/step2.png)
 
 **4. Step 3 - EDC Deployment Configuration**
+
 Fill in the fields shown in the screenshot:
 - EDC Name
 - EDC Version (Options: 0.9.0 or 0.10.2 — select one)
