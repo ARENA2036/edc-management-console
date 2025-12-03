@@ -21,28 +21,28 @@ EMC can be accessed via a web browser.
 
 ![alt text](images/emc-application.png)
 
-2. Select your company from the list or search by typing its name.
+2. Select your company from the list or search by typing its name
 
 ![alt text](images/select-company.png)
 
-3. You will be redirected to your company's Keycloak login page.
+3. You will be redirected to your company's Keycloak login page
 
 ![alt text](images/company-Keycloak-login.png)
 
-4. Enter your credentials (username/email and password).
+4. Enter your credentials (username/email and password)
 -   Click Sign In
 
 ![alt text](images/enter-username-password.png)
 
-5. You will be redirected EMC dashboard.
+5. You will be redirected EMC dashboard
 
 ![alt text](images/dashboard.png)
 
 ## Logout
 
-1. In the header, click on the user icon at the top-right corner.
-2. Click Logout.
-3. You will be redirected back to the login page.
+1. In the header, click on the user icon at the top-right corner
+2. Click Logout
+3. You will be redirected back to the login page
 
 ![alt text](images/logout.png)
 
@@ -56,16 +56,16 @@ You can manage and deploy EDC connectors through a guided 4‑step process.
 ![alt text](images/add-connector.png)
 
 2. Step 1 - Deploy EDC Connector
-- Enter the Service URL.
-- Example format: https://new-submodel-service.arena2036-x.de
-- Click Next.
+- Enter the Submodel Service
+- Submodel Hostname automatically populated after entering the Submodel Service
+- Click Next
 
 ![alt text](images/step1.png)
 
 3. Step 2 - Digital Twin Registry
-- Enter the Registry URL.
-- Example format: registry.arena2036-x.de
-- Click Next.
+- Enter the Registry Name
+- Registry Hostname automatically populated after entering the Registry Name
+- Click Next
 
 ![alt text](images/step2.png)
 
@@ -73,21 +73,30 @@ You can manage and deploy EDC connectors through a guided 4‑step process.
 Fill in the fields shown in the screenshot:
 - EDC Name
 - EDC Version (Options: 0.9.0 or 0.10.2 — select one)
-- Endpoint URL (automatically populated after entering the EDC Name)
+- Endpoint Hostname (automatically populated after entering the EDC Name)
 - Business Partner Number (BPN)
 - Username
 - password
-You can also preview and copy the auto‑generated YAML using the Copy YAML option.
-Click Next.
+You can also preview and copy the auto‑generated YAML using the Copy YAML option
+- Click Next
 
 ![alt text](images/step3.png)
 
 5. Step 4 - Deploy EDC Connector
 - If you want to review your inputs, click Previous.
 - After verifying the details, click Deploy EDC.
-- Once deployed, the connector will appear under Manage Your Connectors
+- Once deployed, the connector will appear under Manage Your Connectors.
 
 ![alt text](images/step4.png)
+
+6. Manage Your Connectors
+-   When a connector is added, the initial status may appear as Disconnected. This happens because the backend performs a series to check API calls to verify the connector’s availability. The system checks the liveness and readiness endpoints of the EDC.
+-   If all required EDC services are up and running, the status automatically updates to Connected, as shown in the screenshot below.
+
+![alt text](images/manage-your-connectors-disconnected.png)
+
+EDC services are up and running and the status is Connected
+![alt text](images/manage-your-connectors-connected.png)
 
 ## Skip Deploy EDC Connector steps
 - On the Deploy EDC Connector screen, you can click Skip to skip a step and move to the next one.
@@ -141,6 +150,20 @@ Information about the identity provider configured for your organization.
     - Endpoint for discovering connectors based on BPN.
     - Example: /bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search
 
+## SDE Configuration
+
+- SDE URL
+    - The base URL for accessing the Simple Data Exchanger (SDE) application.
+    - Example: https://sde-1-txcd.arena2036-x.de
+
+- SDE Client ID
+    - The client identifier used by the SDE to authenticate with the identity provider.
+    - Example: SDE-1
+
+- Provider EDC
+    - The default EDC (Eclipse Dataspace Connector) endpoint used by the SDE for data exchange operations.
+    - Example: https://emc-edc-1-controlplane-txcd.arena2036-x.de
+
 ## EDC Configuration
 
 - Default EDC URL
@@ -159,3 +182,8 @@ When you click on the SDE option it will redirect to the Simple Data Exchanger a
 - [Simple Data Exchanger User Guide](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/blob/main/docs/user-guide/README.md)
 
 ![alt text](images/SDE.png)
+
+# Known Issues
+
+- In the application, there are some known issues that may affect certain functionalities. These issues have already been identified and will be resolved in future updates.
+- These issues do not affect the core functionality and are being actively monitored and improved in upcoming releases.

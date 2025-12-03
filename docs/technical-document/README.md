@@ -102,7 +102,7 @@ Below are the basic steps to deploy the EDC Management Console using Helm.
 
 3. Remove the Deployment
 
--  helm uninstall <release-name> -n <namespace>   
+-  helm uninstall your-release-name -n your-namespace   
 
 4. Verify Deployment 
 
