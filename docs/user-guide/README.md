@@ -83,7 +83,7 @@ Fill in the fields shown in the screenshot:
 **Note :**
 - ***Use the same Business Partner Number (BPN) that is provided in the Hands-On Guide. This ensures proper identification and successful connector deployment.***
 
-- .***Use the EDC Name in this format (for example: company1 → com1). This keeps naming consistent and helps avoid deployment conflicts.***
+- ***Use the EDC Name in this format (for example: company1 → com1). This keeps naming consistent and helps avoid deployment conflicts.***
 
 You can also preview and copy the auto‑generated YAML using the Copy YAML option
 
