@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file see also the
 
 ### Added
 
+- User interface to create and view deployed EDC and its components
+- Authentication using Central IDP
+- View status of deployed EDCs
 
 ### Changed
 
