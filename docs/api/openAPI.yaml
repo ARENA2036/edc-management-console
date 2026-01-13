@@ -1,0 +1,387 @@
+---
+openapi: 3.1.0
+info:
+  title: EMC Backend
+  version: 0.1.0
+paths:
+  "/health":
+    get:
+      summary: Get Health
+      description: |-
+        Retrieves health information from the server
+
+        Returns:
+            response: :obj:`status, timestamp`
+      operationId: get_health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  "/api/connectors":
+    get:
+      tags:
+      - EDC
+      summary: List Connectors
+      description: |-
+        Retrieves list of connectors the user is allowed to see
+
+        Returns:
+            response: :obj:`data object with the list of connectors`
+      operationId: list_connectors_api_connectors_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  "/api/connectors/{connector_id}":
+    get:
+      tags:
+      - EDC
+      summary: Get Connector
+      operationId: get_connector_api_connectors__connector_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: connector_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Connector Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+    put:
+      tags:
+      - EDC
+      summary: Upgrade Connector
+      operationId: upgrade_connector_api_connectors__connector_id__put
+      parameters:
+      - name: connector_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Connector Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/Connector"
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/api/connector":
+    post:
+      tags:
+      - EDC
+      summary: Add Connector
+      operationId: add_connector_api_connector_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/Connector"
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/api/connectors/{connector_name}":
+    delete:
+      tags:
+      - EDC
+      summary: Delete Connector
+      operationId: delete_connector_api_connectors__connector_name__delete
+      parameters:
+      - name: connector_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Connector Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/api/submodel":
+    post:
+      tags:
+      - Submodel
+      summary: Add Submodel Service
+      description: Deploy a submodel service independently
+      operationId: add_submodel_service_api_submodel_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: true
+              type: object
+              title: Data
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+      security:
+      - HTTPBearer: []
+  "/api/submodel/{submodel_service_id}":
+    post:
+      tags:
+      - Submodel
+      summary: Add Existing Submodel Service
+      description: Register a submodel service independently
+      operationId: add_existing_submodel_service_api_submodel__submodel_service_id__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: true
+              type: object
+              title: Data
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+      security:
+      - HTTPBearer: []
+  "/api/config":
+    get:
+      tags:
+      - Config
+      summary: Get Config
+      operationId: get_config_api_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+      - HTTPBearer: []
+  "/api/dataspace":
+    get:
+      tags:
+      - Dataspace
+      summary: Get Dataspace Settings
+      description: |-
+        Retrieves dataspace specific configurations from the configuration file
+
+        Returns:
+            response: :obj:`data object with the dataspace settings`
+      operationId: get_dataspace_settings_api_dataspace_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    Connector:
+      properties:
+        name:
+          type: string
+          title: Name
+        bpn:
+          type: string
+          title: Bpn
+        version:
+          type: string
+          title: Version
+        url:
+          type: string
+          title: Url
+        iatp_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Iatp Id
+        trustedIssuers:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Trustedissuers
+        sts_dim_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sts Dim Url
+        sts_oauth_tokenUrl:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sts Oauth Tokenurl
+        sts_oauth_client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sts Oauth Client Id
+        sts_oauth_secretAlias:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sts Oauth Secretalias
+        cp_bdrs_server_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cp Bdrs Server Url
+        cp_hostname:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cp Hostname
+        dp_hostname:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dp Hostname
+        db_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Db Name
+          default: edc
+        db_username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Db Username
+          default: user
+        db_password:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Db Password
+          default: ''
+        registry:
+          anyOf:
+          - "$ref": "#/components/schemas/DigitalTwinRegistry"
+          - type: 'null'
+        submodel:
+          anyOf:
+          - "$ref": "#/components/schemas/SubModelServer"
+          - type: 'null'
+      type: object
+      required:
+      - name
+      - bpn
+      - version
+      - url
+      title: Connector
+    DigitalTwinRegistry:
+      properties:
+        url:
+          type: string
+          title: Url
+        credentials:
+          type: string
+          title: Credentials
+      type: object
+      required:
+      - url
+      - credentials
+      title: DigitalTwinRegistry
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            "$ref": "#/components/schemas/ValidationError"
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    SubModelServer:
+      properties:
+        url:
+          type: string
+          title: Url
+        credentials:
+          type: string
+          title: Credentials
+      type: object
+      required:
+      - url
+      - credentials
+      title: SubModelServer
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
