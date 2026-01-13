@@ -1,0 +1,23 @@
+@startuml
+actor User
+participant "EMC Frontend" as FE
+participant "EMC Backend" as BE
+participant "Target Cluster" as Cluster
+
+== Initiate Delete ==
+User -> FE : Click Delete Icon\n(on deployed EDC)
+FE -> User : Show Delete Confirmation
+
+== Confirm Delete ==
+User -> FE : Confirm Delete
+FE -> BE : Send Delete Deployment Request
+
+== Process Deletion ==
+BE -> Cluster : Delete EDC Deployment
+Cluster --> BE : Deletion Status
+
+== Update View ==
+BE --> FE : Deletion Result
+FE --> User : Update Deployed EDC View
+
+@enduml
