@@ -18,7 +18,7 @@ export default function Header({ user, onLogout }: Props) {
             alt="ARENA2036 Logo" 
             className="h-10 object-contain"
           />
-          <h1 className="text-xl font-semibold">ARENA2036 EDC Management Console</h1>
+          <h1 className="text-lg md:text-xl font-semibold truncate">ARENA2036 EDC Management Console</h1>
         </div>
         
         <div className="flex items-center gap-4">
