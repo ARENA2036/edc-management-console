@@ -471,7 +471,7 @@ const user = {
     <BrowserRouter>
       <div className="flex h-screen bg-gray-50">
         <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto w-full min-w-0">
           <Header user={user} onLogout={handleLogout} />
           <main className="flex-1 overflow-y-auto">
             <Routes>
