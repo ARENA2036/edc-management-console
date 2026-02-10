@@ -11,7 +11,7 @@ interface Props {
 export default function Header({ user, onLogout }: Props) {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <img 
             src="/arena2036-logo.png" 
@@ -32,7 +32,7 @@ export default function Header({ user, onLogout }: Props) {
           </div>
           
           {user && (
-            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+            <div className="hidden sm:flex items-center gap-3 pl-4 border-l ...">
               <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white">
                 <User size={18} />
               </div>
