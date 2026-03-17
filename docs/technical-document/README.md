@@ -107,6 +107,14 @@ Below are the basic steps to deploy the EDC Management Console using Helm.
 -  kubectl get ingress -n your-namespace 
 
 If you want to remove or uninstall a Deployment, run the following command:
--  helm uninstall your-release-name -n your-namespace   
+-  helm uninstall your-release-name -n your-namespace
 
- 
+
+## NOTICE
+
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+- Copyright (c) 2025 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2024 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console

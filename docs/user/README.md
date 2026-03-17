@@ -194,3 +194,12 @@ When you click on the SDE option it will redirect to the Simple Data Exchanger a
 
 - In the application, there are some known issues that may affect certain functionalities. These issues have already been identified and will be resolved in future updates.
 - These issues do not affect the core functionality and are being actively monitored and improved in upcoming releases.
+
+## NOTICE
+
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+- Copyright (c) 2025 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2024 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console

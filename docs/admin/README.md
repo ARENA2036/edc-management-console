@@ -33,11 +33,11 @@ This migration guide is based on the `chartVersion` of the chart. If you don't r
 > - Deploying an older version of the software may have used an older postgresql version. This is NOT applicable for the PURIS charts.
 > - The community is working out on how to resolve the issue.
 
-# NOTICE
+## NOTICE
 
 This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
 
-* Copyright (c) 2025 ARENA2036 e.V.
-* SPDX-License-Identifier: CC-BY-4.0
-* SPDX-FileCopyrightText: 2025 Contributors to the Eclipse Foundation
-* Source URL: <https://github.com/eclipse-tractusx/industry-core-hub>
+- Copyright (c) 2025 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2024 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console

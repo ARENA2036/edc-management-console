@@ -19,14 +19,14 @@ which can be used to participate within an International Data Space (IDS).
 The Industry Core defines a layer on top of the combination of IDS and Digital Twin platform capabilities. It defines
 the Part Type Twin as a "catalog item" representing a material that has not yet been built (serialized) but sourced. The
 [Digital Twin KIT](https://eclipse-tractusx.github.io/docs-kits/kits/Digital%20Twin%20Kit/Adoption%20View%20Digital%20Twin%20Kit)
-describes the shared asset pattern used by puris to distribute Digital Twins between the two partners.
+describes the shared asset pattern used by edc-management-console to distribute Digital Twins between the two partners.
 For more information refer to the [concepts section](./08_concepts.md)..
 
 ## NOTICE
 
-This work is licensed under the [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
 
 - Copyright (c) 2025 ARENA2036 e.V.
-- SPDX-License-Identifier: Apache-2.0
+- SPDX-License-Identifier: CC-BY-4.0
 - SPDX-FileCopyrightText: 2024 Contributors to the Eclipse Foundation
-- Source URL: https://github.com/eclipse-tractusx/puris
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console
