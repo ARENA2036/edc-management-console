@@ -23,13 +23,13 @@ This migration guide is based on the `chartVersion` of the chart. If you don't r
 > 2. Set during installation.
 > 
 > ```bash
-> helm install puris -n tractusx-dev/puris \
->   --set postgresql.image.repository=bitnamilegacy/postgresql
->   --set postgresql.image.tag=15.4.0-debian-11-r45
+> helm install edc-management-console ./charts/edc-management-console -n your-namespace -f values.yaml
+> --set postgresql.image.repository=bitnamilegacy/postgresql
+> --set postgresql.image.tag=15.4.0-debian-11-r45  
 > ```
 > 
 > Notes:
-> 
+> - Current version doesn't use postgresql but this guide needs to be followed once we migrate from sqlitedb to postgresql.
 > - Deploying an older version of the software may have used an older postgresql version. This is NOT applicable for the PURIS charts.
 > - The community is working out on how to resolve the issue.
 
@@ -37,6 +37,7 @@ This migration guide is based on the `chartVersion` of the chart. If you don't r
 
 This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
 
+* Copyright (c) 2025 ARENA2036 e.V.
 * SPDX-License-Identifier: CC-BY-4.0
 * SPDX-FileCopyrightText: 2025 Contributors to the Eclipse Foundation
 * Source URL: <https://github.com/eclipse-tractusx/industry-core-hub>
