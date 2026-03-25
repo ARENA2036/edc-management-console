@@ -22,7 +22,7 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
   const handleDelete = async () => {
     if (!deleteConnector) return;
     try {
-      await connectorApi.delete(deleteConnector.id);
+      await connectorApi.delete(deleteConnector.name);
       onConnectorDeleted();
       setDeleteConnector(null);
     } catch (error) {
