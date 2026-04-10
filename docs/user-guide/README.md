@@ -161,7 +161,7 @@ Information about the identity provider configured for your organization.
 
 - SDE URL
     - The base URL for accessing the Simple Data Exchanger (SDE) application.
-    - Example: https://sde-1-txcd.arena2036-x.de
+    - Example: sde.arena2036-x.de
 
 - SDE Client ID
     - The client identifier used by the SDE to authenticate with the identity provider.

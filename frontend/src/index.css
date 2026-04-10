@@ -26,6 +26,15 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: #f8fafc;
+  color: #0f172a;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+html.dark body {
+  background: #020617;
+  color: #e2e8f0;
+  color-scheme: dark;
 }
 
 code {

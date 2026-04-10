@@ -29,6 +29,23 @@ export interface Connector {
   submodel?: SubmodelServer;
 }
 
+export interface DashboardConnector extends Connector {
+  source?: 'api' | 'local';
+}
+
+export interface ManagedComponent {
+  id: string;
+  name: string;
+  type: string;
+  version: string;
+  status: 'Active' | 'Inactive';
+  linkedConnector: string;
+  deployedAt: string;
+  connectionMode?: 'new' | 'existing';
+  endpoint?: string;
+  credentials?: string;
+}
+
 export interface ActivityLog {
   id: number;
   connector_id?: number;
