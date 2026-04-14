@@ -44,29 +44,29 @@ backend:
     - secretRef:
         name: emc-credentials
   ingress:
-    enabled: true
-    className: ""
-    annotations:
-      cert-manager.io/cluster-issuer:
-      # kubernetes.io/ingress.class:
-      nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-      nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
-      nginx.ingress.kubernetes.io/enable-cors: "true"
-    hostname: &hostname "emc-backend.tx.test"
-    endpoints:
-      - default
-    tls:
-      enabled: true
-      # secretName: "emc-backend.test-tls"
-    # -- If present overwrites the default secret name
-    # certManager:
-    #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-    #   issuer: "letsencrypt-prod"
-    #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-    #   clusterIssuer: "letsencrypt-prod"
-    hosts:
-          - *hostname
+    - enabled: true
+      className: ""
+      annotations:
+        cert-manager.io/cluster-issuer:
+        # kubernetes.io/ingress.class:
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+      hostname: &hostname "emc-backend.tx.test"
+      endpoints:
+        - default
+      tls:
+        enabled: true
+        # secretName: "emc-backend.test-tls"
+      # -- If present overwrites the default secret name
+      # certManager:
+      #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+      #   issuer: "letsencrypt-prod"
+      #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+      #   clusterIssuer: "letsencrypt-prod"
+      hosts:
+            - *hostname
 
   # -- Existing image pull secret to use to [obtain the container image from private registries](https://kubernetes.io/docs/concepts/containers/images/#using-a-private-registry)
   imagePullSecrets:
@@ -242,29 +242,29 @@ frontend:
     type: ClusterIP
     port: 8080
   ingress:
-  enabled: true
-  className: ""
-  annotations:
-    cert-manager.io/cluster-issuer:
-    # kubernetes.io/ingress.class:
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-  hostname: &hostname "emc-frontend.tx.test"
-  endpoints:
-    - default
-  tls:
-    enabled: true
-    # secretName: "emc-frontend.test-tls"
-  # -- If present overwrites the default secret name
-  # certManager:
-  #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-  #   issuer: "letsencrypt-prod"
-  #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-  #   clusterIssuer: "letsencrypt-prod"
-  hosts:
-        - *hostname
+    - enabled: true
+      className: ""
+      annotations:
+        cert-manager.io/cluster-issuer:
+        # kubernetes.io/ingress.class:
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+      hostname: &hostname "emc-frontend.tx.test"
+      endpoints:
+        - default
+      tls:
+        enabled: true
+        # secretName: "emc-frontend.test-tls"
+      # -- If present overwrites the default secret name
+      # certManager:
+      #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+      #   issuer: "letsencrypt-prod"
+      #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+      #   clusterIssuer: "letsencrypt-prod"
+      hosts:
+            - *hostname
 
   resources: { }
     # We usually recommend not to specify default resources and to leave this as a conscious
