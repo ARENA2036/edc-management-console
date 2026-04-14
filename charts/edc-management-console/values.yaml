@@ -1,3 +1,23 @@
+#################################################################################
+# Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
+# Copyright (c) 2026 ARENA2036 e.V.
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+################################################################################
+---
 # Default values for edc-management-console.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -15,37 +35,42 @@ backend:
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
     # repository: nginx
-    repository: "arena2036.azurecr.io/emc-backend"
+    repository: "tractusx/emc-backend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
+    tag: ""
   envFrom:
     - secretRef:
-        name: emc-azure-credentials
+        name: emc-credentials
   ingress:
     enabled: true
-    ingressClassName: "webapprouting.kubernetes.azure.com"
-    # className: "nginx"
+    className: ""
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      # kubernetes.io/tls-acme: "true"
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    hosts:
-      - host: &hostname "emc-backend.arena2036-x.de"
-        paths:
-          - path: /
-            pathType: Prefix
+      cert-manager.io/cluster-issuer:
+      # kubernetes.io/ingress.class:
+      nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+    hostname: &hostname "emc-backend.tx.test"
+    endpoints:
+      - default
     tls:
-      - secretName: default-ssl-certificate
-        hosts:
+      enabled: true
+      # secretName: "emc-backend.test-tls"
+    # -- If present overwrites the default secret name
+    # certManager:
+    #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+    #   issuer: "letsencrypt-prod"
+    #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+    #   clusterIssuer: "letsencrypt-prod"
+    hosts:
           - *hostname
 
   # -- Existing image pull secret to use to [obtain the container image from private registries](https://kubernetes.io/docs/concepts/containers/images/#using-a-private-registry)
   imagePullSecrets:
-    - name: acr-pull-secret
+    - name: ""
   podAnnotations: {}
     # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
   service:
@@ -139,12 +164,12 @@ backend:
     # choice for the user. This also increases chances charts run on environments with little
     # resources, such as Minikube. If you do want to specify resources, uncomment the following
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+    cpu: 100m
+    memory: 128Mi
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
   autoscaling:
     enabled: false
@@ -153,15 +178,15 @@ backend:
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
   podSecurityContext: {}
-    # fsGroup: 2000
 
   securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
 
   ## Additional volumes on the output Deployment definition.
   volumes:
@@ -205,37 +230,40 @@ frontend:
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
     # repository: nginx
-    repository: "arena2036.azurecr.io/emc-frontend"
+    repository: "tractusx/emc-frontend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
+    tag: ""
   imagePullSecrets:
-    - name: acr-pull-secret
+    - name: ""
 
   service:
     type: ClusterIP
     port: 8080
-  ingress:
+    ingress:
     enabled: true
-    ingressClassName: "webapprouting.kubernetes.azure.com"
-    # className: "nginx"
+    className: ""
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      # kubernetes.io/tls-acme: "true"
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
-      # nginx.ingress.kubernetes.io/rewrite-target: "/$2"
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-      nginx.ingress.kubernetes.io/service-upstream: "true"
-    hosts:
-      - host: &hostname "emc-frontend.arena2036-x.de"
-        paths:
-          - path: /
-            pathType: Prefix
+      cert-manager.io/cluster-issuer:
+      # kubernetes.io/ingress.class:
+      nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+    hostname: &hostname "emc-frontend.tx.test"
+    endpoints:
+      - default
     tls:
-      - secretName: default-ssl-certificate
-        hosts:
+      enabled: true
+      # secretName: "emc-frontend.test-tls"
+    # -- If present overwrites the default secret name
+    # certManager:
+    #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+    #   issuer: "letsencrypt-prod"
+    #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+    #   clusterIssuer: "letsencrypt-prod"
+    hosts:
           - *hostname
 
   resources: { }
@@ -243,12 +271,12 @@ frontend:
     # choice for the user. This also increases chances charts run on environments with little
     # resources, such as Minikube. If you do want to specify resources, uncomment the following
     # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+    cpu: 100m
+    memory: 128Mi
   volumeMounts: []
 
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
@@ -283,13 +311,12 @@ podSecurityContext: {}
   # fsGroup: 2000
 
 securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
