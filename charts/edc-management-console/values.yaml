@@ -19,7 +19,7 @@ backend:
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
+    tag: "latest-15-04-2026"
   envFrom:
     - secretRef:
         name: emc-azure-credentials
@@ -209,7 +209,7 @@ frontend:
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
+    tag: "latest-15-04-2026"
   imagePullSecrets:
     - name: acr-pull-secret
 
