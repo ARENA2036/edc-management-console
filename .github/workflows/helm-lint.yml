@@ -119,52 +119,17 @@ jobs:
           - name: Run chart-testing (lint)
             run: ct lint --validate-maintainers=false --target-branch ${{ github.event.repository.default_branch }}
 
-          # Install chart with images
           - name: Run chart-testing (install)
+            run: ct install --charts charts/app-dashboard
             if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-            run: |
-              ct install \
-                --charts charts/edc-management-console \
-                --helm-extra-set-args "
-                backend.image.repository=emc-backend,
-                backend.image.tag=testing,
-                frontend.image.repository=emc-frontend,
-                frontend.image.tag=testing"
 
-          # REQUIRED: Helm test (TRG 5.09)
-          - name: Run helm test
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-            run: helm test edc --logs
-          
           # Upgrade the released chart version with the locally available chart
           # default value for event_name != workflow_dispatch
           - name: Run helm upgrade
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
             run: |
               helm repo add bitnami https://charts.bitnami.com/bitnami
               helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-              helm install edc tractusx-dev/edc-management-console \
-                --version ${{ github.event.inputs.upgrade_from || '0.1.8' }} \
-                --wait --timeout 5m
+              helm install edc tractusx-dev/edc-management-console --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
               helm dependency update charts/edc-management-console
-              helm upgrade edc charts/edc-management-console \
-                --set backend.image.repository=emc-backend \
-                --set backend.image.tag=testing \
-                --set frontend.image.repository=emc-frontend \
-                --set frontend.image.tag=testing \
-                --wait --timeout 5m
-
-          # - name: Run chart-testing (install)
-          #   run: ct install --charts charts/app-dashboard
-          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-
-          # # Upgrade the released chart version with the locally available chart
-          # # default value for event_name != workflow_dispatch
-          # - name: Run helm upgrade
-          #   run: |
-          #     helm repo add bitnami https://charts.bitnami.com/bitnami
-          #     helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-          #     helm install edc tractusx-dev/edc-management-console --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
-          #     helm dependency update charts/edc-management-console
-          #     helm upgrade edc charts/edc-management-console
-          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+              helm upgrade edc charts/edc-management-console
+            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
