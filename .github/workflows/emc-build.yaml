@@ -24,9 +24,7 @@ name: emc-build
 
 on:
   push:
-    # branches: ["main", "backend", "feature/frontend"]
-    branches: 
-      - 'DT-410/helm-lint'
+    branches: ["main", "backend", "feature/frontend"]
   workflow_dispatch:
     inputs:
       image_tag:
