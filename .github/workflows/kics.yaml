@@ -24,16 +24,16 @@ name: KICS
 
 on:
   push:
-    branches: ["DT-406/KICS"]
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.txt"
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: ["DT-406/KICS"]
-    paths-ignore:
-      - "**/*.md"
-      - "**/*.txt"
+    branches: [DT-406/KICS, develop]
+  #   paths-ignore:
+  #     - "**/*.md"
+  #     - "**/*.txt"
+  # pull_request:
+  #   # The branches below must be a subset of the branches above
+  #   branches: ["DT-406/KICS"]
+  #   paths-ignore:
+  #     - "**/*.md"
+  #     - "**/*.txt"
   schedule:
     - cron: "0 0 * * 0"
   workflow_dispatch:
@@ -57,6 +57,8 @@ jobs:
           path: "." # Scanning directory .
           # Fail on HIGH severity results
           fail_on: high
+          # Disable secrets detection - we use GitGuardian
+          disable_secrets: true # No secret scanning
           # when provided with a directory on output_path
           # it will generate the specified reports file named 'results.{extension}'
           # in this example it will generate:
@@ -67,7 +69,6 @@ jobs:
           # ignore_on_exit: results # Ignore the results and return exit status code 0 unless a KICS engine error happens
           # exclude_paths: "terraform/gcp/big_data.tf,terraform/azure" # Exclude paths or files from scan
           # exclude_queries: 0437633b-daa6-4bbc-8526-c0d2443b946e # Exclude accepted queries from the build
-          disable_secrets: true # No secret scanning
 
       - name: Upload SARIF file for GitHub Advanced Security Dashboard
         if: always()
