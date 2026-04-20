@@ -27,20 +27,20 @@ on:
     branches: [main, develop]
     paths:
       - "services/**/*.py"
-    paths-ignore:
-      - "**/*.yml"
-      - "**/*.yaml"
-      - "**/*.md"
-      - "**/*.txt"
+    # paths-ignore:
+    #   - "**/*.yml"
+    #   - "**/*.yaml"
+    #   - "**/*.md"
+    #   - "**/*.txt"
   pull_request:
       branches: [main, develop]
       paths:
         - "services/**/*.py"
-      paths-ignore:
-        - "**/*.yml"
-        - "**/*.yaml"
-        - "**/*.md"
-        - "**/*.txt"
+      # paths-ignore:
+      #   - "**/*.yml"
+      #   - "**/*.yaml"
+      #   - "**/*.md"
+      #   - "**/*.txt"
   schedule:
     - cron: "0 0 * * 0"
   workflow_dispatch:
