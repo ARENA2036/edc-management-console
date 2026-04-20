@@ -81,11 +81,12 @@ jobs:
           # Use +security-extended,security-and-quality for wider security and better code quality
           queries: +security-extended,security-and-quality
 
-      # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift)
-      # Automates dependency installation for Python, Ruby, and JavaScript, optimizing the CodeQL analysis setup
-      # If this step fails, then you should remove it and run the build manually (see below)
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # If the Autobuild fails above, remove it and uncomment the following three lines modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance
       
       # ℹ️ Command-line programs to run using the OS shell.
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
@@ -100,3 +101,4 @@ jobs:
         uses: github/codeql-action/analyze@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
         with:
           category: "/language:${{matrix.language}}"
+          fail-on: error
