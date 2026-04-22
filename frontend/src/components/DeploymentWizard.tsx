@@ -120,13 +120,13 @@ export default function DeploymentWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-900">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
               {t('deployConnector')}
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
               {step === 1
                 ? t('connectorNameStep')
                 : language === 'de'
@@ -136,7 +136,7 @@ export default function DeploymentWizard({
           </div>
           <button
             onClick={closeDialog}
-            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             aria-label={t('close')}
           >
             <X size={20} />
@@ -146,15 +146,15 @@ export default function DeploymentWizard({
         <div className="space-y-6 px-6 py-6">
           {step === 1 && (
             <>
-              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900">
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
                 {t('connectorNameHelp')}
               </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700">
-                <p className="font-medium text-gray-900">{preparationNote.welcome}</p>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{preparationNote.welcome}</p>
                 <p className="mt-2">{preparationNote.credentials}</p>
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                   {t('connectorNameLabel')}
                 </label>
                 <input
@@ -162,12 +162,12 @@ export default function DeploymentWizard({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder={t('connectorNamePlaceholder')}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-colors focus:border-orange-400"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                     BPNL
                   </label>
                   <input
@@ -175,15 +175,15 @@ export default function DeploymentWizard({
                     value={bpn}
                     onChange={(event) => setBpn(event.target.value.toUpperCase())}
                     placeholder="BPNL000000000000"
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 uppercase outline-none transition-colors focus:border-orange-400"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 uppercase text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                     {language === 'de'
                       ? 'Verwenden Sie eine gueltige Business Partner Number im BPNL-Format.'
                       : 'Use a valid business partner number in BPNL format.'}
                   </p>
                   {prefilledBpn && (
-                    <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
+                    <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
                       {language === 'de'
                         ? 'Diese BPNL wurde automatisch aus Ihrem Login oder den Dataspace-Informationen übernommen. Sie können sie bei Bedarf anpassen.'
                         : 'This BPNL was detected automatically from your login or dataspace information. You can still adjust it if needed.'}
@@ -191,7 +191,7 @@ export default function DeploymentWizard({
                   )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                     {language === 'de' ? 'Version' : 'Version'}
                   </label>
                   <select
@@ -199,7 +199,7 @@ export default function DeploymentWizard({
                     onChange={(event) =>
                       setVersion(event.target.value as (typeof connectorVersions)[number])
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-colors focus:border-orange-400"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     {connectorVersions.map((connectorVersion) => (
                       <option key={connectorVersion} value={connectorVersion}>
@@ -214,25 +214,25 @@ export default function DeploymentWizard({
 
           {step === 2 && (
             <div className="space-y-5">
-              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900">
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
                 {t('endpointHelp')}
               </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700">
-                <p className="font-medium text-gray-900">{preparationNote.example}</p>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{preparationNote.example}</p>
                 <p className="mt-2">
                   {language === 'de'
                   ? 'Wenn Sie diese URLs nicht kennen, fragen Sie nach Ingress-, Gateway- oder Service-Adressen für Control Plane und Data Plane.'
                     : 'If you do not know these URLs yet, ask for the ingress, gateway or service addresses for the control plane and the data plane.'}
                 </p>
               </div>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
                 {language === 'de'
                   ? 'Sie deployen hier nur den EDC Connector. DTR oder Submodel Services können Sie danach gezielt als Komponente hinzufügen oder mit bestehenden Services verbinden.'
                   : 'You are deploying only the EDC connector here. DTR or Submodel Services can be added afterwards as components or connected as existing services.'}
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                     {t('apiEndpointLabel')}
                   </label>
                   <input
@@ -240,11 +240,11 @@ export default function DeploymentWizard({
                     value={apiEndpoint}
                     onChange={(event) => setApiEndpoint(event.target.value)}
                     placeholder={t('apiEndpointPlaceholder')}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-colors focus:border-orange-400"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                     {t('dataPlaneLabel')}
                   </label>
                   <input
@@ -252,7 +252,7 @@ export default function DeploymentWizard({
                     value={dataPlaneUrl}
                     onChange={(event) => setDataPlaneUrl(event.target.value)}
                     placeholder={t('dataPlanePlaceholder')}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-colors focus:border-orange-400"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                   />
                 </div>
               </div>
@@ -260,13 +260,13 @@ export default function DeploymentWizard({
           )}
         </div>
 
-        <div className="border-t border-gray-100 px-6 py-4">
+        <div className="border-t border-gray-100 px-6 py-4 dark:border-slate-800">
           <div className="mb-4 flex justify-center gap-2">
             {[1, 2].map((index) => (
               <span
                 key={index}
                 className={`h-2.5 w-2.5 rounded-full ${
-                  index === step ? 'bg-orange-500' : 'bg-gray-200'
+                  index === step ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700'
                 }`}
               />
             ))}
@@ -274,7 +274,7 @@ export default function DeploymentWizard({
           <div className="flex items-center justify-between">
             <button
               onClick={step === 1 ? closeDialog : () => setStep((current) => current - 1)}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               {step === 1 ? t('cancel') : t('back')}
             </button>
@@ -283,7 +283,7 @@ export default function DeploymentWizard({
                 <button
                   onClick={handleDeployAndAddComponent}
                   disabled={!canContinue}
-                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100 dark:hover:bg-orange-500/20 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Plus size={16} />
@@ -296,7 +296,7 @@ export default function DeploymentWizard({
               <button
                 onClick={step < 2 ? () => setStep((current) => current + 1) : handleDeploy}
                 disabled={!canContinue}
-                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
                 {step < 2 ? t('continue') : t('deployNow')}
               </button>
