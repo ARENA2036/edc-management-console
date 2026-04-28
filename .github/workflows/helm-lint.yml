@@ -120,11 +120,11 @@ jobs:
           - name: Run chart-testing (install)
             run: ct install \
                 --charts charts/edc-management-console \
-                --helm-extra-set-args "
+                --helm-extra-set-args \
                   --set backend.image.repository=emc-backend \
                   --set backend.image.tag=latest \
                   --set frontend.image.repository=emc-frontend \
-                  --set frontend.image.tag=latest "
+                  --set frontend.image.tag=latest
 
           # Upgrade the released chart version with the locally available chart
           # default value for event_name != workflow_dispatch
