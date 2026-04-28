@@ -68,33 +68,26 @@ jobs:
               # default value for event_name != workflow_dispatch
               node_image: ${{ github.event.inputs.node_image || 'kindest/node:v1.30.0' }}
 
-          # - name: Build emc backend image
-          #   uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-          #   with:
-          #     context: backend
-          #     push: true
-          #     tags: kind-registry:5000/backend:testing
-
           - name: Build emc backend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: backend
               push: false
-              tags: emc-backend:03122025-0122
+              tags: emc-backend:latest
 
           - name: Build emc frontend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: frontend
               push: false
-              tags: emc-frontend:03122025-0122
+              tags: emc-frontend:latest
 
           # Load images into Kind
           - name: Load backend image into Kind
-            run: kind load docker-image emc-backend:03122025-0122
+            run: kind load docker-image emc-backend:latest
 
           - name: Load frontend image into Kind
-            run: kind load docker-image emc-frontend:03122025-0122
+            run: kind load docker-image emc-frontend:latest
 
           - name: Set up Helm
             uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
@@ -129,15 +122,9 @@ jobs:
                 --charts charts/edc-management-console \
                 --helm-extra-set-args "
                   --set backend.image.repository=emc-backend \
-                  --set backend.image.tag=03122025-0122 \
+                  --set backend.image.tag=latest \
                   --set frontend.image.repository=emc-frontend \
-                  --set frontend.image.tag=03122025-0122 \
-                  --set backend.imagePullSecrets={} \
-                  --set frontend.imagePullSecrets={} \
-                  --set backend.ingress.enabled=false \
-                  --set frontend.ingress.enabled=false \
-                  --set backend.volumes=null \
-                  --set backend.volumeMounts=null
+                  --set frontend.image.tag=latest
                 "
 
           # Upgrade the released chart version with the locally available chart
@@ -146,7 +133,7 @@ jobs:
             run: |
               helm repo add bitnami https://charts.bitnami.com/bitnami
               helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-              helm install edc tractusx-dev/edc-management-console --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
+              helm repo update
               helm dependency update charts/edc-management-console
-              helm upgrade edc charts/edc-management-console
+              helm upgrade --install edc charts/edc-management-console
             if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
