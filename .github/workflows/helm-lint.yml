@@ -123,10 +123,6 @@ jobs:
 
           - name: Run chart-testing (lint)
             run: ct lint --validate-maintainers=false --target-branch ${{ steps.set-target-branch.outputs.target-branch }}
-
-          # - name: Run chart-testing (install)
-          #   run: ct install --charts charts/edc-management-console
-          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
             
           - name: Run chart-testing (install)
             run: ct install \
