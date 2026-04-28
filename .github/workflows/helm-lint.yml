@@ -130,15 +130,19 @@ jobs:
                   --set backend.image.repository=emc-backend \
                   --set backend.image.tag=latest \
                   --set frontend.image.repository=emc-frontend \
-                  --set frontend.image.tag=latest
+                  --set frontend.image.tag=latest \
+                  --set backend.persistence.enabled=false \
+                  --set backend.imagePullSecrets={} \
+                  --set frontend.imagePullSecrets={}
 
-          # Upgrade the released chart version with the locally available chart
-          # default value for event_name != workflow_dispatch
-          - name: Run helm upgrade
-            run: |
-              helm repo add bitnami https://charts.bitnami.com/bitnami
-              helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-              helm repo update
-              helm dependency update charts/edc-management-console
-              helm upgrade --install edc charts/edc-management-console
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+          # # Skip upgrade for now until a working chart is released
+          # # Upgrade the released chart version with the locally available chart
+          # # default value for event_name != workflow_dispatch
+          # - name: Run helm upgrade
+          #   run: |
+          #     helm repo add bitnami https://charts.bitnami.com/bitnami
+          #     helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
+          #     helm repo update
+          #     helm dependency update charts/edc-management-console
+          #     helm upgrade --install edc charts/edc-management-console
+          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
