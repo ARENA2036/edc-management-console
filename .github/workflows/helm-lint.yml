@@ -80,21 +80,21 @@ jobs:
             with:
               context: backend
               push: false
-              tags: emc-backend:testing
+              tags: emc-backend:03122025-0122
 
           - name: Build emc frontend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: frontend
               push: false
-              tags: emc-frontend:testing
+              tags: emc-frontend:03122025-0122
 
           # Load images into Kind
           - name: Load backend image into Kind
-            run: kind load docker-image emc-backend:testing
+            run: kind load docker-image emc-backend:03122025-0122
 
           - name: Load frontend image into Kind
-            run: kind load docker-image emc-frontend:testing
+            run: kind load docker-image emc-frontend:03122025-0122
 
           - name: Set up Helm
             uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
@@ -120,9 +120,25 @@ jobs:
           - name: Run chart-testing (lint)
             run: ct lint --validate-maintainers=false --target-branch ${{ github.event.repository.default_branch }}
 
+          # - name: Run chart-testing (install)
+          #   run: ct install --charts charts/edc-management-console
+          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+            
           - name: Run chart-testing (install)
-            run: ct install --charts charts/edc-management-console
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+            run: ct install \
+                --charts charts/edc-management-console \
+                --helm-extra-set-args "
+                  --set backend.image.repository=emc-backend \
+                  --set backend.image.tag=03122025-0122 \
+                  --set frontend.image.repository=emc-frontend \
+                  --set frontend.image.tag=03122025-0122 \
+                  --set backend.imagePullSecrets={} \
+                  --set frontend.imagePullSecrets={} \
+                  --set backend.ingress.enabled=false \
+                  --set frontend.ingress.enabled=false \
+                  --set backend.volumes=null \
+                  --set backend.volumeMounts=null
+                "
 
           # Upgrade the released chart version with the locally available chart
           # default value for event_name != workflow_dispatch
