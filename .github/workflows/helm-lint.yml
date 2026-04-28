@@ -39,12 +39,13 @@ on:
         default: 'kindest/node:v1.30.0'
         required: false
         type: string
-      upgrade_from:
-        description: 'chart version to upgrade from'
-        # chart version from 3.2 release as default
-        default: '0.1.8'
-        required: false
-        type: string
+      # # Skip upgrade for now until a working chart is released
+      # upgrade_from:
+      #   description: 'chart version to upgrade from'
+      #   # chart version from 3.2 release as default
+      #   default: '0.1.8'
+      #   required: false
+      #   type: string
       helm_version:
         description: 'helm version to test (default = latest)'
         default: 'latest'
@@ -92,7 +93,7 @@ jobs:
           - name: Set up Helm
             uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
             with:
-                version: ${{ github.event.inputs.helm_version || 'latest' }}
+              version: v3.12.1
 
         # Setup python as a prerequisite for chart linting 
           - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -102,16 +103,26 @@ jobs:
           - name: Set up chart-testing
             uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
 
+
+          - name: Set target branch
+            id: set-target-branch
+            run: |
+              if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
+                echo "target-branch=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+              else
+                echo "target-branch=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
+              fi
+
           - name: Run chart-testing (list-changed)
             id: list-changed
             run: |
-              changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+              changed=$(ct list-changed --target-branch ${{ steps.set-target-branch.outputs.target-branch }})
               if [[ -n "$changed" ]]; then
                 echo "changed=true" >> $GITHUB_OUTPUT
               fi
 
           - name: Run chart-testing (lint)
-            run: ct lint --validate-maintainers=false --target-branch ${{ github.event.repository.default_branch }}
+            run: ct lint --validate-maintainers=false --target-branch ${{ steps.set-target-branch.outputs.target-branch }}
 
           # - name: Run chart-testing (install)
           #   run: ct install --charts charts/edc-management-console
