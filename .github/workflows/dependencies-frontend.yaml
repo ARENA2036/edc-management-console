@@ -41,7 +41,7 @@ on:
       branch:
         description: "Branch to run workflow on"
         required: true
-        default: "DT-407/dash-scan"
+        default: "main"
 
 jobs:
   check-dependencies:
