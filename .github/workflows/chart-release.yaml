@@ -27,8 +27,8 @@ on:
     paths:
       - 'charts/**'
     branches:
-      - main
-      # - develop
+      # - main
+      - develop
       - emc-chart-release
 jobs:
   release:
