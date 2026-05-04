@@ -23,11 +23,12 @@
 name: Release - Helm Charts
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'charts/**'
     branches:
-      # - main
+      - main
       - develop
       - emc-chart-release
 jobs:
