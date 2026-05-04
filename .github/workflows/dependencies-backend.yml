@@ -25,7 +25,8 @@ name: "Check Backend Dependencies"
 on:
   push:
     # branches: [main, develop]
-    branches: [DT-407/dash-scan]
+    branches: [main, develop, DT-407/dash-scan]
+    
     paths:
       - backend/requirements.txt
       - DEPENDENCIES_EMC-BACKEND
