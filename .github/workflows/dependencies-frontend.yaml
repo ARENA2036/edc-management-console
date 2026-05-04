@@ -75,32 +75,14 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      # - name: Check for restricted dependencies
-      #   run: |
-      #     restricted=$(grep ' restricted,' DEPENDENCIES_EMC-FRONTEND || true)
-      #     if [[ -n "$restricted" ]]; then
-      #       echo "The following dependencies are restricted: $restricted"
-      #       exit 1
-      #     fi
-      #   if: steps.dependencies-changed.outputs.changed == 'true'
-
       - name: Check for restricted dependencies
-        if: steps.dependencies-changed.outputs.changed == 'true'
         run: |
-          if [[ ! -f DEPENDENCIES_EMC-FRONTEND ]]; then
-            echo "Dependency file not found!"
-            exit 1
-          fi
-
-          restricted=$(grep -E ', restricted,' DEPENDENCIES_EMC-FRONTEND || true)
-
+          restricted=$(grep ' restricted,' DEPENDENCIES_EMC-FRONTEND || true)
           if [[ -n "$restricted" ]]; then
-            echo "The following dependencies are restricted:"
-            echo "$restricted"
+            echo "The following dependencies are restricted: $restricted"
             exit 1
-          else
-            echo "No restricted dependencies found"
           fi
+        if: steps.dependencies-changed.outputs.changed == 'true'
 
       - name: Upload DEPENDENCIES_EMC-FRONTEND file
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
