@@ -93,4 +93,5 @@ jobs:
       - name: Signal need to update DEPENDENCIES_EMC
         run: |
           echo "Dependencies need to be updated (updated DEPENDENCIES_EMC file has been uploaded to workflow run)"
+          exit 1
         if: steps.dependencies-changed.outputs.changed == 'true'
