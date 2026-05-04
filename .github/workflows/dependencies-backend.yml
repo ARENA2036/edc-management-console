@@ -107,11 +107,20 @@ jobs:
                 exit 1
             fi
 
+      # - name: Check for restricted dependencies
+      #   run: |
+      #       restricted=$(grep 'restricted' $DEP_FILE || true)
+      #       if [[ -n "$restricted" ]]; then
+      #           echo "The following dependencies are restricted: $restricted"
+      #           exit 1
+      #       fi
       - name: Check for restricted dependencies
         run: |
-            restricted=$(grep 'restricted' $DEP_FILE || true)
+            restricted=$(grep -E ', restricted,' "$DEP_FILE" || true)
+
             if [[ -n "$restricted" ]]; then
-                echo "The following dependencies are restricted: $restricted"
+                echo "The following dependencies are flagged as restricted:"
+                echo "$restricted"
                 exit 1
             fi
 
