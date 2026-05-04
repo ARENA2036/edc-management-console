@@ -56,12 +56,7 @@ jobs:
         run: |
           curl -L --output ./dash.jar 'https://repo.eclipse.org/service/rest/v1/search/assets/download?repository=dash-maven2-releases&maven.groupId=org.eclipse.dash&maven.artifactId=org.eclipse.dash.licenses&maven.baseVersion=1.1.0&maven.extension=jar'
           
-          for i in 1 2 3; do
-            java -jar ./dash.jar frontend/package-lock.json -project automotive.tractusx -summary DEPENDENCIES_EMC-FRONTEND && break
-          
-            echo "Dash failed (attempt $i), retrying..."
-            sleep 10
-          done
+            java -jar ./dash.jar frontend/package-lock.json -project automotive.tractusx -summary DEPENDENCIES_EMC-FRONTEND
 
       - name: Check if dependencies were changed
         id: dependencies-changed
