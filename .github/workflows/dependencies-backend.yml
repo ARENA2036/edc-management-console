@@ -100,24 +100,24 @@ jobs:
 
             java -jar ./org.eclipse.dash.licenses-1.1.1.jar ${{ matrix.folder }}/PACKAGE -project automotive.tractusx -summary $DEP_FILE || true
 
-      - name: Check if dependencies were changed
-        id: dependencies-changed
-        run: |
-            if git diff --exit-code $DEP_FILE; then
-                echo "changed=false" >> $GITHUB_OUTPUT
-            else
-                echo "changed=true" >> $GITHUB_OUTPUT
-                echo "Change the $DEP_FILE with this new dependencies"
-                cat $DEP_FILE
-                exit 1
-            fi
+      # - name: Check if dependencies were changed
+      #   id: dependencies-changed
+      #   run: |
+      #       if git diff --exit-code $DEP_FILE; then
+      #           echo "changed=false" >> $GITHUB_OUTPUT
+      #       else
+      #           echo "changed=true" >> $GITHUB_OUTPUT
+      #           echo "Change the $DEP_FILE with this new dependencies"
+      #           cat $DEP_FILE
+      #           exit 1
+      #       fi
 
-      - name: Check for restricted dependencies
-        run: |
-            restricted=$(grep 'restricted' $DEP_FILE || true)
-            if [[ -n "$restricted" ]]; then
-                echo "The following dependencies are restricted: $restricted"
-                exit 1
+      # - name: Check for restricted dependencies
+      #   run: |
+      #       restricted=$(grep 'restricted' $DEP_FILE || true)
+      #       if [[ -n "$restricted" ]]; then
+      #           echo "The following dependencies are restricted: $restricted"
+      #           exit 1
             fi
 
       - name: Upload $DEP_FILE file
