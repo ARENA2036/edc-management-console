@@ -24,8 +24,7 @@ name:  Edc Management Console Lint and Test Charts
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main", "develop"]
     paths:
       - 'charts/**'
 
@@ -40,12 +39,13 @@ on:
         default: 'kindest/node:v1.30.0'
         required: false
         type: string
-      upgrade_from:
-        description: 'chart version to upgrade from'
-        # chart version from 3.2 release as default
-        default: '0.1.8'
-        required: false
-        type: string
+      # # Skip upgrade for now until a working chart is released
+      # upgrade_from:
+      #   description: 'chart version to upgrade from'
+      #   # chart version from 3.2 release as default
+      #   default: '0.1.8'
+      #   required: false
+      #   type: string
       helm_version:
         description: 'helm version to test (default = latest)'
         default: 'latest'
@@ -69,38 +69,31 @@ jobs:
               # default value for event_name != workflow_dispatch
               node_image: ${{ github.event.inputs.node_image || 'kindest/node:v1.30.0' }}
 
-          # - name: Build emc backend image
-          #   uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-          #   with:
-          #     context: backend
-          #     push: true
-          #     tags: kind-registry:5000/backend:testing
-
           - name: Build emc backend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: backend
               push: false
-              tags: emc-backend:testing
+              tags: emc-backend:latest
 
           - name: Build emc frontend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: frontend
               push: false
-              tags: emc-frontend:testing
+              tags: emc-frontend:latest
 
           # Load images into Kind
           - name: Load backend image into Kind
-            run: kind load docker-image emc-backend:testing
+            run: kind load docker-image emc-backend:latest
 
           - name: Load frontend image into Kind
-            run: kind load docker-image emc-frontend:testing
+            run: kind load docker-image emc-frontend:latest
 
           - name: Set up Helm
             uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
             with:
-                version: ${{ github.event.inputs.helm_version || 'latest' }}
+              version: v3.12.1
 
         # Setup python as a prerequisite for chart linting 
           - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -110,28 +103,46 @@ jobs:
           - name: Set up chart-testing
             uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
 
+          - name: Set target branch
+            id: set-target-branch
+            run: |
+              if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
+                echo "target-branch=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+              else
+                echo "target-branch=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
+              fi
+
           - name: Run chart-testing (list-changed)
             id: list-changed
             run: |
-              changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+              changed=$(ct list-changed --target-branch ${{ steps.set-target-branch.outputs.target-branch }})
               if [[ -n "$changed" ]]; then
                 echo "changed=true" >> $GITHUB_OUTPUT
               fi
 
           - name: Run chart-testing (lint)
-            run: ct lint --validate-maintainers=false --target-branch ${{ github.event.repository.default_branch }}
-
+            run: ct lint --validate-maintainers=false --target-branch ${{ steps.set-target-branch.outputs.target-branch }}
+            
           - name: Run chart-testing (install)
-            run: ct install --charts charts/app-dashboard
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+            run: ct install \
+                --charts charts/edc-management-console \
+                --helm-extra-set-args \
+                  --set backend.image.repository=emc-backend \
+                  --set backend.image.tag=latest \
+                  --set frontend.image.repository=emc-frontend \
+                  --set frontend.image.tag=latest \
+                  --set backend.persistence.enabled=false \
+                  --set backend.imagePullSecrets={} \
+                  --set frontend.imagePullSecrets={}
 
-          # Upgrade the released chart version with the locally available chart
-          # default value for event_name != workflow_dispatch
-          - name: Run helm upgrade
-            run: |
-              helm repo add bitnami https://charts.bitnami.com/bitnami
-              helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-              helm install edc tractusx-dev/edc-management-console --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
-              helm dependency update charts/edc-management-console
-              helm upgrade edc charts/edc-management-console
-            if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+          # # Skip upgrade for now until a working chart is released
+          # # Upgrade the released chart version with the locally available chart
+          # # default value for event_name != workflow_dispatch
+          # - name: Run helm upgrade
+          #   run: |
+          #     helm repo add bitnami https://charts.bitnami.com/bitnami
+          #     helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
+          #     helm repo update
+          #     helm dependency update charts/edc-management-console
+          #     helm upgrade --install edc charts/edc-management-console
+          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
