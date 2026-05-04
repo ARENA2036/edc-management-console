@@ -90,8 +90,8 @@ jobs:
           path: DEPENDENCIES_EMC-FRONTEND
         if: steps.dependencies-changed.outputs.changed == 'true'
 
-      - name: Signal need to update DEPENDENCIES
+      - name: Signal need to update DEPENDENCIES_EMC
         run: |
-          echo "Dependencies need to be updated (updated DEPENDENCIES_ICHUB file has been uploaded to workflow run)"
+          echo "Dependencies need to be updated (updated DEPENDENCIES_EMC file has been uploaded to workflow run)"
           exit 1
         if: steps.dependencies-changed.outputs.changed == 'true'
