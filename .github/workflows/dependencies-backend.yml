@@ -38,11 +38,6 @@ on:
       - DEPENDENCIES_EMC-BACKEND
       - .github/workflows/dependencies-backend.yml
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to run workflow on"
-        required: true
-        default: "main"
 
 jobs:
   check-dependencies-backend:
@@ -100,17 +95,17 @@ jobs:
 
             java -jar ./org.eclipse.dash.licenses-1.1.1.jar ${{ matrix.folder }}/PACKAGE -project automotive.tractusx -summary $DEP_FILE || true
 
-      # - name: Check if dependencies were changed
-      #   id: dependencies-changed
-      #   run: |
-      #       if git diff --exit-code $DEP_FILE; then
-      #           echo "changed=false" >> $GITHUB_OUTPUT
-      #       else
-      #           echo "changed=true" >> $GITHUB_OUTPUT
-      #           echo "Change the $DEP_FILE with this new dependencies"
-      #           cat $DEP_FILE
-      #           exit 1
-      #       fi
+      - name: Check if dependencies were changed
+        id: dependencies-changed
+        run: |
+            if git diff --exit-code $DEP_FILE; then
+                echo "changed=false" >> $GITHUB_OUTPUT
+            else
+                echo "changed=true" >> $GITHUB_OUTPUT
+                echo "Change the $DEP_FILE with this new dependencies"
+                cat $DEP_FILE
+                exit 1
+            fi
 
       # - name: Check for restricted dependencies
       #   run: |
@@ -123,4 +118,5 @@ jobs:
       - name: Upload $DEP_FILE file
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
-            path: $DEP_FILE
+            # path: $DEP_FILE
+            path: ${{ env.DEP_FILE }}
