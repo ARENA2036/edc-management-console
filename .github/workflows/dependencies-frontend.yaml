@@ -37,6 +37,11 @@ on:
       - DEPENDENCIES_EMC-FRONTEND
       - .github/workflows/dependencies-frontend.yaml
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to run the workflow on"
+        required: true
+        default: "DT-407/dash-scan"
 
 jobs:
   check-dependencies:
@@ -54,20 +59,10 @@ jobs:
 
       - name: Generate Dependencies file
         run: |
-          curl -L --output ./dash.jar \
-            'https://repo.eclipse.org/service/rest/v1/search/assets/download?repository=dash-maven2-releases&maven.groupId=org.eclipse.dash&maven.artifactId=org.eclipse.dash.licenses&maven.baseVersion=1.1.0&maven.extension=jar'
-
+          curl -L --output ./dash.jar 'https://repo.eclipse.org/service/rest/v1/search/assets/download?repository=dash-maven2-releases&maven.groupId=org.eclipse.dash&maven.artifactId=org.eclipse.dash.licenses&maven.baseVersion=1.1.0&maven.extension=jar'
+  
           set -e
-
-          java -jar ./dash.jar frontend/package-lock.json \
-            -project automotive.tractusx \
-            -summary DEPENDENCIES_EMC-FRONTEND || true
-
-      # - name: Generate Dependencies file
-      #   run: |
-      #     curl -L --output ./dash.jar 'https://repo.eclipse.org/service/rest/v1/search/assets/download?repository=dash-maven2-releases&maven.groupId=org.eclipse.dash&maven.artifactId=org.eclipse.dash.licenses&maven.baseVersion=1.1.0&maven.extension=jar'
-          
-      #     java -jar ./dash.jar frontend/package-lock.json -project automotive.tractusx -summary DEPENDENCIES_EMC-FRONTEND || true
+          java -jar ./dash.jar frontend/package-lock.json -project automotive.tractusx -summary DEPENDENCIES_EMC-FRONTEND || true
 
       - name: Check if dependencies were changed
         id: dependencies-changed
@@ -81,14 +76,14 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      # - name: Check for restricted dependencies
-      #   run: |
-      #     restricted=$(grep ' restricted,' DEPENDENCIES_EMC-FRONTEND || true)
-      #     if [[ -n "$restricted" ]]; then
-      #       echo "The following dependencies are restricted: $restricted"
-      #       exit 1
-      #     fi
-      #   if: steps.dependencies-changed.outputs.changed == 'true'
+      - name: Check for restricted dependencies
+        run: |
+          restricted=$(grep ' restricted,' DEPENDENCIES_EMC-FRONTEND || true)
+          if [[ -n "$restricted" ]]; then
+            echo "The following dependencies are restricted: $restricted"
+            exit 1
+          fi
+        if: steps.dependencies-changed.outputs.changed == 'true'
 
       - name: Upload DEPENDENCIES_EMC-FRONTEND file
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
