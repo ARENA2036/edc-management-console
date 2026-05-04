@@ -24,9 +24,7 @@ name: "Check Backend Dependencies"
 
 on:
   push:
-    # branches: [main, develop]
-    branches: [main, develop, DT-407/dash-scan]
-    
+    branches: [main, develop]    
     paths:
       - backend/requirements.txt
       - DEPENDENCIES_EMC-BACKEND
@@ -38,11 +36,6 @@ on:
       - DEPENDENCIES_EMC-BACKEND
       - .github/workflows/dependencies-backend.yml
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to run the workflow on"
-        required: true
-        default: "DT-407/dash-scan"
 
 jobs:
   check-dependencies-backend:

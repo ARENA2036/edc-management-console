@@ -24,8 +24,7 @@ name: Check Frontend Dependencies
 
 on:
   push:
-    # branches: [main, develop]
-    branches: [main, DT-407/dash-scan]
+    branches: [main, develop]
     paths:
       - frontend/package-lock.json
       - DEPENDENCIES_EMC-FRONTEND
@@ -37,11 +36,6 @@ on:
       - DEPENDENCIES_EMC-FRONTEND
       - .github/workflows/dependencies-frontend.yaml
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to run the workflow on"
-        required: true
-        default: "DT-407/dash-scan"
 
 jobs:
   check-dependencies:
