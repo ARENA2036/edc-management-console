@@ -143,10 +143,13 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
       id: Date.now(),
       name: formData.name,
       url: formData.url,
+
       bpn: formData.bpn,
       version: formData.version,
       status: 'connected',
       created_at: new Date().toISOString(),
+      urls: [formData.url],          // or []
+      created_by: 'admin',
       db_username: formData.edcUsername,
       db_password: formData.edcPassword,
       registry: {
@@ -462,7 +465,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                       sname.length > 0 ? `${sname}-txcd.arena2036-x.de` : "",
                   });
                 }}
-                placeholder="submodel"
+                placeholder="submodel01"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
@@ -573,7 +576,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                     registryUrl: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
                   });
                 }}
-                placeholder="registry"
+                placeholder="registry01"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
@@ -661,13 +664,13 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
               Bitte gib die EDC-Informationen für den Deployment-Vorgang ein.
             </p>
 
-<p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
-                Only lowercase letters and numbers allowed
-              </p>
+            <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
+              Only lowercase letters and numbers allowed
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
+
               <div>
-                
+
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   EDC Name
                 </label>
@@ -684,7 +687,7 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
                       url: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
                     });
                   }}
-                  placeholder="EDC"
+                  placeholder="edc"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
@@ -831,15 +834,36 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
     }
   };
 
-  const handleNext = () => {
-    if (currentStep === 3) {
-      if (isBpnInvalid || isCredentialsMissing) {
-        return;
-      }
-    }
+  const isStepValid = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        return (
+          formData.submodelName.trim() !== "" &&
+          formData.submodelServiceUrl.trim() !== ""
+        );
 
-    setCurrentStep((prev) => prev + 1);
+      case 2:
+        return (
+          formData.registryName.trim() !== "" &&
+          formData.registryUrl.trim() !== ""
+        );
+
+      case 3:
+        return !isBpnInvalid && !isCredentialsMissing;
+
+      default:
+        return true;
+    }
   };
+
+
+  const handleNext = () => {
+  if (!isStepValid(currentStep)) return;
+
+  setCurrentStep((prev) => prev + 1);
+};
+
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -890,28 +914,30 @@ export default function DeploymentWizard({ onClose, onDeploy }: Props) {
             )}
           </div>
           <div className="flex gap-3">
-            {(currentStep == 1 || currentStep == 2) && (
+            {(currentStep === 1 || currentStep === 2) && (
+
               <button
                 onClick={() => setCurrentStep(currentStep + 1)}
-                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                disabled={!isStepValid(currentStep)}
+                className={`px-6 py-2.5 font-medium transition-colors ${!isStepValid(currentStep)
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-gray-600 hover:text-gray-800"
+                  }`}
               >
                 Skip
               </button>
             )}
             <button
-              onClick={
-                currentStep < totalSteps ? handleNext : handleSubmit
-              }
-              disabled={
-                currentStep === 3 && (isBpnInvalid || isCredentialsMissing)
-              }
-              className={`px-6 py-2.5 rounded-lg font-medium transition-colors text-white ${currentStep === 3 && (isBpnInvalid || isCredentialsMissing)
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-orange-500 hover:bg-orange-600"
+              onClick={currentStep < totalSteps ? handleNext : handleSubmit}
+              disabled={!isStepValid(currentStep)}
+              className={`px-6 py-2.5 rounded-lg font-medium transition-colors text-white ${!isStepValid(currentStep)
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-orange-500 hover:bg-orange-600"
                 }`}
             >
               {currentStep === totalSteps ? 'Deploy EDC' : 'Next'}
             </button>
+
           </div>
         </div>
       </div>

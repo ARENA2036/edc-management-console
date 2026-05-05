@@ -39,7 +39,7 @@ export interface Connector {
   updated_at?: string;
   cp_hostname?: string;
   dp_hostname?: string;
-  urls: [];
+  urls: string[];
   created_by: string;
   db_username: string;
   db_password: string;
