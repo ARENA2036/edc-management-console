@@ -20,3 +20,4 @@ Chart.lock
 charts/
 .vscode/launch.json
 backend/tractusx-connector/edc_manager.db
+.history/

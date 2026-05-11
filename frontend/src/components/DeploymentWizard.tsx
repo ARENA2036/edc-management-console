@@ -1,924 +1,306 @@
-import React, { useState } from 'react';
-import { useForm } from "react-hook-form";
-import { X, CheckCircle, Copy } from 'lucide-react';
-import { apiClient } from '../api/client';
-import type { Connector, DigitalTwinRegistry } from '../types';
-import { getUserInfo } from '../keycloak';
+import { Plus, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { DashboardConnector } from '../types';
+import { useI18n } from '../i18n';
 
 interface Props {
-  onClose: () => void;
-  onDeploy: (connector: Connector) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDeploy: (connector: DashboardConnector) => Promise<void> | void;
+  onDeployAndAddComponent?: (connector: DashboardConnector) => Promise<void> | void;
+  prefilledBpn?: string;
 }
 
-type AuthType = 'none' | 'apiKey' | 'bearer' | 'oauth2';
+const connectorVersions = ['0.9.0', '0.10.0', '0.10.2', '0.11.0'] as const;
 
-export default function DeploymentWizard({ onClose, onDeploy }: Props) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [submodelDeployed, setSubmodelDeployed] = useState(false);
-  const [submodelMode, setSubmodelMode] = useState<'new' | 'existing'>('new');
-  const [hasSkipped, setHasSkipped] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    url: '',
-    bpn: '',
-    version: '0.9.0',
-    submodelName: '',
-    submodelServiceUrl: '',
-    submodelApiKey: '',
-    registryName: '',
-    registryUrl: '',
-    registryCredentials: '',
-    edcUsername: '',
-    edcPassword: '',
+export default function DeploymentWizard({
+  open,
+  onOpenChange,
+  onDeploy,
+  onDeployAndAddComponent,
+  prefilledBpn,
+}: Props) {
+  const { language, t } = useI18n();
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState('');
+  const [bpn, setBpn] = useState('');
+  const [version, setVersion] =
+    useState<(typeof connectorVersions)[number]>('0.11.0');
+  const [apiEndpoint, setApiEndpoint] = useState('');
+  const [dataPlaneUrl, setDataPlaneUrl] = useState('');
 
-    // --- NEU: Auth-Konfiguration ---
-    submodelAuthType: 'none' as AuthType,
-    submodelBearerToken: '',
-    submodelOAuthAccessTokenUrl: '',
-    submodelOAuthClientId: '',
-    submodelOAuthClientSecret: '',
-    submodelOAuthScope: 'openid',
-    submodelOAuthClientAuth: 'basic', // basic | body
-
-    registryAuthType: 'none' as AuthType,
-    registryApiKey: '',
-    registryBearerToken: '',
-    registryOAuthAccessTokenUrl: '',
-    registryOAuthClientId: '',
-    registryOAuthClientSecret: '',
-    registryOAuthScope: 'openid',
-    registryOAuthClientAuth: 'basic',
-  });
-
-  const totalSteps = 4;
-
-  const { register } = useForm();
-
-  const isBpnInvalid =
-    formData.bpn.length > 0 && formData.bpn.length !== 16;
-
-  const isCredentialsMissing =
-    !formData.edcUsername.trim() || !formData.edcPassword.trim();
-
-
-  // React.useEffect(()=>{
-  //   if (formData.name) {
-  //     setFormData((prev) => ({
-  //       ...prev, 
-  //       url: `https://${prev.name.toLowerCase()}-txcd.arena2036-x.de`
-  //     }));
-  //   }
-
-  // }, [formData.name]);
-
-  const handleDeploySubmodel = async () => {
-    try {
-      await apiClient.post('/submodel/deploy', {
-        url: formData.submodelServiceUrl,
-        // bestehendes Verhalten beibehalten:
-        apiKey:
-          formData.submodelAuthType === 'apiKey'
-            ? formData.submodelApiKey
-            : undefined,
-        type: 'submodel-service',
-      });
-      setSubmodelDeployed(true);
-      alert('Submodel Service erfolgreich deployed!');
-    } catch (error) {
-      console.error('Failed to deploy submodel:', error);
-      alert('Fehler beim Deployment des Submodel Service');
-    }
-  };
-
-  const handleRegisterSubmodel = async () => {
-    if (!formData.submodelServiceUrl) {
-      alert('Bitte gib eine Service URL ein.');
+  useEffect(() => {
+    if (!open) {
       return;
     }
 
-    try {
-      setIsConnecting(true);
-      const response = await apiClient.post('/submodel/connect', {
-        url: formData.submodelServiceUrl,
-        bpn: formData.bpn || null,
-        // hier könntest du später die Auth-Infos mitgeben
-      });
+    setBpn(prefilledBpn?.toUpperCase() ?? '');
+  }, [open, prefilledBpn]);
 
-      if (response.status === 200) {
-        alert(`Service erfolgreich verbunden: ${formData.submodelServiceUrl}`);
-        setCurrentStep(currentStep + 1);
-      } else {
-        alert(`Fehler: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.error('Failed to connect existing submodel:', error);
-      alert('Fehler beim Verbinden mit dem Submodel Service');
-    } finally {
-      setIsConnecting(false);
-    }
+  const resetState = () => {
+    setStep(1);
+    setName('');
+    setBpn(prefilledBpn?.toUpperCase() ?? '');
+    setVersion('0.11.0');
+    setApiEndpoint('');
+    setDataPlaneUrl('');
   };
 
-  const handleSubmit = () => {
-    const newConnector: Connector = {
+  const closeDialog = () => {
+    onOpenChange(false);
+    resetState();
+  };
+
+  const canContinue =
+    (step === 1 && name.trim().length > 0 && /^BPNL[A-Z0-9]{12}$/.test(bpn.trim())) ||
+    (step === 2 && apiEndpoint.trim().length > 0 && dataPlaneUrl.trim().length > 0);
+
+  const buildConnector = (): DashboardConnector => ({
       id: Date.now(),
-      name: formData.name,
-      url: formData.url,
-
-      bpn: formData.bpn,
-      version: formData.version,
-      status: 'connected',
+      name: name.trim(),
+      url: apiEndpoint.trim(),
+      bpn: bpn.trim(),
+      version,
+      status: 'healthy',
       created_at: new Date().toISOString(),
-      urls: [formData.url],          // or []
-      created_by: 'admin',
-      db_username: formData.edcUsername,
-      db_password: formData.edcPassword,
-      registry: {
-        url: formData.registryUrl ? formData.registryUrl : "",
-        credentials: ""
+      urls: [apiEndpoint.trim(), dataPlaneUrl.trim()],
+      created_by: 'dashboard',
+      db_username: '',
+      db_password: '',
+      cp_hostname: apiEndpoint.trim(),
+      dp_hostname: dataPlaneUrl.trim(),
+      config: {
+        connectorType: 'EDC Connector',
+        endpoint: apiEndpoint.trim(),
+        dataPlaneUrl: dataPlaneUrl.trim(),
+        bpn: bpn.trim(),
+        version,
       },
-      submodel: {
-        url: formData.submodelServiceUrl ? formData.submodelServiceUrl : "",
-        credentials: ""
-      }
-    };
-    console.log(newConnector);
-    onDeploy(newConnector);
-    onClose();
+      source: 'local',
+    });
+
+  const handleDeploy = async () => {
+    const connector = buildConnector();
+    await onDeploy(connector);
+    closeDialog();
   };
 
-  const shouldShowSkip = () => {
-    if (currentStep === totalSteps) return false; // Step 4: kein Skip
-
-    switch (currentStep) {
-      case 1: // Submodel Service
-        return !formData.submodelServiceUrl || formData.submodelServiceUrl.trim() === '';
-      case 2: // Digital Twin Registry
-        return !formData.registryUrl || formData.registryUrl.trim() === '';
-      case 3: // EDC Configuration
-        return !formData.name || !formData.url || !formData.bpn;
-      default:
-        return false;
+  const handleDeployAndAddComponent = async () => {
+    if (!onDeployAndAddComponent) {
+      return;
     }
-  };
-  const yamlPreview = `edc:
-  name: ${formData.name || '<EDC Name>'}
-  version: ${formData.version || '<Version>'}
-  endpoint: ${formData.url || '<https://edc.example.com>'}
-  bpn: ${formData.bpn || '<BPNL000000000000>'}
-   authentication:
-      username: ${formData.edcUsername || '<username>'}
-      password: ${formData.edcPassword ? '********' : '<password>'}
-  registry:
-    url: ${formData.registryUrl || '<registry.example.com>'}
-    credentials: ${formData.registryCredentials ? '******' : '<none>'}
-`;
 
-  const copyYaml = async () => {
-    await navigator.clipboard.writeText(yamlPreview);
-    alert('YAML-Konfiguration kopiert!');
+    const connector = buildConnector();
+    await onDeployAndAddComponent(connector);
+    closeDialog();
   };
 
-  const renderAuthSection = (
-    prefix: 'submodel' | 'registry',
-    authType: AuthType
-  ) => {
-    switch (authType) {
-      case 'apiKey':
-        return (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              API Key
-            </label>
-            <input
-              type="text"
-              value={
-                prefix === 'submodel'
-                  ? formData.submodelApiKey
-                  : formData.registryApiKey
-              }
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  ...(prefix === 'submodel'
-                    ? { submodelApiKey: e.target.value }
-                    : { registryApiKey: e.target.value }),
-                })
-              }
-              placeholder="API Key"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
-          </div>
-        );
-      case 'bearer':
-        return (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Bearer Token
-            </label>
-            <input
-              type="text"
-              value={
-                prefix === 'submodel'
-                  ? formData.submodelBearerToken
-                  : formData.registryBearerToken
-              }
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  ...(prefix === 'submodel'
-                    ? { submodelBearerToken: e.target.value }
-                    : { registryBearerToken: e.target.value }),
-                })
-              }
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
-          </div>
-        );
-      case 'oauth2':
-        const accessTokenUrl =
-          prefix === 'submodel'
-            ? formData.submodelOAuthAccessTokenUrl
-            : formData.registryOAuthAccessTokenUrl;
-        const clientId =
-          prefix === 'submodel'
-            ? formData.submodelOAuthClientId
-            : formData.registryOAuthClientId;
-        const clientSecret =
-          prefix === 'submodel'
-            ? formData.submodelOAuthClientSecret
-            : formData.registryOAuthClientSecret;
-        const scope =
-          prefix === 'submodel'
-            ? formData.submodelOAuthScope
-            : formData.registryOAuthScope;
-        const clientAuth =
-          prefix === 'submodel'
-            ? formData.submodelOAuthClientAuth
-            : formData.registryOAuthClientAuth;
+  if (!open) {
+    return null;
+  }
 
-        const setField = (field: string, value: string) => {
-          if (prefix === 'submodel') {
-            setFormData({
-              ...formData,
-              [field]: value,
-            } as any);
-          } else {
-            setFormData({
-              ...formData,
-              [field]: value,
-            } as any);
-          }
+  const preparationNote =
+    language === 'de'
+      ? {
+          welcome:
+            'Bevor Sie starten: Halten Sie idealerweise den gewünschten Connector-Namen, die BPNL und die technischen Endpoints bereit.',
+          credentials:
+            'Benötigte Informationen finden Sie oft bei Ihrem Plattform-Team, im Dataspace-Onboarding, in Kubernetes-/Ingress-Konfigurationen oder in bestehenden Betriebsdokumenten.',
+          example:
+            'Beispiel: Für einen EDC Connector benötigen Sie meist die öffentliche API-Adresse und die Data-Plane-Adresse, die Ihr Infrastruktur- oder DevOps-Team bereitstellt.',
+        }
+      : {
+          welcome:
+            'Before you start, it helps to have the connector name, BPNL and technical endpoints ready.',
+          credentials:
+            'Users usually get these values from the platform team, dataspace onboarding docs, Kubernetes or ingress configuration, or existing operations documentation.',
+          example:
+            'Example: for an EDC connector, you will usually need the public API endpoint and the data plane address maintained by your infrastructure or DevOps team.',
         };
 
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Access Token URL
-              </label>
-              <input
-                type="text"
-                value={accessTokenUrl}
-                onChange={(e) =>
-                  setField(
-                    prefix === 'submodel'
-                      ? 'submodelOAuthAccessTokenUrl'
-                      : 'registryOAuthAccessTokenUrl',
-                    e.target.value
-                  )
-                }
-                placeholder="{{centralidpUrl}}/auth/realms/CX-Central/protocol/openid-connect/token"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Client ID
-                </label>
-                <input
-                  type="text"
-                  value={clientId}
-                  onChange={(e) =>
-                    setField(
-                      prefix === 'submodel'
-                        ? 'submodelOAuthClientId'
-                        : 'registryOAuthClientId',
-                      e.target.value
-                    )
-                  }
-                  placeholder="client-id"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Client Secret
-                </label>
-                <input
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) =>
-                    setField(
-                      prefix === 'submodel'
-                        ? 'submodelOAuthClientSecret'
-                        : 'registryOAuthClientSecret',
-                      e.target.value
-                    )
-                  }
-                  placeholder="••••••••••••"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Scope
-                </label>
-                <input
-                  type="text"
-                  value={scope}
-                  onChange={(e) =>
-                    setField(
-                      prefix === 'submodel'
-                        ? 'submodelOAuthScope'
-                        : 'registryOAuthScope',
-                      e.target.value
-                    )
-                  }
-                  placeholder="openid"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Client Authentication
-                </label>
-                <select
-                  value={clientAuth}
-                  onChange={(e) =>
-                    setField(
-                      prefix === 'submodel'
-                        ? 'submodelOAuthClientAuth'
-                        : 'registryOAuthClientAuth',
-                      e.target.value
-                    )
-                  }
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="basic">Send as Basic Auth header</option>
-                  <option value="body">Send client credentials in body</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        );
-      case 'none':
-      default:
-        return null;
-    }
-  };
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      /** STEP 1 — SUBMODEL SERVICE **/
-      case 1:
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Submodel Service</h3>
-              {submodelDeployed && (
-                <span className="flex items-center text-green-600 text-sm">
-                  <CheckCircle size={16} className="mr-1" />
-                  Deployed
-                </span>
-              )}
-            </div>
-
-            {/* Auswahl: Neuer oder bestehender Service */}
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <button
-                onClick={() => setSubmodelMode('new')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'new'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-              >
-                Neuen Submodel hinzufügen
-              </button>
-              <button
-                onClick={() => setSubmodelMode('existing')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'existing'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }
-                disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
-                `}
-                disabled>
-                Existierenden Server verbinden
-              </button>
-            </div>
-
-            {/* Eingabefelder */}
-            <div>
-              <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
-                Only lowercase letters and numbers allowed
-              </p>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Submodel Service Name
-              </label>
-
-              <input
-                type="text"
-                value={formData.submodelName}
-                {...register("submodelName")}
-                onChange={(e) => {
-                  const sname = e.target.value;
-                  setFormData({
-                    ...formData,
-                    submodelName: sname,
-                    submodelServiceUrl:
-                      sname.length > 0 ? `${sname}-txcd.arena2036-x.de` : "",
-                  });
-                }}
-                placeholder="submodel01"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Submodel Hostname
-              </label>
-              <input
-                type="text"
-                value={formData.submodelServiceUrl}
-                readOnly
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    submodelServiceUrl: e.target.value,
-                  })
-                }
-                placeholder={
-                  submodelMode === 'new'
-                    ? 'submodel-txcd.arena2036-x.de'
-                    : 'existing-submodel-txcd.example.com'
-                }
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* NEU: Auth Type für Submodel Service */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Auth Type
-              </label>
-              <select
-                value={formData.submodelAuthType}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    submodelAuthType: e.target
-                      .value as AuthType,
-                  })
-                }
-                className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"} 
-                  disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed`}
-                disabled
-              >
-                <option value="none">No Auth</option>
-                <option value="apiKey">API Key</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="oauth2">OAuth 2.0</option>
-              </select>
-
-              {renderAuthSection('submodel', formData.submodelAuthType)}
-            </div>
-
-          </div>
-        );
-
-      /** STEP 2 — DIGITAL TWIN REGISTRY **/
-      case 2:
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Digital Twin Registry</h3>
-            <p className="text-sm text-gray-500">
-              Verbinde deinen Digital Twin Registry Service.
-            </p>
-            {/* Auswahl: Neuer oder bestehender Service */}
-            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <button
-                onClick={() => setSubmodelMode('new')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'new'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-              >
-                Neuen DTR hinzufügen
-              </button>
-              <button
-                onClick={() => setSubmodelMode('existing')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${submodelMode === 'existing'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }
-                disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed
-                `}
-                disabled>
-                Existierenden DTR verbinden
-              </button>
-            </div>
-
-            <div>
-              <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
-                Only lowercase letters and numbers allowed
-              </p>
-
-
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Registry Name
-              </label>
-              <input
-                {...register("registryName")}
-                type="text"
-                value={formData.registryName}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setFormData({
-                    ...formData,
-                    registryName: name,
-                    // Auto-update registryUrl if the user types something simple
-                    registryUrl: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
-                  });
-                }}
-                placeholder="registry01"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Registry Hostname
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={formData.registryUrl}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    registryUrl: e.target.value,
-                  })
-                }
-                placeholder="registry-txcd.arena2036-x.de"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* NEU: Auth Type für Registry */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Auth Type
-              </label>
-              <select
-                value={formData.registryAuthType}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    registryAuthType: e.target.value as AuthType,
-                  })
-                }
-                className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"} 
-                  disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed`}
-                disabled
-              >
-                <option value="none">No Auth</option>
-                <option value="apiKey">API Key</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="oauth2">OAuth 2.0</option>
-              </select>
-
-              {renderAuthSection('registry', formData.registryAuthType)}
-            </div>
-
-            {/* altes Credentials-Feld kannst du bei Bedarf entfernen oder lassen */}
-            {/*            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credentials (optional)
-              </label>
-              <input
-                type="password"
-                value={formData.registryCredentials}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    registryCredentials: e.target.value,
-                  })
-                }
-                placeholder="••••••••"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-            */}
-
-            {/* <button
-              disabled={!formData.registryUrl}
-              onClick={() => setCurrentStep(currentStep + 1)}
-              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              Connect Registry
-            </button> */}
-          </div>
-        );
-
-      /** STEP 3 — EDC DEPLOYMENT CONFIG **/
-      case 3:
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">EDC Deployment Configuration</h3>
-            <p className="text-sm text-gray-500">
-              Bitte gib die EDC-Informationen für den Deployment-Vorgang ein.
-            </p>
-
-            <p className="text-center text-sm text-orange-600 bg-orange-50 py-1 rounded mb-2">
-              Only lowercase letters and numbers allowed
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-              <div>
-
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  EDC Name
-                </label>
-                <input
-                  {...register("name")}
-                  value={formData.name}
-                  type="text"
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setFormData({
-                      ...formData,
-                      name: name,
-                      // Auto-update registryUrl if the user types something simple
-                      url: name.length > 0 ? `${name}-txcd.arena2036-x.de` : "",
-                    });
-                  }}
-                  placeholder="edc"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  EDC Version
-                </label>
-                <select
-                  value={formData.version}
-                  onChange={(e) =>
-                    setFormData({ ...formData, version: e.target.value })
-                  }
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="0.9.0">0.9.0</option>
-                  <option value="0.10.2">0.10.2</option>
-                  {/* <option value="0.11.0">0.11.0</option>`` */}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Endpoint Hostname
-                </label>
-                <input
-                  type="text"
-                  value={formData.url || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      url: e.target.value.length > 0 ? e.target.value : ""
-                    })
-                  }
-                  placeholder="edc-txcd.arena2036-x.de"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Partner Number (BPN)
-                </label>
-                <input
-                  type="text"
-                  value={formData.bpn}
-                  onChange={(e) =>
-                    setFormData({ ...formData, bpn: e.target.value })
-                  }
-                  placeholder="BPNL00000003AYRE"
-                  className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${isBpnInvalid
-                    ? "border-2 border-red-500"
-                    : "border border-gray-300"
-                    }`}
-                />
-                {isBpnInvalid && (
-                  <p className="text-red-500 text-sm mt-1">
-                    BPN must be exactly 16 characters
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={formData.edcUsername}
-                  onChange={(e) =>
-                    setFormData({ ...formData, edcUsername: e.target.value })
-                  }
-                  placeholder="test-user"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={formData.edcPassword}
-                  onChange={(e) =>
-                    setFormData({ ...formData, edcPassword: e.target.value })
-                  }
-                  placeholder="••••••••"
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* YAML Preview */}
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                YAML Preview
-              </label>
-              <div className="relative">
-                <textarea
-                  readOnly
-                  value={yamlPreview}
-                  rows={6}
-                  className="w-full font-mono text-sm px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
-                />
-                <button
-                  onClick={copyYaml}
-                  className="absolute top-2 right-2 p-2 text-gray-500 hover:text-gray-800"
-                  title="Copy YAML"
-                >
-                  <Copy size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-
-      /** STEP 4 — REVIEW & DEPLOY **/
-      case 4:
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Review & Deploy</h3>
-            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <p>
-                <strong>EDC Name:</strong> {formData.name}
-              </p>
-              <p>
-                <strong>Version:</strong> {formData.version}
-              </p>
-              <p>
-                <strong>Endpoint:</strong> {formData.url}
-              </p>
-              <p>
-                <strong>BPN:</strong> {formData.bpn}
-              </p>
-              <p>
-                <strong>Registry:</strong> {formData.registryUrl}
-              </p>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  const isStepValid = (step: number): boolean => {
-    switch (step) {
-      case 1:
-        return (
-          formData.submodelName.trim() !== "" &&
-          formData.submodelServiceUrl.trim() !== ""
-        );
-
-      case 2:
-        return (
-          formData.registryName.trim() !== "" &&
-          formData.registryUrl.trim() !== ""
-        );
-
-      case 3:
-        return !isBpnInvalid && !isCredentialsMissing;
-
-      default:
-        return true;
-    }
-  };
-
-
-  const handleNext = () => {
-  if (!isStepValid(currentStep)) return;
-
-  setCurrentStep((prev) => prev + 1);
-};
-
-
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              Deploy EDC Connector
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
+              {t('deployConnector')}
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Step {currentStep} of {totalSteps}
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+              {step === 1
+                ? t('connectorNameStep')
+                : language === 'de'
+                ? 'Endpoints & technische Optionen'
+                : 'Endpoints & technical options'}
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            onClick={closeDialog}
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label={t('close')}
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
-        <div className="p-6">
-          <div className="mb-6">
-            <div className="flex justify-between">
-              {[1, 2, 3, 4].map((step) => (
-                <div
-                  key={step}
-                  className={`flex-1 h-2 rounded-full mx-1 ${step <= currentStep ? 'bg-orange-500' : 'bg-gray-200'
-                    }`}
+        <div className="space-y-6 px-6 py-6">
+          {step === 1 && (
+            <>
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
+                {t('connectorNameHelp')}
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{preparationNote.welcome}</p>
+                <p className="mt-2">{preparationNote.credentials}</p>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                  {t('connectorNameLabel')}
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t('connectorNamePlaceholder')}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
-              ))}
-            </div>
-          </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    BPNL
+                  </label>
+                  <input
+                    type="text"
+                    value={bpn}
+                    onChange={(event) => setBpn(event.target.value.toUpperCase())}
+                    placeholder="BPNL000000000000"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 uppercase text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                  <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                    {language === 'de'
+                      ? 'Verwenden Sie eine gueltige Business Partner Number im BPNL-Format.'
+                      : 'Use a valid business partner number in BPNL format.'}
+                  </p>
+                  {prefilledBpn && (
+                    <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                      {language === 'de'
+                        ? 'Diese BPNL wurde automatisch aus Ihrem Login oder den Dataspace-Informationen übernommen. Sie können sie bei Bedarf anpassen.'
+                        : 'This BPNL was detected automatically from your login or dataspace information. You can still adjust it if needed.'}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {language === 'de' ? 'Version' : 'Version'}
+                  </label>
+                  <select
+                    value={version}
+                    onChange={(event) =>
+                      setVersion(event.target.value as (typeof connectorVersions)[number])
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    {connectorVersions.map((connectorVersion) => (
+                      <option key={connectorVersion} value={connectorVersion}>
+                        {connectorVersion}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
 
-          {renderStepContent()}
+          {step === 2 && (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
+                {t('endpointHelp')}
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{preparationNote.example}</p>
+                <p className="mt-2">
+                  {language === 'de'
+                  ? 'Wenn Sie diese URLs nicht kennen, fragen Sie nach Ingress-, Gateway- oder Service-Adressen für Control Plane und Data Plane.'
+                    : 'If you do not know these URLs yet, ask for the ingress, gateway or service addresses for the control plane and the data plane.'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                {language === 'de'
+                  ? 'Sie deployen hier nur den EDC Connector. DTR oder Submodel Services können Sie danach gezielt als Komponente hinzufügen oder mit bestehenden Services verbinden.'
+                  : 'You are deploying only the EDC connector here. DTR or Submodel Services can be added afterwards as components or connected as existing services.'}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {t('apiEndpointLabel')}
+                  </label>
+                  <input
+                    type="url"
+                    value={apiEndpoint}
+                    onChange={(event) => setApiEndpoint(event.target.value)}
+                    placeholder={t('apiEndpointPlaceholder')}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {t('dataPlaneLabel')}
+                  </label>
+                  <input
+                    type="url"
+                    value={dataPlaneUrl}
+                    onChange={(event) => setDataPlaneUrl(event.target.value)}
+                    placeholder={t('dataPlanePlaceholder')}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-between items-center p-6 border-t bg-gray-50 rounded-b-xl">
-          <div className="flex gap-3">
-
-            {currentStep > 1 && (
-              <button
-                onClick={() => setCurrentStep(currentStep - 1)}
-                className="px-6 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors"
-              >
-                Previous
-              </button>
-            )}
-          </div>
-          <div className="flex gap-3">
-            {(currentStep === 1 || currentStep === 2) && (
-
-              <button
-                onClick={() => setCurrentStep(currentStep + 1)}
-                disabled={!isStepValid(currentStep)}
-                className={`px-6 py-2.5 font-medium transition-colors ${!isStepValid(currentStep)
-                  ? "text-gray-400 cursor-not-allowed"
-                  : "text-gray-600 hover:text-gray-800"
-                  }`}
-              >
-                Skip
-              </button>
-            )}
-            <button
-              onClick={currentStep < totalSteps ? handleNext : handleSubmit}
-              disabled={!isStepValid(currentStep)}
-              className={`px-6 py-2.5 rounded-lg font-medium transition-colors text-white ${!isStepValid(currentStep)
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-orange-500 hover:bg-orange-600"
+        <div className="border-t border-gray-100 px-6 py-4 dark:border-slate-800">
+          <div className="mb-4 flex justify-center gap-2">
+            {[1, 2].map((index) => (
+              <span
+                key={index}
+                className={`h-2.5 w-2.5 rounded-full ${
+                  index === step ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700'
                 }`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={step === 1 ? closeDialog : () => setStep((current) => current - 1)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              {currentStep === totalSteps ? 'Deploy EDC' : 'Next'}
+              {step === 1 ? t('cancel') : t('back')}
             </button>
-
+            <div className="flex items-center gap-3">
+              {step === 2 && onDeployAndAddComponent && (
+                <button
+                  onClick={handleDeployAndAddComponent}
+                  disabled={!canContinue}
+                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100 dark:hover:bg-orange-500/20 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Plus size={16} />
+                    {language === 'de'
+                      ? 'Deployen & Komponente hinzufügen'
+                      : 'Deploy & add component'}
+                  </span>
+                </button>
+              )}
+              <button
+                onClick={step < 2 ? () => setStep((current) => current + 1) : handleDeploy}
+                disabled={!canContinue}
+                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+              >
+                {step < 2 ? t('continue') : t('deployNow')}
+              </button>
+            </div>
           </div>
         </div>
       </div>

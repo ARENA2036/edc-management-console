@@ -1,12 +1,23 @@
 import axios from 'axios';
+import { getRuntimeConfigValue } from '../runtime-config';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL + '/api' || '/api';
+const backendUrl = getRuntimeConfigValue(
+  import.meta.env.VITE_BACKEND_URL,
+  window.__RUNTIME_CONFIG__?.apiUrl,
+  '',
+);
+const apiKey = getRuntimeConfigValue(
+  import.meta.env.VITE_API_KEY,
+  window.__RUNTIME_CONFIG__?.apiKey,
+  'DEFAULT',
+);
+const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'X-Api-Key': `${import.meta.env.VITE_API_KEY}`,
+    'X-Api-Key': apiKey,
   },
 });
 
