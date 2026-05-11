@@ -24,7 +24,7 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
     paths:
       - "services/**/*.py"
     # paths-ignore:
