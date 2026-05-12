@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import AppNew from './AppNew.tsx'
+import App from './App.tsx'
 import keycloak from './auth/keycloak'
 
 const initKeycloak = async () => {
@@ -10,7 +10,7 @@ const initKeycloak = async () => {
       onLoad: 'login-required',
       checkLoginIframe: false,
     });
-
+    // const authenticated = true;
     if (authenticated) {
       localStorage.setItem('token', keycloak.token || '');
       
@@ -26,7 +26,7 @@ const initKeycloak = async () => {
 
       createRoot(document.getElementById('root')!).render(
         <StrictMode>
-          <AppNew />
+          <App/>
         </StrictMode>,
       );
     }
