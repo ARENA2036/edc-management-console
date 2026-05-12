@@ -27,19 +27,20 @@ on:
     branches: ["main"]
     paths:
       - "services/**/*.py"
-    paths-ignore:
-      - "**/*.yml"
-      - "**/*.yaml"
-      - "**/*.md"
-      - "**/*.txt"
+    # paths-ignore:
+    #   - "**/*.yml"
+    #   - "**/*.yaml"
+    #   - "**/*.md"
+    #   - "**/*.txt"
   pull_request:
-    paths:
-      - "services/**/*.py"
-    paths-ignore:
-      - "**/*.yml"
-      - "**/*.yaml"
-      - "**/*.md"
-      - "**/*.txt"
+      branches: [main]
+      paths:
+        - "services/**/*.py"
+      # paths-ignore:
+      #   - "**/*.yml"
+      #   - "**/*.yaml"
+      #   - "**/*.md"
+      #   - "**/*.txt"
   schedule:
     - cron: "0 0 * * 0"
   workflow_dispatch:
@@ -54,6 +55,15 @@ jobs:
       contents: read
       security-events: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python"] # Define languages here
+        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift' ]
+        # Use only 'java' to analyze code written in Java, Kotlin or both
+        # Use only 'javascript' to analyze code written in JavaScript, TypeScript or both
+        # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -62,7 +72,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
         with:
-          languages: python
+          languages: ${{ matrix.language }}
           # If you wish to specify custom queries, you can do so here or in a config file
           # By default, queries listed here will override any specified in a config file
           # Prefix the list here with "+" to use these queries and those in the config file
@@ -71,6 +81,13 @@ jobs:
           # Use +security-extended,security-and-quality for wider security and better code quality
           queries: +security-extended,security-and-quality
 
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # If the Autobuild fails above, remove it and uncomment the following three lines modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance
+      
       # ℹ️ Command-line programs to run using the OS shell.
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
 
@@ -83,5 +100,5 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@9e8d0789d4a0fa9ceb6b1738f7e269594bdd67f0 # v3.28.9
         with:
-          category: "/language:python"
+          category: "/language:${{matrix.language}}"
           fail-on: error
