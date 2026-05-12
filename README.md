@@ -1,8 +1,26 @@
 # ARENA2036 EDC Management Console
 
-EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
+[![Contributors][contributors-shield]][contributors-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Apache 2.0 License][license-shield]][license-url]
 
-## Features
+[![Latest Release][release-shield]][release-url]
+[![Latest Snapshot][snapshot-shield]]()
+
+<!-- [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=eclipse-tractusx_tractusx-edc&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=eclipse-tractusx_tractusx-edc) -->
+
+EDC Management Console (EMC) is a platform designed to manage the deployment and lifecycle of various Eclipse ecosystem components. In its current version, EMC provides streamlined support for provisioning and operating Tractus-X EDC (Eclipse Dataspace Connector) instances, including full integration with Keycloak for authentication and access control. This allows users to deploy secure, compliant, and configurable EDC runtimes with minimal manual setup.
+
+Please refer to:
+
+- [Our docs](docs/README.md)
+- [Our Releases]()
+- [Report Bug / Request Feature](https://github.com/ARENA2036/edc-management-console/issues)
+
+## About The Project
+The project provides pre-built backend and frontend [docker](https://www.docker.com/) images and [helm](https://helm.sh/) charts of the EMC application.
+
+### Features
 
 - 🔐 **Keycloak Authentication** - Secure OAuth2/OIDC authentication
 - 📊 **Dashboard** - Real-time monitoring with statistics cards
@@ -10,154 +28,21 @@ EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances
 - 📋 **Connector Management** - Full CRUD operations for EDC connectors
 - 📈 **Activity Logging** - Track all system activities
 
-## Technology Stack
+### Technology Stack
 
-### Backend
+#### Backend
 - **Python 3.11** with FastAPI
 - **PostgreSQL** database with SQLAlchemy ORM
 - **API Key Authentication** (Keycloak integration ready)
 
-### Frontend
+#### Frontend
 - **React 18** with TypeScript
 - **Tailwind CSS** for styling
 - **Keycloak-js** for authentication
 - **React Router** for navigation
 
-## Local Setup
-
-### Prerequisites
-- Python 3.11+
-- Node.js 20+
-- PostgreSQL 14+ (or use SQLite for development)
-- Keycloak 23+ (optional, for full authentication)
-
-### 1. Clone Repository
-```bash
-git clone <repository-url>
-cd edc-management-console
-```
-
-### 2. Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env and set your values:
-# - DATABASE_URL (PostgreSQL connection string)
-# - API_KEY (your secure API key)
-# - Keycloak credentials (if using Keycloak)
-```
-
-**Environment Variables (.env):**
-```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/edc_manager
-# or for SQLite: DATABASE_URL=sqlite:///./edc_manager.db
-
-# API Authentication
-API_KEY=your-secure-api-key-here
-
-# Keycloak (Optional)
-CENTRALIDP_CLIENT_ID=your-client-id
-CENTRALIDP_CLIENT_SECRET=your-client-secret
-```
-
-**Run Backend:**
-```bash
-uvicorn init:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Backend will be available at: `http://localhost:8000`  
-API Documentation: `http://localhost:8000/docs`
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env:
-```
-
-**Frontend Environment (.env):**
-```env
-VITE_API_BASE_URL=http://localhost:8000
-VITE_API_KEY=your-secure-api-key-here
-
-# Keycloak Configuration
-VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=CX-Central
-VITE_KEYCLOAK_CLIENT_ID=CX-EDC
-```
-
-**Run Frontend:**
-```bash
-npm run dev
-```
-
-Frontend will be available at: `http://localhost:5000`
-
-### 4. Keycloak Setup (Optional)
-
-If you want to use Keycloak authentication:
-
-1. **Install Keycloak:**
-```bash
-# Using Docker
-docker run -p 8080:8080 \
-  -e KEYCLOAK_ADMIN=admin \
-  -e KEYCLOAK_ADMIN_PASSWORD=admin \
-  quay.io/keycloak/keycloak:latest start-dev
-```
-
-2. **Configure Keycloak:**
-- Access Keycloak admin console: `http://localhost:8080`
-- Create realm: `CX-Central`
-- Create client: `CX-EDC`
-  - Client Protocol: `openid-connect`
-  - Access Type: `public`
-  - Valid Redirect URIs: `http://localhost:5000/*`
-  - Web Origins: `http://localhost:5000`
-- Create users and assign roles
-
-3. **Enable Keycloak in Frontend:**
-
-Edit `frontend/src/main.tsx`:
-```typescript
-import { initKeycloak } from './keycloak';
-
-initKeycloak(() => {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <AppNew />
-    </StrictMode>,
-  );
-});
-```
-
-### 5. Database Migration
-
-The application automatically creates tables on startup. For manual migration:
-
-```bash
-cd backend
-python -c "from managers.databaseManager import DatabaseManager; import os; DatabaseManager(os.getenv('DATABASE_URL')).create_tables()"
-```
-
-## Usage
+## Getting Started
+Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ### Deploying an EDC Connector
 
@@ -248,8 +133,6 @@ python -c "from managers.databaseManager import DatabaseManager; import os; Data
 
 Never commit `.env` files to version control. Use `.env.example` as template.
 
-## Development
-
 ### Running Tests
 ```bash
 # Backend tests
@@ -273,39 +156,30 @@ cd frontend
 npm run lint
 ```
 
-## Troubleshooting
-
-### Backend Issues
-
-**Database connection failed:**
-- Check DATABASE_URL in .env
-- Ensure PostgreSQL is running
-- Verify credentials
-
-**API key authentication failed:**
-- Check API_KEY in backend .env
-- Ensure frontend sends correct header (X-Api-Key)
-- Verify VITE_API_KEY in frontend .env
-
-### Frontend Issues
-
-**Blank screen:**
-- Check browser console for errors
-- Verify API connection (VITE_API_BASE_URL)
-- Ensure backend is running
-
-**Keycloak redirect loop:**
-- Check Keycloak client configuration
-- Verify redirect URIs
-- Ensure realm and client ID match
-
-### Network Issues
-
-**CORS errors:**
-- Backend CORS middleware is configured for all origins in development
-- For production, restrict origins in init.py
 
 
 ## License
 
-Copyright © ARENA2036-X Network
+Distributed under the Apache 2.0 License. See [LICENSE](/LICENSE) for more information.
+
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+
+[contributors-shield]: https://img.shields.io/github/contributors/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[contributors-url]: https://github.com/ARENA2036/edc-management-console/graphs/contributors
+
+[stars-shield]: https://img.shields.io/github/stars/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[stars-url]: https://github.com/ARENA2036/edc-management-console/stargazers
+
+[license-shield]: https://img.shields.io/github/license/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[license-url]: LICENSE
+
+[release-shield]: https://img.shields.io/github/v/release/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[release-url]: https://github.com/ARENA2036/edc-management-console/releases
+
+[snapshot-shield]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Feclipse-tractusx%2Ftractusx-edc%2Frefs%2Fheads%2Fgh-pages%2Fmisc%2Flatest-versioned-snapshot.txt&search=.*&style=for-the-badge&label=Latest-Snapshot

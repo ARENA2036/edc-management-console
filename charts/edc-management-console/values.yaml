@@ -170,8 +170,8 @@ backend:
       cpu: 100m
       memory: 128Mi
     requests:
-    cpu: 100m
-    memory: 128Mi
+      cpu: 100m
+      memory: 128Mi
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
   autoscaling:
     enabled: false
@@ -240,6 +240,14 @@ frontend:
   imagePullSecrets:
     - name: ""
 
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 101
   service:
     type: ClusterIP
     port: 8080
@@ -277,10 +285,17 @@ frontend:
       cpu: 100m
       memory: 128Mi
     requests:
-    cpu: 100m
-    memory: 128Mi
+      cpu: 100m
+      memory: 128Mi
   volumeMounts: []
-
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
   autoscaling:
     enabled: false

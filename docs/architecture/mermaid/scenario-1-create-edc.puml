@@ -1,0 +1,58 @@
+@startuml
+actor User
+participant "EMC Frontend" as FE
+participant "EMC Backend" as BE
+participant "Target Cluster" as Cluster
+
+== Open Deployment Wizard ==
+User -> FE : Click Deployment Wizard
+
+== Submodel Server Configuration ==
+User -> FE : Select Submodel Server\n(Existing / New)
+User -> FE : Provide Submodel Server Host
+User -> FE : Select Authentication Type
+note right of FE
+AuthType
+BearerToken
+OAuthAccessTokenUrl
+OAuthClientId
+OAuthClientSecret
+OAuthScope
+OAuthClientAuth
+end note
+' FE -> BE : Submit Submodel Server Configuration
+
+== Digital Twin Registry Configuration ==
+User -> FE : Select DTR\n(Existing / New)
+User -> FE : Provide DTR Host
+User -> FE : Select Authentication Type
+note right of FE
+AuthType
+BearerToken
+OAuthAccessTokenUrl
+OAuthClientId
+OAuthClientSecret
+OAuthScope
+OAuthClientAuth
+end note
+' FE -> BE : Submit DTR Configuration
+
+== EDC Configuration ==
+User -> FE : Provide EDC Name & Version
+FE -> BE : Submit EDC Configuration
+
+== Preview Configuration ==
+FE -> BE : Request Configuration Preview
+BE --> FE : Configuration Summary
+FE --> User : Display Preview
+
+== Deployment ==
+User -> FE : Click Deploy
+FE -> BE : Trigger Deployment
+BE -> Cluster : Deploy EDC, DTR,\nSubmodel Server
+Cluster --> BE : Deployment Status
+BE --> FE : Deployment Result
+FE --> User : Show Deployment Status
+
+@enduml
+
