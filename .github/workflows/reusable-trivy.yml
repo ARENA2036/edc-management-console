@@ -54,6 +54,18 @@ jobs:
       contents: read
       security-events: write
 
+  login-docker:
+    name: Trivy Backend Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.HBR_REGISTRY }}
+          username: ${{ secrets.HBR_USERNAME }}
+          password: ${{ secrets.HBR_PASSWORD }}
+
 # BACKEND IMAGE SCAN
   trivy-backend:
     name: Trivy Backend Scan
