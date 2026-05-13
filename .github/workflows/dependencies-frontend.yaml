@@ -24,7 +24,7 @@ name: Check Frontend Dependencies
 
 on:
   push:
-    branches: [main, develop]
+    branches: [DT-407/dash-scan, main, develop]
     paths:
       - frontend/package-lock.json
       - DEPENDENCIES_EMC-FRONTEND
