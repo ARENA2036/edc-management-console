@@ -32,11 +32,11 @@ on:
 
 env:
   IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
-  # BACKEND_IMAGE_NAME: 'emc-backend'
-  # FRONTEND_IMAGE_NAME: 'emc-frontend'
-  # SERVER_URL: '${{ github.server_url }}'
-  # REPOSITORY: '${{ github.repository }}'
-  # REF_NAME: '${{ github.ref_name }}'
+  BACKEND_IMAGE_NAME: 'emc-backend'
+  FRONTEND_IMAGE_NAME: 'emc-frontend'
+  SERVER_URL: '${{ github.server_url }}'
+  REPOSITORY: '${{ github.repository }}'
+  REF_NAME: '${{ github.ref_name }}'
 
 permissions:
   contents: read
@@ -54,7 +54,8 @@ jobs:
       contents: read
       security-events: write
 
-  login-docker:
+# BACKEND IMAGE SCAN
+  trivy-backend:
     name: Trivy Backend Scan
     runs-on: ubuntu-latest
 
@@ -66,16 +67,31 @@ jobs:
           username: ${{ secrets.HBR_USERNAME }}
           password: ${{ secrets.HBR_PASSWORD }}
 
-# BACKEND IMAGE SCAN
-  trivy-backend:
-    name: Trivy Backend Scan
-    uses: eclipse-tractusx/sig-infra/.github/workflows/reusable-trivy.yaml@main
-    with:
-      scan-type: "image"
-      image-ref: 'harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend:latest'      
-      output-file: "trivy-backend.sarif"
-      severity: "CRITICAL,HIGH"
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+      - name: Trivy Backend Scan
+        uses: eclipse-tractusx/sig-infra/.github/workflows/reusable-trivy.yaml@main
+        with:
+          scan-type: "image"
+          image-ref: 'harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend:latest'      
+          output-file: "trivy-backend.sarif"
+          severity: "CRITICAL,HIGH"
+        permissions:
+          actions: read
+          contents: read
+          security-events: write
+
+      # - name: Run Trivy scan
+      #   uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      #   with:
+      #     image-ref: '${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:latest'
+      #     format: sarif
+      #     output: trivy-backend.sarif
+      #     exit-code: '1'
+      #     severity: 'CRITICAL,HIGH'
+      #     timeout: '10m0s'
+      #     vuln-type: "os,library"
+
+      # - name: Upload Trivy scan results to GitHub Security tab
+      #   uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+      #   if: always()
+      #   with:
+      #     sarif_file: ${{ inputs.output-file }}
