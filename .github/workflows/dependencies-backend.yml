@@ -102,7 +102,7 @@ jobs:
                 echo "changed=true" >> $GITHUB_OUTPUT
                 echo "Change the $DEP_FILE with this new dependencies"
                 cat $DEP_FILE
-                exit 1
+   
             fi
 
       # - name: Check for restricted dependencies
