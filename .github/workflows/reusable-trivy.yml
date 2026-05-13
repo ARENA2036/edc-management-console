@@ -32,43 +32,35 @@ on:
 
 env:
   IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
-  BACKEND_IMAGE_NAME: 'emc-backend'
-  FRONTEND_IMAGE_NAME: 'emc-frontend'
-  SERVER_URL: '${{ github.server_url }}'
-  REPOSITORY: '${{ github.repository }}'
-  REF_NAME: '${{ github.ref_name }}'
+  # BACKEND_IMAGE_NAME: 'emc-backend'
+  # FRONTEND_IMAGE_NAME: 'emc-frontend'
+  # SERVER_URL: '${{ github.server_url }}'
+  # REPOSITORY: '${{ github.repository }}'
+  # REF_NAME: '${{ github.ref_name }}'
 
 permissions:
   contents: read
 
 jobs:
-  analyze:
-    name: Analyze
-    runs-on: ubuntu-latest
+  trivy-config:
+    name: Trivy Config Scan
+    uses: eclipse-tractusx/sig-infra/.github/workflows/reusable-trivy.yaml@main
+    with:
+      scan-type: "config"
+      output-file: "trivy-config.sarif"
+      severity: "CRITICAL,HIGH"
     permissions:
       actions: read
       contents: read
       security-events: write
 
-    steps:
-
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Docker Login
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.HBR_REGISTRY }}
-          username: ${{ secrets.HBR_USERNAME }}
-          password: ${{ secrets.HBR_PASSWORD }}
-      
 # BACKEND IMAGE SCAN
-  analyze-emc-backend:
+  trivy-backend:
     name: Trivy Backend Scan
     uses: eclipse-tractusx/sig-infra/.github/workflows/reusable-trivy.yaml@main
     with:
       scan-type: "image"
-      image-ref: 'harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend:latest'
+      image-ref: 'harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend:latest'      
       output-file: "trivy-backend.sarif"
       severity: "CRITICAL,HIGH"
     permissions:
