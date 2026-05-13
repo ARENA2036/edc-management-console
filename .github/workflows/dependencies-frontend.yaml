@@ -79,11 +79,11 @@ jobs:
       #     fi
       #   if: steps.dependencies-changed.outputs.changed == 'true'
 
-      # - name: Upload DEPENDENCIES_EMC-FRONTEND file
-      #   uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-      #   with:
-      #     path: DEPENDENCIES_EMC-FRONTEND
-      #   if: steps.dependencies-changed.outputs.changed == 'true'
+      - name: Upload DEPENDENCIES_EMC-FRONTEND file
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          path: DEPENDENCIES_EMC-FRONTEND
+        if: steps.dependencies-changed.outputs.changed == 'true'
 
       - name: Signal need to update DEPENDENCIES_EMC
         run: |
