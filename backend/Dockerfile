@@ -21,7 +21,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #################################################################################
 
-FROM python:3.13-alpine
+FROM python:3.13-slim
 
 ENV HELM_VERSION="v3.18.4"
 ENV KUBECTL_VERSION="v1.33.3"
