@@ -21,7 +21,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #################################################################################
 
-FROM python:3.13-slim
+FROM python:3.13-alpine
 
 ENV HELM_VERSION="v3.18.4"
 ENV KUBECTL_VERSION="v1.33.3"
@@ -37,7 +37,7 @@ WORKDIR /backend
 RUN ls -la
 
 ## Install Python
-# RUN apk add py3-pip libpq curl bash ca-certificates --no-cache
+RUN apk add py3-pip libpq curl bash ca-certificates --no-cache
 
 # Install kubectl
 RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
@@ -51,32 +51,23 @@ RUN curl -LO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
     && rm -rf linux-amd64 helm-${HELM_VERSION}-linux-amd64.tar.gz
 
 ## Install Python and build dependencies
-# RUN apk add --no-cache \
-#     py3-pip \
-#     libpq \
-#     curl \
-#     bash \
-#     ca-certificates \
-#     gcc \
-#     musl-dev \
-#     python3-dev \
-#     libffi-dev \
-#     make \
-#     git \
-#     jq
 RUN apk add --no-cache \
     py3-pip \
     libpq \
     curl \
     bash \
     ca-certificates \
+    gcc \
+    musl-dev \
+    python3-dev \
+    libffi-dev \
+    make \
+    git \
     jq
 
 # Install Azure CLI
-# RUN pip3 install --upgrade pip \
-#     && pip3 install azure-cli
-RUN pip3 install --no-cache-dir --upgrade pip \
-    && pip3 install --no-cache-dir azure-cli==2.61.0
+RUN pip3 install --upgrade pip \
+    && pip3 install azure-cli
 
 # Verify installation
 RUN kubectl version --client && helm version
