@@ -24,7 +24,7 @@ name: "Trivy (Reusable)"
 
 on:
   push:
-    branches: [DT-454/trivy-reusable, main, develop]
+    branches: [main, develop]
   # schedule:
     # Once a day
     # - cron: "0 0 * * 0"
