@@ -21,20 +21,19 @@
 ###############################################################
 
 import os
-import time
-import requests
 import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
 from dotenv import load_dotenv
+import jwt
+from jwt import PyJWKClient, InvalidTokenError
 
 from auth.models import AuthenticatedUser
 
 load_dotenv()
 
 logger = logging.getLogger("staging")
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 class KeycloakOpenID:
@@ -43,39 +42,14 @@ class KeycloakOpenID:
         self.realm = os.getenv("KEYCLOAK_REALM")
         self.client_id = os.getenv("KEYCLOAK_CLIENT_ID")
 
+        if not all([self.keycloak_url, self.realm, self.client_id]):
+            raise RuntimeError("Missing Keycloak configuration")
+
         self.issuer = f"{self.keycloak_url}/realms/{self.realm}"
         self.jwks_url = f"{self.issuer}/protocol/openid-connect/certs"
 
-        self.jwks = None
-        self.jwks_last_refresh = 0
-        self.jwks_cache_ttl = 300  # seconds
+        self.jwk_client = PyJWKClient(self.jwks_url)
 
-    def _get_jwks(self):
-        if not self.jwks or time.time() - self.jwks_last_refresh > self.jwks_cache_ttl:
-            try:
-                response = requests.get(self.jwks_url, timeout=5)
-                response.raise_for_status()
-                self.jwks = response.json()
-                self.jwks_last_refresh = time.time()
-                logger.info("[Keycloak] JWKS refreshed")
-            except Exception as e:
-                logger.error(f"[Keycloak] Failed to refresh JWKS: {e}")
-                raise HTTPException(status_code=500, detail="Auth server error")
-
-        return self.jwks
-
-    def get_public_key(self, token: str):
-        jwks = self._get_jwks()
-
-        header = jwt.get_unverified_header(token)
-        kid = header.get("kid")
-
-        for key in jwks.get("keys", []):
-            if key["kid"] == kid:
-                return key
-
-        raise HTTPException(status_code=401, detail="Public key not found")
-    
     def extract_roles(self, decoded_token: dict):
         realm_roles = decoded_token.get("realm_access", {}).get("roles", [])
 
@@ -100,15 +74,16 @@ class KeycloakOpenID:
         token = credentials.credentials
 
         try:
-            key = self.get_public_key(token)
+            signing_key = self.jwk_client.get_signing_key_from_jwt(token)
 
             decoded = jwt.decode(
                 token,
-                key,
+                signing_key.key,
                 algorithms=["RS256"],
                 audience=self.client_id,
                 issuer=self.issuer,
                 options={
+                    "verify_signature": True,
                     "verify_exp": True,
                     "verify_aud": True,
                     "verify_iss": True,
@@ -127,7 +102,7 @@ class KeycloakOpenID:
 
             return user
 
-        except JWTError as e:
+        except InvalidTokenError as e:
             logger.error(f"[Keycloak] JWT validation failed: {str(e)}")
 
             raise HTTPException(
