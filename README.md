@@ -225,11 +225,11 @@ python -c "from managers.databaseManager import DatabaseManager; import os; Data
 │   │   │   ├── Header.tsx
 │   │   │   ├── StatsCard.tsx
 │   │   │   ├── DeploymentWizard.tsx
-│   │   │   └── ConnectorTableNew.tsx
+│   │   │   └── ConnectorTable.tsx
 │   │   ├── api/             # API client
 │   │   ├── types/           # TypeScript types
 │   │   ├── keycloak.ts      # Keycloak integration
-│   │   └── AppNew.tsx       # Main application
+│   │   └── App.tsx       # Main application
 ```
 
 ## Security Considerations
