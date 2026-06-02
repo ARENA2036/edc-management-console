@@ -30,10 +30,10 @@ on:
       image_tag:
         description: 'tag'
         required: true
-        default: 'latest'
+        default: 'latest-15-04-2026'
 
 env:
-  IMAGE_NAMESPACE: 'arena2036.azurecr.io'
+  IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   BACKEND_IMAGE_NAME: 'emc-backend'
   FRONTEND_IMAGE_NAME: 'emc-frontend'
   SERVER_URL: '${{ github.server_url }}'
@@ -53,9 +53,10 @@ jobs:
       - name: Docker Login
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ secrets.AZURE_URL }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          login-server: ${{ secrets.HBR_REGISTRY }}
+          username: ${{ secrets.HBR_USERNAME }}
+          password: ${{ secrets.HBR_PASSWORD }}
+
       
       - name: Docker meta
         id: meta
@@ -64,6 +65,7 @@ jobs:
           images: ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}
           tags: |
             type=raw,value=${{ github.event.inputs.image_tag }}
+            type=raw,value=${{ github.sha }}
       
       - name: Build and push Docker image
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
@@ -71,7 +73,7 @@ jobs:
           context: backend
           push: true
           # push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:latest-15-04-2026
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
@@ -96,9 +98,9 @@ jobs:
       - name: Docker Login
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ secrets.AZURE_URL }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          login-server: ${{ secrets.HBR_REGISTRY }}
+          username: ${{ secrets.HBR_USERNAME }}
+          password: ${{ secrets.HBR_PASSWORD }}
       
       - name: Docker meta
         id: meta
@@ -107,6 +109,7 @@ jobs:
           images: ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}
           tags: |
             type=raw,value=${{ github.event.inputs.image_tag }}
+            type=raw,value=${{ github.sha }}
       
       - name: Build and push Docker image
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
@@ -114,7 +117,7 @@ jobs:
           context: frontend
           # push: ${{ github.event_name != 'pull_request' }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:latest-15-04-2026
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
