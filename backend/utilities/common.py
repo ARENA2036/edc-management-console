@@ -53,7 +53,6 @@ def install_helm_chart(deployment_name:str, values_files:list, namespace:str):
     subprocess.run(f"helm install {deployment_name}  {formatted_files} --namespace {namespace} --debug .")
     print(f"Install helm chart successful...")
 
-
 def upgrade_helm_chart(deployment_name:str, values_files:list, namespace:str):
 
     formatted_files = " ".join([" -f " + file for file in values_files])
@@ -141,7 +140,6 @@ def parse_yaml(connector: Connector,
     # except Exception as e:
     #     logging.error(f"It was not possible to do the POST request to the EDC! Reason: [{str(e)}]")
     #     return {"error": str(e)}
-
 
 def delete_file(file_path):
     try:

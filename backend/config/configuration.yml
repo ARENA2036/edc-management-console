@@ -2,14 +2,14 @@ appConfig:
   name: "ARENA2036 EDC Management Console"
   client_id: "CX-EDC"
   version: "1.0.0"
-  port: 5000
-  host: "0.0.0.0"
+  port: "${APP_PORT}"
+  host: "${APP_HOST}"
 
 authorization:
-  enabled: true
+  enabled: "${AUTH_ENABLED}"
   apiKey:
-    key: "X-Api-Key"
-    value: "emc-api-key"
+    key: "${API_KEY_HEADER}"
+    value: "${API_KEY_VALUE}"
 
 startup:
   checks: true
@@ -17,50 +17,58 @@ startup:
 
 dataspaceConfig:
   name: "ARENA2036-X"
-  authority_id: "BPNL00000003CRHK"
+  authority_id: "${DATASPACE_AUTHORITY_ID}"
+
   centralidp:
-    url: "https://centralidp.arena2036-x.de/auth/"
-    realm: "CX-Central"
+    url: "${CENTRALIDP_URL}"
+    realm: "${CENTRALIDP_REALM}"
     client_id: "${CENTRALIDP_CLIENT_ID}"
     client_secret: "${CENTRALIDP_CLIENT_SECRET}"
+
   ssi_wallet:
-    url: "https://ssi-dim-wallet-stub.arena2036-x.de"
+    url: "${SSI_WALLET_URL}"
     client_id: "${SSI_WALLET_CLIENT_ID}"
     client_secret: "${SSI_WALLET_CLIENT_SECRET}"
+
   portal:
-    url: "https://portal.arena2036-x.de"
+    url: "${PORTAL_URL}"
     client_id: "${PORTAL_CLIENT_ID}"
     client_secret: "${PORTAL_CLIENT_SECRET}"
+
   discovery:
     semantics:
-      url: "https://semantics.arena2036-x.de"
+      url: "${SEMANTICS_URL}"
+
     discoveryFinder:
       endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
+
       keys:
         edc_discovery: "bpn"
+
       client_id: "${DISCOVERY_FINDER_CLIENT_ID}"
       client_secret: "${DISCOVERY_FINDER_CLIENT_SECRET}"
+
     bpnDiscovery:
       endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
       client_id: "${BPN_DISCOVERY_CLIENT_ID}"
       client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
 
-
 clusterConfig:
-  context: "arena2036_txcd"
-  namespace: "edc-management-console"
+  context: "${CLUSTER_CONTEXT}"
+  namespace: "${CLUSTER_NAMESPACE}"
 
 sde:
-  url: https://sde.arena2036-x.de/
-  client_id: "SDE-1"
-  manufacturerId: BPNLA360COMPANY1
-  providerEDC:  https://emc-edc-1-controlplane-txcd.arena2036-x.de
-  consumerEDC: https://emc-edc-2-controlplane-txcd.arena2036-x.de
-  registryUrl: https://emc-edc-dtr-1-txcd.arena2036-x.de/semantics/registry
+  url: "${SDE_URL}"
+  client_id: "${SDE_CLIENT_ID}"
+  manufacturerId: "${SDE_MANUFACTURER_ID}"
+  providerEDC: "${SDE_PROVIDER_EDC}"
+  consumerEDC: "${SDE_CONSUMER_EDC}"
+  registryUrl: "${SDE_REGISTRY_URL}"
 
 edc:
-  default_url: "https://dataconsumer-controlplane.arena2036-x.de"
+  default_url: "${EDC_DEFAULT_URL}"
   helm_chart_directory: "./tractusx-connector"
+
   endpoints:
     assets: "/v3/assets"
     policies: "/v3/policydefinitions"
@@ -72,9 +80,10 @@ edc:
     view_edr: "/request"
     transfer_edr: "/dataaddress?auto_refresh=true"
     dsp: "/api/v1/dsp"
+
   hostname:
-    cp: controlplane.arena2036-x.de
-    dp: dataplane.arena2036-x.de
+    cp: "${EDC_HOSTNAME_CP}"
+    dp: "${EDC_HOSTNAME_DP}"
 
 database:
   url: "${DATABASE_URL}"
@@ -85,6 +94,7 @@ files:
     v9: /Chart_v9.yaml
     v10: /Chart_v10.yaml
     v11: /Chart_v11.yaml
+
   values:
     v9: /values_v9.yaml
     v10: /values_v10.yaml

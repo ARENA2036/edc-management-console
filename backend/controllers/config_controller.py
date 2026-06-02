@@ -22,12 +22,12 @@
 
 import logging
 from utilities.httpUtils import HttpUtils
-from init import settings, app_configuration, logger
+from utilities import app_context
 
 def get_config(user):
     return {
         "user": user["preferred_username"],
-        "data": settings
+        "data": app_context.settings
     }
 
 def get_dataspace_settings(request):
@@ -38,8 +38,8 @@ def get_dataspace_settings(request):
         response: :obj:`data object with the dataspace settings`
     """
     try:
-        dataspace_config = app_configuration.get("dataspaceConfig", {})
-        edc_config = app_configuration.get("edc", {})
+        dataspace_config = app_context.app_configuration.get("dataspaceConfig", {})
+        edc_config = app_context.app_configuration.get("edc", {})
 
         dataspace_name = dataspace_config.get("name", "ARENA2036-X")
         bpn = dataspace_config.get("authority_id", "BPNL000000000000")
@@ -60,12 +60,12 @@ def get_dataspace_settings(request):
                 "url": dataspace_config.get("portal", {}).get("url", "")
             },
             "sde": {
-                "url": app_configuration.get("sde", {}).get("url", ""),
-                "client_id": app_configuration.get("sde", {}).get("client_id", ""),
-                "manufacturerId": app_configuration.get("sde", {}).get("manufacturerId", ""),
-                "providerEDC": app_configuration.get("sde", {}).get("providerEDC", ""),
-                "consumerEDC": app_configuration.get("sde", {}).get("consumerEDC", ""),
-                "registryUrl": app_configuration.get("sde", {}).get("registryUrl", ""),
+                "url": app_context.app_configuration.get("sde", {}).get("url", ""),
+                "client_id": app_context.app_configuration.get("sde", {}).get("client_id", ""),
+                "manufacturerId": app_context.app_configuration.get("sde", {}).get("manufacturerId", ""),
+                "providerEDC": app_context.app_configuration.get("sde", {}).get("providerEDC", ""),
+                "consumerEDC": app_context.app_configuration.get("sde", {}).get("consumerEDC", ""),
+                "registryUrl": app_context.app_configuration.get("sde", {}).get("registryUrl", ""),
             },
             "discovery": {
                "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
@@ -74,16 +74,16 @@ def get_dataspace_settings(request):
             },
             "edc": {
                 "default_url": edc_config.get("default_url", ""),
-                "cluster_context": app_configuration.get("clusterConfig", {}).get("context", "")
+                "cluster_context": app_context.app_configuration.get("clusterConfig", {}).get("context", "")
             },
             "readonly": True
         }
-        logger.info("%s", dataspace_settings)
+        app_context.logger.info("%s", dataspace_settings)
 
         return {
             "user": dataspace_config.get("preferred_username", "user"),
             "data": dataspace_settings
         }
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

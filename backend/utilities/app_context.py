@@ -1,8 +1,8 @@
 ###############################################################
 # Tractus-X - EDC Management Console
 #
-# Copyright (c) 2025 ARENA2036 e.V.
-# Copyright (c) 2025 Contributors to the Eclipse Foundation
+# Copyright (c) 2026 ARENA2036 e.V.
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
 #
 # See the NOTICE file(s) distributed with this work for additional
 # information regarding copyright ownership.
@@ -20,16 +20,14 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 
-from fastapi import APIRouter, Depends, Request
-from auth.keycloak_config import keycloak_openid
-from controllers import config_controller as controller
+import logging
 
-router = APIRouter()
+settings = None
+app_configuration = None
 
-@router.get("/api/config")
-async def get_config(user=Depends(keycloak_openid.get_current_user)):
-    return await controller.get_config(user)
+authManager = None
+edcManager = None
+edcService = None
+databaseManager = None
 
-@router.get("/api/dataspace")
-async def get_dataspace_settings(request: Request):
-    return await controller.get_dataspace_settings(request)
+logger = logging.getLogger(__name__)

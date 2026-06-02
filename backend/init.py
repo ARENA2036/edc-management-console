@@ -27,9 +27,12 @@ import uvicorn
 import uuid
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
+import os
+from dotenv import load_dotenv
 
 from auth.keycloak_config import keycloak_openid
 
+from utilities import app_context
 from routes.health import router as health_router
 from routes.connectors import router as connectors_router
 from routes.submodel import router as submodel_router
@@ -53,12 +56,8 @@ databaseManager: DatabaseManager
 
 urllib3.disable_warnings()
 logging.captureWarnings(True)
-logger = logging.getLogger(__name__)
-# ------------------------------------------------------------
-# Logging Setup
-# ------------------------------------------------------------
-#logging.basicConfig(level=logging.INFO)
-#logger = logging.getLogger("CX-EMC")
+
+load_dotenv()
 
 with open('./config/logging.yml', 'rt') as f:
     # Read the yaml configuration
@@ -68,23 +67,18 @@ with open('./config/logging.yml', 'rt') as f:
     op.make_dir("logs/" + date)
     log_config["handlers"]["file"]["filename"] = f'logs/{date}/{op.get_filedatetime()}-emc.log'
     logging.config.dictConfig(log_config)
+    logger = logging.getLogger(__name__)
+    app_context.logger = logger
 
-logger = logging.getLogger(__name__)
-
-# Load the configuration for the application
 with open('./config/configuration.yml', 'rt') as f:
-    # Read the yaml configuration
-    app_configuration = yaml.safe_load(f.read())
+    config_content = os.path.expandvars(f.read())
+    app_configuration = yaml.safe_load(config_content)
+    app_context.app_configuration = app_configuration
 
-# ------------------------------------------------------------
-# Load Config
-# ------------------------------------------------------------
 with open("config/settings.yaml", "r") as f:
     settings = yaml.safe_load(f)
+    app_context.settings = settings
 
-# ------------------------------------------------------------
-# FastAPI Setup
-# ------------------------------------------------------------
 app = FastAPI(title="EMC Backend")
 app.include_router(health_router)
 app.include_router(connectors_router)
@@ -92,7 +86,10 @@ app.include_router(submodel_router)
 app.include_router(config_router)
 app.add_middleware(
         CORSMiddleware,
-        allow_origins=['http://localhost:5001/', 'http://localhost:5000/', 'https://emc.prod.arena2036-x.de/', 'https://emc.staging.arena2036-x.de/'],
+        allow_origins=os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5001,http://localhost:5000"
+).split(","),
         allow_methods=['*'],
         allow_headers=['*']
     )
@@ -100,16 +97,11 @@ app.add_middleware(
 keycloak_openid.add_swagger_config(app)
 logger.info("[INIT] Starting EMC Backend...")
 
-# ------------------------------------------------------------
-# Initialize Managers
-# ------------------------------------------------------------
-
 # init_db()
 # init_edc(settings)
 # init_activity()
     
 logger.info("[INIT] All managers initialized successfully!")
-
 
 def init_app(host: str, port: int, log_level: str = "info"):
     global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, authManager, databaseManager
@@ -117,14 +109,19 @@ def init_app(host: str, port: int, log_level: str = "info"):
     ## API Key Authorization
     authManager = AuthManager()
     auth_config: dict = app_configuration.get("authorization", {"enabled": False})
-    auth_enabled: bool = auth_config.get("enabled", False)
+    auth_enabled = str(
+    auth_config.get("enabled", "false")
+    ).lower() == "true"
 
     if auth_enabled:
         api_key: dict = auth_config.get("apiKey", {"key": "X-Api-Key", "value": "password"})
         authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
                                 configured_api_key=api_key.get("value", "password"), auth_enabled=True)
+    
+    app_context.authManager = authManager
 
     edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
+    app_context.edcService = edcService
 
     ## Get environment specific configurations
     cluster_config: dict = app_configuration["clusterConfig"]
@@ -137,16 +134,18 @@ def init_app(host: str, port: int, log_level: str = "info"):
         dataspace_config=app_configuration.get("dataspaceConfig",{}),
         files_config=file_config
     )
+    app_context.edcManager = edcManager
 
     ## Initialize database manager
-    databaseManager = DatabaseManager(database_url="sqlite:///edc_manager.db")
+    databaseManager = DatabaseManager(
+    database_url=app_configuration["database"]["url"]
+) 
+    app_context.databaseManager = databaseManager  
 
     uvicorn.run(app, host=host, port=port, log_level=log_level)
 
     logger.info("[INIT] Application Startup Initialization Completed!")
     logger.info("✅ EMC backend configured and ready on port 8001.")
-
-
 
 def get_arguments():
     """
@@ -170,7 +169,6 @@ def get_arguments():
     args = parser.parse_args()
     return args
 
-
 if __name__ == "__main__":
 
     print("  _____ __  __  ____   ____             _                  _ ")
@@ -190,6 +188,12 @@ if __name__ == "__main__":
         logger = logging.getLogger('development')
 
     # Init application
-    init_app(host=args.host, port=args.port, log_level=("debug" if args.debug else "info"))
+    config_host = app_configuration["appConfig"]["host"]
+    config_port = int(app_configuration["appConfig"]["port"])
+    init_app(
+    host=config_host,
+    port=config_port,
+    log_level=("debug" if args.debug else "info")
+)
 
     print("\nClosing the application... Thank you for using the EDC Management Console (EMC)!")

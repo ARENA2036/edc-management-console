@@ -25,12 +25,12 @@ import logging
 from fastapi import Request
 from fastapi import Depends
 from auth.keycloak_config import keycloak_openid
+from backend.models import connector
 from models.connector import Connector
 from models.database import ConnectorDB
 from utilities.httpUtils import HttpUtils
 from utilities.auth_utils import get_oauth2_token
-from init import authManager, edcManager, databaseManager, edcService, app_configuration, logger
-
+from utilities import app_context
 
 async def list_connectors(request):
     """
@@ -41,23 +41,23 @@ async def list_connectors(request):
     """
     try:
         ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
+        if not app_context.authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        existingDeployments = databaseManager.get_all_connectors()
+        existingDeployments = app_context.databaseManager.get_all_connectors()
         connectorMap: dict = {}
         json_list: list = []
         for cnctor in existingDeployments:
             connectorMap[cnctor.name] = cnctor
-            status = edcManager.check_health('https://' + cnctor.cp_hostname)
-            logger.info("Health check status %s", status)
+            status = app_context.edcManager.check_health('https://' + cnctor.cp_hostname)
+            app_context.logger.info("Health check status %s", status)
             cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
-            databaseManager.update_connector(cnctor)
+            app_context.databaseManager.update_connector(cnctor)
             
             url_list = []
-            for endpoint in app_configuration.get("edc", {}).get("endpoints", {}).keys():
+            for endpoint in app_context.app_configuration.get("edc", {}).get("endpoints", {}).keys():
                 url_list.append(
-                    'https://' + cnctor.cp_hostname + app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
+                    'https://' + cnctor.cp_hostname + app_context.app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
                 )
             if len(cnctor.registry) != 0:
                 url_list.append(f'https://{cnctor.registry}/semantics/registry/')
@@ -66,7 +66,7 @@ async def list_connectors(request):
 
             connector_dict = cnctor.to_dict()
             connector_dict["urls"] = url_list
-            logger.info("Fetching all connectors %s", connector_dict)
+            app_context.logger.info("Fetching all connectors %s", connector_dict)
             json_list.append(
                 connector_dict
             )
@@ -76,12 +76,12 @@ async def list_connectors(request):
             data=json_list
         )
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 async def get_connector(connector_id: int, user: dict):
     try:
-        connector = databaseManager.get_connector_by_id(connector_id)
+        connector = app_context.databaseManager.get_connector_by_id(connector_id)
         if not connector:
             return HttpUtils.get_error_response(status=404, message="Connector not found")
         return {
@@ -89,42 +89,45 @@ async def get_connector(connector_id: int, user: dict):
             "data": connector.to_dict()
         }
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 async def add_connector(connector, request: Request):
     try:
         ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
+        if not app_context.authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
         #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
         #We can then call the endpoint when the user clicks on the DeployEDC button itself.
-        logger.info(connector)
-        is_registry_enabled = len(connector.registry.url) != 0
-        is_submodel_enabled = len(connector.submodel.url) != 0
+        app_context.logger.info(connector)
+        registry_url = connector.registry.url if connector.registry else ""
+        submodel_url = connector.submodel.url if connector.submodel else ""
+
+        is_registry_enabled = bool(registry_url)
+        is_submodel_enabled = bool(submodel_url)
        
-        existingDeployments = edcService.get_connector_by_name(
+        existingDeployments = app_context.edcService.get_connector_by_name(
             connector_name=connector.name,
-            namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
+            namespace=app_context.app_configuration.get("clusterConfig",{}).get("namespace", None)
         )
         if existingDeployments.get("status_code") != 200:
             # set edc helm chart directory
-            value_file_name = edcManager.add_edc(
+            value_file_name = app_context.edcManager.add_edc(
                 connector,
                 is_registry_enabled=is_registry_enabled,
                 is_submodel_enabled=is_submodel_enabled
             )
-            response: dict = edcService.install_helm_chart(deployment_name=connector.name,
+            response: dict = app_context.edcService.install_helm_chart(deployment_name=connector.name,
                                                            values_files=[value_file_name],
-                                                           namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
+                                                           namespace=app_context.app_configuration.get("clusterConfig",{}).get("namespace", None)
                                                         )
             if (response.get("status_code", 0) != 200):
                 raise Exception(response.get("data",{}).split('Error')[1])
 
-        connector_db = databaseManager.get_connector_by_name(connector.name)
+        connector_db = app_context.databaseManager.get_connector_by_name(connector.name)
         if connector_db is None:
-            logger.info(f"Entry not found in database, creating entry for {connector.name}")
+            app_context.logger.info(f"Entry not found in database, creating entry for {connector.name}")
 
             # dtr_db = DigitalTwinRegistryDB(
             #     url=connector.registry.url,
@@ -141,17 +144,17 @@ async def add_connector(connector, request: Request):
                 bpn=connector.bpn,
                 url = connector.url,
                 version = connector.version,
-                namespace = app_configuration.get("clusterConfig", {}).get("namespace", None),
+                namespace = app_context.app_configuration.get("clusterConfig", {}).get("namespace", None),
                 status = "unhealthy",
-                cp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("cp"),
-                dp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("dp"),
+                cp_hostname = connector.name + '-' + app_context.app_configuration.get("edc", {}).get("hostname", {}).get("cp"),
+                dp_hostname = connector.name + '-' + app_context.app_configuration.get("edc", {}).get("hostname", {}).get("dp"),
                 db_name = 'edc',
                 db_username = connector.db_username,
                 db_password = connector.db_password,
-                registry=connector.registry.url,
-                submodel=connector.submodel.url
+                registry=registry_url,
+                submodel=submodel_url
             )
-            connector_db = databaseManager.create_connector(connector=connector_db)
+            connector_db = app_context.databaseManager.create_connector(connector=connector_db)
 
         return HttpUtils.response(
             status=200,
@@ -159,19 +162,19 @@ async def add_connector(connector, request: Request):
         )
 
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 async def upgrade_connector(connector_id: str, connector, request: Request):
     try:
         ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
+        if not app_context.authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
         # set edc helm chart directory
-        edcManager.upgrade_edc(connector)
-        ##edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
-        response:dict = edcService.upgrade_helm_chart(deployment_name=connector.connector_name, values_files=["upgrade_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        app_context.edcManager.upgrade_edc(connector)
+        ##edcService = EdcService(helm_chart_directory=app_context.app_configuration.get("edc",{}).get("helm_chart_directory", None))
+        response:dict = app_context.edcService.upgrade_helm_chart(deployment_name=connector.connector_name, values_files=["upgrade_values.yaml"],namespace=app_context.app_configuration.get("clusterConfig",{}).get("namespace", None))
         if (response.get("status_code", 0) != 200):
             raise Exception(response.get("data",{}).split('Error')[1])
         data: dict = response.get("data", {}).split("\n")
@@ -188,27 +191,27 @@ async def upgrade_connector(connector_id: str, connector, request: Request):
             })
 
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 async def delete_connector(connector_name: str, request: Request):
     try:
         ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
+        if not app_context.authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        connector = databaseManager.get_connector_by_name(name=connector_name)
+        connector = app_context.databaseManager.get_connector_by_name(name=connector_name)
 
-        response:dict = edcService.uninstall_helm_chart(connector_id=connector.name, namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
+        response:dict = app_context.edcService.uninstall_helm_chart(connector_id=connector.name, namespace=app_context.app_configuration.get("clusterConfig",{}).get("namespace", None))
         if (response.get("status_code", 0) != 200):
             raise Exception(response.get("data",{}).split('Error')[1])
 
-        databaseManager.delete_connector(connector_id=connector.id)
+        app_context.databaseManager.delete_connector(connector_id=connector.id)
 
         return HttpUtils.response(
             status=200,
             message=str(response.get("data", {})))
 
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

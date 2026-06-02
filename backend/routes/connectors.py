@@ -22,26 +22,26 @@
 
 from fastapi import APIRouter, Request, Depends
 from auth.keycloak_config import keycloak_openid
-from controllers.connectors_controller import *
+from controllers import connectors_controller as controller
 
 router = APIRouter(tags=["EDC"])
 
 @router.get("/api/connectors")
 async def list_connectors(request: Request):
-    return await list_connectors(request)
+    return await controller.list_connectors(request)
 
 @router.get("/api/connectors/{connector_id}")
 async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_current_user)):
-    return await get_connector(connector_id, user)
+    return await controller.get_connector(connector_id, user)
 
 @router.post("/api/connector")
 async def add_connector(connector, request: Request):
-    return await add_connector(connector, request)
+    return await controller.add_connector(connector, request)
 
 @router.put("/api/connectors/{connector_id}")
 async def upgrade_connector(connector_id: str, connector, request: Request):
-    return await upgrade_connector(connector_id, connector, request)
+    return await controller.upgrade_connector(connector_id, connector, request)
 
 @router.delete("/api/connectors/{connector_name}")
 async def delete_connector(connector_name: str, request: Request):
-    return await delete_connector(connector_name, request)
+    return await controller.delete_connector(connector_name, request)

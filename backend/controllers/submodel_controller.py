@@ -24,7 +24,7 @@ import logging
 import requests
 from utilities.httpUtils import HttpUtils
 from utilities.auth_utils import get_oauth2_token
-from init import databaseManager as database_manager, logger
+from utilities import app_context
 
 async def add_submodel_service(data: dict, user):
     """Deploy a submodel service independently"""
@@ -48,7 +48,7 @@ async def add_submodel_service(data: dict, user):
         if not url:
             return HttpUtils.get_error_response(status=400, message="URL is required")
 
-        database_manager.log_activity(
+        app_context.databaseManager.log_activity(
             action="DEPLOY_SUBMODEL",
             details=f"Submodel service deployed by {user['preferred_username']}: {url} | Auth: {auth_config['authType']}",
             status="success"
@@ -64,9 +64,8 @@ async def add_submodel_service(data: dict, user):
             }
         }
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
-
 
 async def add_existing_submodel_service(data: dict, user):
     """Register a submodel service independently"""
@@ -103,7 +102,7 @@ async def add_existing_submodel_service(data: dict, user):
         except Exception:
             reachable = False
 
-        database_manager.log_activity(
+        app_context.databaseManager.log_activity(
             action="CONNECT_SUBMODEL",
             details=f"Existing submodel service connected by {user['preferred_username']}: {url} (BPN: {bpn})",
             status="success" if reachable else "warning"
@@ -121,5 +120,5 @@ async def add_existing_submodel_service(data: dict, user):
         }
 
     except Exception as e:
-        logger.exception(str(e))
+        app_context.logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))

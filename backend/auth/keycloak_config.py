@@ -70,6 +70,12 @@ class KeycloakOpenID:
         self,
         credentials: HTTPAuthorizationCredentials = Depends(security),
     ) -> AuthenticatedUser:
+        if credentials is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
         token = credentials.credentials
 

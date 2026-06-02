@@ -109,4 +109,4 @@ USER 1000:3000
 ENTRYPOINT ["/backend/setup_kube.sh"]
 
 ## Execute the application
-CMD ["python3", "./init.py", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python3", "./init.py"]

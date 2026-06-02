@@ -4,10 +4,12 @@ ROOT_DIR=/usr/share/nginx/html
 
 echo "Replacing docker environment constants in JavaScript files"
 
-for file in $ROOT_DIR/assets/index-*.js* $ROOT_DIR/index.html;
+for file in $ROOT_DIR/assets/index-*.js* \
+            $ROOT_DIR/index.html \
+            $ROOT_DIR/config.js;
 do
 	echo "Processing $file ...";
-	sed -i 's|__BACKEND_URL__|'${VITE_API_BASE_URL}'|g' $file
+	sed -i 's|__BACKEND_URL__|'${VITE_BACKEND_URL}'|g' $file
 	sed -i 's|__API_KEY__|'${VITE_API_KEY}'|g' $file
 	sed -i 's|__EDC_HOSTNAME__|'${EDC_HOSTNAME}'|g' $file
 	sed -i 's|__KEYCLOAK_URL__|'${VITE_KEYCLOAK_URL}'|g' $file

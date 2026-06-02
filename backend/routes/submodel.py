@@ -22,14 +22,14 @@
 
 from fastapi import APIRouter, Depends
 from auth.keycloak_config import keycloak_openid
-from controllers.submodel_controller import *
+from controllers import submodel_controller as controller
 
 router = APIRouter(tags=["Submodel"])
 
 @router.post("/api/submodel")
 async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
-    return await add_submodel_service(data, user)
+    return await controller.add_submodel_service(data, user)
 
 @router.post("/api/submodel/{submodel_service_id}")
 async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
-    return await add_existing_submodel_service(data, user)
+    return await controller.add_existing_submodel_service(data, user)
