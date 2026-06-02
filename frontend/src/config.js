@@ -1,8 +1,8 @@
 window.__RUNTIME_CONFIG__ = {
   apiUrl: "http://localhost:8001",
   apiKey: "DEFAULT",
-  edcHost: "arena2036-x.de",
-  keycloakUrl: "https://centralidp.arena2036-x.de/auth",
+  edcHost: "prod.arena2036-x.de",
+  keycloakUrl: "DEFAULT",
   realm: "CX-Central",
   clientId: "CX-EDC"
 };

@@ -301,7 +301,7 @@ controlplane:
         - management
         - control
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: "webapprouting.kubernetes.azure.com"
+      className: "nginx"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
@@ -326,7 +326,7 @@ controlplane:
         - management
         - control
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: "webapprouting.kubernetes.azure.com"
+      className: "nginx"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
@@ -569,7 +569,7 @@ dataplane:
       endpoints:
         - public
       # -- Defines the [ingress class](https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class)  to use
-      className: "webapprouting.kubernetes.azure.com"
+      className: "nginx"
       # -- TLS [tls class](https://kubernetes.io/docs/concepts/services-networking/ingress/#tls) applied to the ingress resource
       tls:
         # -- Enables TLS on the ingress resource
@@ -697,23 +697,23 @@ digital-twin-registry:
       ingress:
         enabled: true
         tls: true
-        className: "webapprouting.kubernetes.azure.com"
+        className: "nginx"
         annotations:
           # uncomment the following line for tls
-          kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+          kubernetes.io/ingress.class: nginx
           # nginx.ingress.kubernetes.io/proxy-body-size: 50m
           nginx.ingress.kubernetes.io/rewrite-target: /$2
           nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
           cert-manager.io/cluster-issuer: letsencrypt-prod
         hosts:
-        - host: "dataprovider-dtr-test.arena2036-x.de"
+        - host: "dataprovider-dtr-test.prod.arena2036-x.de"
           paths:
             - path: "/semantics/registry(/|$)(.*)"
               pathType: "Prefix"
         tls:
           enabled: true
           secretName: "default-dtr-tx-tls"
-      host: dataprovider-dtr-test.arena2036-x.de
+      host: dataprovider-dtr-test.prod.arena2036-x.de
 
 simple-data-backend:
   enabled: false
@@ -721,12 +721,12 @@ simple-data-backend:
   ingress:
     enabled: true
     tls: true
-    className: "webapprouting.kubernetes.azure.com"
+    className: "nginx"
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
-      kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+      kubernetes.io/ingress.class: nginx
     hosts:
-    - host: "dataprovider-submodelserver.arena2036-x.de"
+    - host: "dataprovider-submodelserver.prod.arena2036-x.de"
       paths:
         - path: "/"
           pathType: "Prefix"
@@ -734,7 +734,7 @@ simple-data-backend:
       - secretName: "submodelserver-tx-tls"
         enabled: true
         hosts:
-          - "dataprovider-submodelserver.arena2036-x.de"
+          - "dataprovider-submodelserver.prod.arena2036-x.de"
   resources:
     limits:
       cpu: 500m

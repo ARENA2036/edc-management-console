@@ -688,21 +688,21 @@ digital-twin-registry:
         className: ""
         annotations:
           # uncomment the following line for tls
-          kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
+          kubernetes.io/ingress.class: nginx
           # nginx.ingress.kubernetes.io/proxy-body-size: 50m
           nginx.ingress.kubernetes.io/rewrite-target: /$2
           nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
           cert-manager.io/cluster-issuer: letsencrypt-prod
         hosts:
-        - host: "dataprovider-dtr-test.arena2036-x.de"
+        - host: "dataprovider-dtr-test.prod.arena2036-x.de"
           paths:
             - path: "/semantics/registry(/|$)(.*)"
               pathType: "Prefix"
         tls:
         - secretName: "dataprovider-dtr-test.tx.test-tls"
           hosts:
-            - "dataprovider-dtr-test.arena2036-x.de"
-      host: dataprovider-dtr-test.arena2036-x.de
+            - "dataprovider-dtr-test.prod.arena2036-x.de"
+      host: dataprovider-dtr-test.prod.arena2036-x.de
 
 networkPolicy:
   # -- If `true` network policy will be created to restrict access to control- and dataplane

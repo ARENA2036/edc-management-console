@@ -25,6 +25,8 @@ FROM python:3.13-alpine
 
 ENV HELM_VERSION="v3.18.4"
 ENV KUBECTL_VERSION="v1.33.3"
+ENV PRODUCT="vault"
+ENV VERSION="2.0.0"
 
 USER root
 
@@ -65,9 +67,38 @@ RUN apk add --no-cache \
     git \
     jq
 
-# Install Azure CLI
-RUN pip3 install --upgrade pip \
-    && pip3 install azure-cli
+
+RUN pip3 install --upgrade pip 
+# RUN pip3 install --upgrade pip \
+#     && pip3 install hvac
+
+# Install HC Vault
+RUN apk add --update --virtual .deps --no-cache gnupg && \
+    cd /tmp && \
+    wget https://releases.hashicorp.com/${PRODUCT}/${VERSION}/${PRODUCT}_${VERSION}_linux_amd64.zip && \
+    wget https://releases.hashicorp.com/${PRODUCT}/${VERSION}/${PRODUCT}_${VERSION}_SHA256SUMS && \
+    wget https://releases.hashicorp.com/${PRODUCT}/${VERSION}/${PRODUCT}_${VERSION}_SHA256SUMS.sig && \
+    wget -qO- https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import && \
+    gpg --verify ${PRODUCT}_${VERSION}_SHA256SUMS.sig ${PRODUCT}_${VERSION}_SHA256SUMS && \
+    grep ${PRODUCT}_${VERSION}_linux_amd64.zip ${PRODUCT}_${VERSION}_SHA256SUMS | sha256sum -c && \
+    unzip /tmp/${PRODUCT}_${VERSION}_linux_amd64.zip -d /tmp && \
+    mv /tmp/${PRODUCT} /usr/local/bin/${PRODUCT} && \
+    rm -f /tmp/${PRODUCT}_${VERSION}_linux_amd64.zip ${PRODUCT}_${VERSION}_SHA256SUMS ${VERSION}/${PRODUCT}_${VERSION}_SHA256SUMS.sig && \
+    apk del .deps
+# RUN apk add --update --virtual .deps --no-cache gnupg && \
+#     cd /tmp && \
+#     wget https://releases.hashicorp.com/vault/2.0.0/vault_2.0.0_linux_amd64.zip && \
+#     wget https://releases.hashicorp.com/vault/2.0.0/vault_2.0.0_SHA256SUMS && \
+#     wget https://releases.hashicorp.com/vault/2.0.0/vault_2.0.0_SHA256SUMS.sig && \
+#     wget -qO- https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import && \
+#     gpg --verify vault_2.0.0_SHA256SUMS.sig ${PRODUCT}_${VERSION}_SHA256SUMS && \
+#     grep vault_2.0.0_linux_amd64.zip ${PRODUCT}_${VERSION}_SHA256SUMS | sha256sum -c && \
+#     unzip /tmp/vault_2.0.0_linux_amd64.zip -d /tmp && \
+#     mv /tmp/vault /usr/local/bin/vault && \
+#     rm -f /tmp/vault_2.0.0_linux_amd64.zip vault_2.0.0_SHA256SUMS 2.0.0/vault_2.0.0_SHA256SUMS.sig && \
+#     apk del .deps
+
+
 
 # Verify installation
 RUN kubectl version --client && helm version
