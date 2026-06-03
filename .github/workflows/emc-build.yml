@@ -33,7 +33,7 @@ on:
         default: 'latest'
 
 env:
-  IMAGE_NAMESPACE: 'arena2036.azurecr.io'
+  IMAGE_NAMESPACE: 'registry.example.com'
   BACKEND_IMAGE_NAME: 'emc-backend'
   FRONTEND_IMAGE_NAME: 'emc-frontend'
   SERVER_URL: '${{ github.server_url }}'

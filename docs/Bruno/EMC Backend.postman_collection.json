@@ -31,7 +31,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"path\": \"/flags\",\r\n    \"policies\": [\r\n        {\r\n            \"odrl:permission\": [],\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n    ],\r\n    \"dct_type\": \"IndustryFlagService\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"url\": \"https://dataprovider-controlplane.arena2036-x.de\"\r\n}\r\n\r\n/*\r\n{\r\n            \"odrl:permission\": {\r\n                \"odrl:action\": {\r\n                    \"@id\": \"odrl:use\"\r\n                },\r\n                \"odrl:constraint\": {\r\n                    \"odrl:leftOperand\": {\r\n                        \"@id\": \"cx-policy:UsagePurpose\"\r\n                    },\r\n                    \"odrl:operator\": {\r\n                        \"@id\": \"odrl:eq\"\r\n                    },\r\n                    \"odrl:rightOperand\": \"basf.industryflagservice\"\r\n                }\r\n            },\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n*/",
+							"raw": "{\r\n    \"path\": \"/flags\",\r\n    \"policies\": [\r\n        {\r\n            \"odrl:permission\": [],\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n    ],\r\n    \"dct_type\": \"IndustryFlagService\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"url\": \"https://dataprovider-controlplane.example.com\"\r\n}\r\n\r\n/*\r\n{\r\n            \"odrl:permission\": {\r\n                \"odrl:action\": {\r\n                    \"@id\": \"odrl:use\"\r\n                },\r\n                \"odrl:constraint\": {\r\n                    \"odrl:leftOperand\": {\r\n                        \"@id\": \"cx-policy:UsagePurpose\"\r\n                    },\r\n                    \"odrl:operator\": {\r\n                        \"@id\": \"odrl:eq\"\r\n                    },\r\n                    \"odrl:rightOperand\": \"basf.industryflagservice\"\r\n                }\r\n            },\r\n            \"odrl:prohibition\": [],\r\n            \"odrl:obligation\": []\r\n        }\r\n*/",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -181,7 +181,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"connector_name\": \"demo-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.11.0\",\r\n    \"connector_url\": \"https://demo-edc.arena2036-x.de\",\r\n    \"db_username\": \"user\",\r\n    \"db_password\": \"password\"\r\n\r\n}",
+					"raw": "{\r\n    \"connector_name\": \"demo-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.11.0\",\r\n    \"connector_url\": \"https://demo-edc.example.com\",\r\n    \"db_username\": \"user\",\r\n    \"db_password\": \"password\"\r\n\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -272,7 +272,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.arena2036-x.de\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
+					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.example.com\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -317,7 +317,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.arena2036-x.de\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
+					"raw": "{\r\n    \"connector_name\": \"a36-edc\",\r\n    \"bpn\": \"BPNL00000003AYRE\",\r\n    \"version\": \"0.10.0\",\r\n    \"connector_url\": \"https://a36-edc.example.com\",\r\n    \"db_username\": \"user111\",\r\n    \"db_password\": \"password222\"\r\n\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"

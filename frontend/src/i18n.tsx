@@ -110,7 +110,7 @@ const translations = {
     settingsLoading: 'Loading settings...',
     settingsDescription:
       'These dataspace and platform settings are shown for reference and cannot be modified here.',
-    footerCopyright: 'Copyright © ARENA2036 e.V.',
+    footerCopyright: 'Licenses: Apache-2.0 (code) | CC-BY-4.0 (non-code)',
     deleteConnectorTitle: 'Delete connector',
     deleteConnectorMessage:
       'Are you sure you want to delete "{name}"? This action cannot be undone.',
@@ -233,7 +233,7 @@ const translations = {
     settingsLoading: 'Einstellungen werden geladen...',
     settingsDescription:
       'Diese Dataspace- und Plattform-Einstellungen werden hier nur zur Referenz angezeigt und können nicht bearbeitet werden.',
-    footerCopyright: 'Copyright © ARENA2036 e.V.',
+    footerCopyright: 'Lizenzen: Apache-2.0 (Code) | CC-BY-4.0 (Nicht-Code)',
     deleteConnectorTitle: 'Connector löschen',
     deleteConnectorMessage:
       'Möchten Sie "{name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',

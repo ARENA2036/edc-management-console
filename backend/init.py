@@ -433,7 +433,7 @@ async def get_dataspace_settings(request: Request):
         dataspace_config = app_configuration.get("dataspaceConfig", {})
         edc_config = app_configuration.get("edc", {})
 
-        dataspace_name = dataspace_config.get("name", "ARENA2036-X")
+        dataspace_name = dataspace_config.get("name", "Your Dataspace")
         bpn = dataspace_config.get("authority_id", "BPNL000000000000")
 
         dataspace_settings = {

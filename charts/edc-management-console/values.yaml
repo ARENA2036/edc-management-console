@@ -15,7 +15,7 @@ backend:
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
     # repository: nginx
-    repository: "arena2036.azurecr.io/emc-backend"
+    repository: "registry.example.com/emc-backend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
@@ -34,7 +34,7 @@ backend:
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend.arena2036-x.de"
+      - host: &hostname "emc-backend.example.com"
         paths:
           - path: /
             pathType: Prefix
@@ -205,7 +205,7 @@ frontend:
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
     # repository: nginx
-    repository: "arena2036.azurecr.io/emc-frontend"
+    repository: "registry.example.com/emc-frontend"
     # This sets the pull policy for images.
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
@@ -229,7 +229,7 @@ frontend:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &hostname "emc-frontend.arena2036-x.de"
+      - host: &hostname "emc-frontend.example.com"
         paths:
           - path: /
             pathType: Prefix

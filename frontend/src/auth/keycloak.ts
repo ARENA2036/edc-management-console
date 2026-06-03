@@ -5,17 +5,17 @@ const keycloak = new Keycloak({
   url: getRuntimeConfigValue(
     import.meta.env.VITE_KEYCLOAK_URL,
     window.__RUNTIME_CONFIG__?.keycloakUrl,
-    'https://centralidp.arena2036-x.de/auth',
+    '__KEYCLOAK_URL__',
   ),
   realm: getRuntimeConfigValue(
     import.meta.env.VITE_KEYCLOAK_REALM,
     window.__RUNTIME_CONFIG__?.realm,
-    'CX-Central',
+    '__KEYCLOAK_REALM__',
   ),
   clientId: getRuntimeConfigValue(
     import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
     window.__RUNTIME_CONFIG__?.clientId,
-    'CX-EDC',
+    '__KEYCLOAK_CLIENT_ID__',
   ),
 });
 

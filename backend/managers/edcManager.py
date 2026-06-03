@@ -18,6 +18,7 @@ class EdcManager:
         self.default_url = edc_config.get("default_url", "")
         self.endpoints = edc_config.get("endpoints", {})
         self.helm_chart_directory = edc_config.get("helm_chart_directory", None)
+        self.hostname_config = edc_config.get("hostname", {})
         self.ssi_wallet_url = dataspace_config.get("ssi_wallet",{}).get("url", None)
         self.authority_id = dataspace_config.get("authority_id", "BPNL00000003CRHK")
 
@@ -101,8 +102,8 @@ class EdcManager:
             connector.sts_oauth_client_id = connector.bpn
             connector.sts_oauth_secretAlias = "edc-wallet-secret"
             connector.cp_bdrs_server_url = f"{self.ssi_wallet_url}/api/v1/directory"
-            connector.cp_hostname = f"{connector.name}-controlplane.arena2036-x.de"
-            connector.dp_hostname = f"{connector.name}-dataplane.arena2036-x.de"
+            connector.cp_hostname = f"{connector.name}-{self.hostname_config.get('cp', '__EDC_CONTROLPLANE_HOST__')}"
+            connector.dp_hostname = f"{connector.name}-{self.hostname_config.get('dp', '__EDC_DATAPLANE_HOST__')}"
 
 
             values_file_name = parse_yaml(connector=connector,
@@ -131,8 +132,8 @@ class EdcManager:
             connector.sts_oauth_client_id = connector.bpn
             connector.sts_oauth_secretAlias = "edc-wallet-secret"
             connector.cp_bdrs_server_url = f"{self.ssi_wallet_url}/api/v1/directory"
-            connector.cp_hostname = f"{connector.connector_name}-controlplane.arena2036-x.de"
-            connector.dp_hostname = f"{connector.connector_name}-dataplane.arena2036-x.de"
+            connector.cp_hostname = f"{connector.connector_name}-{self.hostname_config.get('cp', '__EDC_CONTROLPLANE_HOST__')}"
+            connector.dp_hostname = f"{connector.connector_name}-{self.hostname_config.get('dp', '__EDC_DATAPLANE_HOST__')}"
 
             parse_yaml(connector=connector, helm_chart_dir=self.helm_chart_directory, action="upgrade")
 

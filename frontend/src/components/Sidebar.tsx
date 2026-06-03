@@ -140,7 +140,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: BookOpen,
             label: 'Documentation',
-            href: 'https://github.com/ARENA2036/edc-management-console',
+            href: 'https://github.com/eclipse-tractusx/edc-management-console',
             title: 'Repository & Dokumentation',
             content:
               'Öffnet das Git-Repository der Anwendung mit README, Projektkontext und weiterführenden Informationen.',
@@ -148,7 +148,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: Bug,
             label: 'Troubleshooting',
-            href: 'https://github.com/ARENA2036/edc-management-console/issues',
+            href: 'https://github.com/eclipse-tractusx/edc-management-console/issues',
             title: 'Fehlerbehebung',
             content:
               'Öffnet die Issues des Repositories, um bekannte Probleme und Lösungswege nachzuschlagen.',
@@ -156,7 +156,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: HelpCircle,
             label: 'Contact Support',
-            href: 'mailto:support@arena2036.de',
+            href: 'mailto:support@example.com',
             title: 'Support kontaktieren',
             content:
               'Erstellt eine Support-Anfrage per E-Mail, wenn direkte Hilfe vom Team benötigt wird.',
@@ -174,7 +174,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: BookOpen,
             label: 'Documentation',
-            href: 'https://github.com/ARENA2036/edc-management-console',
+            href: 'https://github.com/eclipse-tractusx/edc-management-console',
             title: 'Repository & documentation',
             content:
               'Opens the application repository with the README, project context and supporting information.',
@@ -182,7 +182,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: Bug,
             label: 'Troubleshooting',
-            href: 'https://github.com/ARENA2036/edc-management-console/issues',
+            href: 'https://github.com/eclipse-tractusx/edc-management-console/issues',
             title: 'Troubleshooting',
             content:
               'Opens the repository issues page to review known problems and possible fixes.',
@@ -190,7 +190,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
           {
             icon: HelpCircle,
             label: 'Contact Support',
-            href: 'mailto:support@arena2036.de',
+            href: 'mailto:support@example.com',
             title: 'Contact support',
             content:
               'Starts an email support request when the user needs direct help from the responsible team.',
