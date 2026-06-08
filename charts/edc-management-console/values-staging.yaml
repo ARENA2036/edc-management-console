@@ -278,12 +278,12 @@ frontend:
     
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: "https://emc-backend.staging.arena2036-x.de",
-    apiKey: "emc-api-key",
-    edcHost: "staging.arena2036-x.de",
-    keycloakUrl: "https://centralidp.staging.arena2036-x.de/auth",
-    realm: "CX-Central",
-    clientId: "A36-EMC"
+    apiUrl: "",
+    apiKey: "",
+    edcHost: "",
+    keycloakUrl: "",
+    realm: "",
+    clientId: ""
     };
 
   service:
