@@ -57,7 +57,7 @@ npm/npmjs/-/eslint-plugin-react-refresh/0.4.23, MIT, approved, #16852
 npm/npmjs/-/eslint-scope/8.4.0, BSD-2-Clause, approved, clearlydefined
 npm/npmjs/-/eslint-visitor-keys/3.4.3, Apache-2.0, approved, #18264
 npm/npmjs/-/eslint-visitor-keys/4.2.1, BSD-2-Clause AND MIT AND Apache-2.0 AND (BSD-2-Clause AND BSD-3-Clause AND MIT) AND BSD-3-Clause AND (BSD-2-Clause AND MIT) AND (BSD-3-Clause AND LGPL-2.0-or-later AND MIT) AND LGPL-2.1-or-later, approved, #17084
-npm/npmjs/-/eslint/9.36.0, MIT, approved, clearlydefined
+npm/npmjs/-/eslint/9.35.0, MIT, approved, clearlydefined
 npm/npmjs/-/espree/10.4.0, BSD-2-Clause AND BSD-3-Clause AND MIT AND BSD-2-Clause, approved, #22104
 npm/npmjs/-/esquery/1.6.0, BSD-3-Clause, approved, #15713
 npm/npmjs/-/esrecurse/4.3.0, BSD-2-Clause, approved, clearlydefined
@@ -271,7 +271,7 @@ npm/npmjs/@eslint/config-array/0.21.0, Apache-2.0 AND MIT, approved, #23571
 npm/npmjs/@eslint/config-helpers/0.3.1, Apache-2.0, approved, clearlydefined
 npm/npmjs/@eslint/core/0.15.2, Apache-2.0, approved, clearlydefined
 npm/npmjs/@eslint/eslintrc/3.3.1, MIT, approved, clearlydefined
-npm/npmjs/@eslint/js/9.36.0, MIT, approved, clearlydefined
+npm/npmjs/@eslint/js/9.35.0, MIT, approved, clearlydefined
 npm/npmjs/@eslint/object-schema/2.1.6, Apache-2.0, approved, clearlydefined
 npm/npmjs/@eslint/plugin-kit/0.3.5, Apache-2.0, approved, clearlydefined
 npm/npmjs/@humanfs/core/0.19.1, Apache-2.0, approved, clearlydefined
