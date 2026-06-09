@@ -6,8 +6,6 @@ __pycache__/
 *logs/
 *venv/
 
-node_modules/
-
 *.idea/
 *.env
 
@@ -23,4 +21,4 @@ charts/
 .vscode/launch.json
 backend/tractusx-connector/edc_manager.db
 .history/
-
+/node_modules/

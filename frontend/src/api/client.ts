@@ -11,6 +11,11 @@ const apiKey = getRuntimeConfigValue(
   window.__RUNTIME_CONFIG__?.apiKey,
   'DEFAULT',
 );
+const edcHost = getRuntimeConfigValue(
+  import.meta.env.VITE_EDC_HOST,
+  window.__RUNTIME_CONFIG__?.edcHost,
+  '__EDC_HOST__',
+);
 const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 
 export const apiClient = axios.create({
@@ -23,9 +28,9 @@ export const apiClient = axios.create({
 
 
 export const edcClient = (name: string) => {
-  console.log(`https://${name}-controlplane.arena2036-x.de`)
-  axios.create({
-    baseURL: `https://${name}-controlplane.arena2036-x.de`,
+  const baseURL = `https://${name}-controlplane.${edcHost}`;
+  return axios.create({
+    baseURL,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Header': '*',

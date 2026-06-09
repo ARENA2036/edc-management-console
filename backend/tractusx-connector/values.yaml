@@ -655,7 +655,7 @@ digital-twin-registry:
         existingSecret: dataprovider-secret-dtr-postgres-init
     registry:
       image:
-        registry:  arena2036.azurecr.io
+        registry:  registry.example.com
         repository: tractusx/sldt-digital-twin-registry
         version: "0.6.3-patched"
       ingress:
@@ -669,15 +669,15 @@ digital-twin-registry:
           nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
           cert-manager.io/cluster-issuer: letsencrypt-prod
         hosts:
-        - host: "dataprovider-dtr-test.arena2036-x.de"
+        - host: "dataprovider-dtr-test.example.com"
           paths:
             - path: "/semantics/registry(/|$)(.*)"
               pathType: "Prefix"
         tls:
         - secretName: "dataprovider-dtr-test.tx.test-tls"
           hosts:
-            - "dataprovider-dtr-test.arena2036-x.de"
-      host: dataprovider-dtr-test.arena2036-x.de
+            - "dataprovider-dtr-test.example.com"
+      host: dataprovider-dtr-test.example.com
 
 
 serviceAccount:

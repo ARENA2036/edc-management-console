@@ -1,6 +1,6 @@
 appConfig:
-  name: "ARENA2036 EDC Management Console"
-  client_id: "CX-EDC"
+  name: "EDC Management Console"
+  client_id: "${APP_CLIENT_ID}"
   version: "1.0.0"
   port: "${APP_PORT}"
   host: "${APP_HOST}"
@@ -16,9 +16,8 @@ startup:
   refresh_interval: 10
 
 dataspaceConfig:
-  name: "ARENA2036-X"
-  authority_id: "${DATASPACE_AUTHORITY_ID}"
-
+  name: "${DATASPACE_NAME}"
+  authority_id: "${DATASPACE_BPN}"
   centralidp:
     url: "${CENTRALIDP_URL}"
     realm: "${CENTRALIDP_REALM}"
@@ -38,7 +37,6 @@ dataspaceConfig:
   discovery:
     semantics:
       url: "${SEMANTICS_URL}"
-
     discoveryFinder:
       endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
 
@@ -55,14 +53,14 @@ dataspaceConfig:
 
 clusterConfig:
   context: "${CLUSTER_CONTEXT}"
-  namespace: "${CLUSTER_NAMESPACE}"
+  namespace: "edc-management-console"
 
 sde:
   url: "${SDE_URL}"
   client_id: "${SDE_CLIENT_ID}"
   manufacturerId: "${SDE_MANUFACTURER_ID}"
-  providerEDC: "${SDE_PROVIDER_EDC}"
-  consumerEDC: "${SDE_CONSUMER_EDC}"
+  providerEDC:  "${SDE_PROVIDER_EDC_URL}"
+  consumerEDC: "${SDE_CONSUMER_EDC_URL}"
   registryUrl: "${SDE_REGISTRY_URL}"
 
 edc:
@@ -82,8 +80,8 @@ edc:
     dsp: "/api/v1/dsp"
 
   hostname:
-    cp: "${EDC_HOSTNAME_CP}"
-    dp: "${EDC_HOSTNAME_DP}"
+    cp: "${EDC_CONTROLPLANE_HOST}"
+    dp: "${EDC_DATAPLANE_HOST}"
 
 database:
   url: "${DATABASE_URL}"

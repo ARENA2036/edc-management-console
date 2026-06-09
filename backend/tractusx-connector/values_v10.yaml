@@ -691,7 +691,7 @@ digital-twin-registry:
         existingSecret: dataprovider-secret-dtr-postgres-init
     registry:
       # image:
-      #   registry:  arena2036.azurecr.io
+      #   registry:  registry.example.com
       #   repository: tractusx/sldt-digital-twin-registry
       #   version: "0.6.3-patched"
       ingress:
@@ -706,14 +706,14 @@ digital-twin-registry:
           nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
           cert-manager.io/cluster-issuer: letsencrypt-prod
         hosts:
-        - host: "dataprovider-dtr-test.arena2036-x.de"
+        - host: "dataprovider-dtr-test.example.com"
           paths:
             - path: "/semantics/registry(/|$)(.*)"
               pathType: "Prefix"
         tls:
           enabled: true
           secretName: "default-dtr-tx-tls"
-      host: dataprovider-dtr-test.arena2036-x.de
+      host: dataprovider-dtr-test.example.com
 
 simple-data-backend:
   enabled: false
@@ -726,7 +726,7 @@ simple-data-backend:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com
     hosts:
-    - host: "dataprovider-submodelserver.arena2036-x.de"
+    - host: "dataprovider-submodelserver.example.com"
       paths:
         - path: "/"
           pathType: "Prefix"
@@ -734,7 +734,7 @@ simple-data-backend:
       - secretName: "submodelserver-tx-tls"
         enabled: true
         hosts:
-          - "dataprovider-submodelserver.arena2036-x.de"
+          - "dataprovider-submodelserver.example.com"
   resources:
     limits:
       cpu: 500m

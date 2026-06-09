@@ -34,13 +34,11 @@ export default function Header({
           >
             <Menu size={22} />
           </button>
-          <img 
-            src="/arena2036-logo.png" 
-            alt="ARENA2036 Logo" 
-            className="h-8 md:h-10 object-contain flex-shrink-0"
-                      />
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-orange-500 text-xs font-bold uppercase text-white md:h-10 md:w-10">
+            EDC
+          </div>
           <h1 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100 md:text-xl">
-            <span className="hidden sm:inline">ARENA2036 EDC Management Console</span>
+            <span className="hidden sm:inline">EDC Management Console</span>
             <span className="sm:hidden">EDC Console</span>
           </h1>
         </div>
