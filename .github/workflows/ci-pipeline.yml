@@ -65,6 +65,7 @@ jobs:
       # - backend-dependencies
       # - frontend-dependencies
     uses: ./.github/workflows/emc-build.yaml
+    secrets: inherit
 
   
   trivy:
