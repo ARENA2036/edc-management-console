@@ -24,7 +24,7 @@ name: emc-build
 
 on:
   push:
-    branches: ["main", "backend", "feature/frontend"]
+    branches: ["main", "backend", "feature/frontend, ci-branch"]
   workflow_call:
   workflow_dispatch:
     inputs:
