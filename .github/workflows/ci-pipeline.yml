@@ -21,22 +21,38 @@ jobs:
   verify:
     name: Verify
     uses: ./.github/workflows/verify.yml
+    secrets: inherit
 
   helm-lint:
     name: Helm Lint
     uses: ./.github/workflows/helm-lint.yml
+    secrets: inherit
 
   kics:
     name: KICS Scan
     uses: ./.github/workflows/kics.yaml
+    secrets: inherit
 
   trufflehog:
     name: Secret Scan
     uses: ./.github/workflows/trufflehog.yml
+    secrets: inherit
 
   codeql:
     name: CodeQL
     uses: ./.github/workflows/codeql.yml
+    secrets: inherit
+
+  backend-dependencies:
+    name: Backend Dependency Scan
+    uses: ./.github/workflows/dependencies-backend.yml
+    secrets: inherit
+
+  frontend-dependencies:
+    name: Frontend Dependency Scan
+    uses: ./.github/workflows/dependencies-frontend.yaml
+    secrets: inherit
+
 
   build:
     name: Build Images
@@ -46,7 +62,23 @@ jobs:
       - kics
       - trufflehog
       - codeql
+      - backend-dependencies
+      - frontend-dependencies
     uses: ./.github/workflows/emc-build.yaml
+
+  
+  trivy:
+    name: Trivy Image Scan
+    needs: build
+    uses: ./.github/workflows/reusable-trivy.yml
+    secrets: inherit
+
+  chart-release:
+    name: Chart Release
+    needs: trivy
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    uses: ./.github/workflows/chart-release.yaml
+    secrets: inherit
 
   # apply-staging-argocd-app:
   #   name: Apply Staging Argo CD App
