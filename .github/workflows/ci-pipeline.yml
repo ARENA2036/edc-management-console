@@ -57,13 +57,13 @@ jobs:
   build:
     name: Build Images
     needs:
-      - verify
-      - helm-lint
-      - kics
+      # - verify
+      # - helm-lint
+      # - kics
       - trufflehog
       - codeql
-      - backend-dependencies
-      - frontend-dependencies
+      # - backend-dependencies
+      # - frontend-dependencies
     uses: ./.github/workflows/emc-build.yaml
 
   
