@@ -34,7 +34,7 @@ on:
         default: 'latest-15-04-2026'
 
 env:
-  IMAGE_NAMESPACE: 'registry.example.com'
+  IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   BACKEND_IMAGE_NAME: 'emc-backend'
   FRONTEND_IMAGE_NAME: 'emc-frontend'
   SERVER_URL: '${{ github.server_url }}'
