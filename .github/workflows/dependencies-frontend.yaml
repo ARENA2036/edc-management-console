@@ -35,6 +35,7 @@ on:
       - frontend/package-lock.json
       - DEPENDENCIES_EMC-FRONTEND
       - .github/workflows/dependencies-frontend.yaml
+  workflow_call:
   workflow_dispatch:
 
 jobs:
