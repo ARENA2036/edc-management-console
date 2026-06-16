@@ -77,7 +77,7 @@ jobs:
   chart-release:
     name: Chart Release
     needs: trivy
-    if: github.event_name == 'push' && github.ref_name == 'main'
+    if: github.event_name == 'push' && github.ref_name == 'ci-branch'
     uses: ./.github/workflows/chart-release.yaml
     secrets: inherit
 
