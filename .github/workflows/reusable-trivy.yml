@@ -28,6 +28,7 @@ on:
   # schedule:
     # Once a day
     # - cron: "0 0 * * 0"
+  workflow_call:
   workflow_dispatch:
   # Trigger manually
 
