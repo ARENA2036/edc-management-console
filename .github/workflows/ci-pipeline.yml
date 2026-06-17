@@ -73,8 +73,8 @@ jobs:
     uses: ./.github/workflows/reusable-trivy.yml
     secrets: inherit
 
-  apply-staging-argocd-app:
-    name: Apply Staging Argo CD App
+  deploy-emc-staging:
+    name: Deploy EMC to Staging via Argo CD
     needs: trivy
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
@@ -140,7 +140,7 @@ jobs:
           
   chart-release:
     name: Chart Release
-    needs: apply-staging-argocd-app
+    needs: deploy-emc-staging
     if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
     uses: ./.github/workflows/chart-release.yaml
     secrets: inherit
