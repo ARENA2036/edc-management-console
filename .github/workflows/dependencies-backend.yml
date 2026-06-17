@@ -35,6 +35,7 @@ on:
       - backend/requirements.txt
       - DEPENDENCIES_EMC-BACKEND
       - .github/workflows/dependencies-backend.yml
+  workflow_call:
   workflow_dispatch:
 
 jobs:

@@ -24,7 +24,8 @@ name: emc-build
 
 on:
   push:
-    branches: ["main", "backend", "feature/frontend"]
+    branches: ["main", "backend", "feature/frontend, ci-cd-branch"]
+  workflow_call:
   workflow_dispatch:
     inputs:
       image_tag:
@@ -33,6 +34,7 @@ on:
         default: 'latest-15-04-2026'
 
 env:
+  IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   BACKEND_IMAGE_NAME: 'emc-backend'
   FRONTEND_IMAGE_NAME: 'emc-frontend'
@@ -73,7 +75,7 @@ jobs:
           context: backend
           push: true
           # push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:17042026
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:Testing-16-06-2026
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
@@ -117,7 +119,7 @@ jobs:
           context: frontend
           # push: ${{ github.event_name != 'pull_request' }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:txcd-latest
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:Testing-15-04-2026
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
