@@ -1,4 +1,4 @@
-name: EMC CI Pipeline
+name: EMC CI-CD Pipeline
 
 on:
   push:
