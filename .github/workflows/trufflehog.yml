@@ -35,6 +35,8 @@ on:
     branches: ["main"]
   schedule:
     - cron: "0 0 * * *" # Once a day
+
+  workflow_call:
   workflow_dispatch:
     inputs:
       branch:

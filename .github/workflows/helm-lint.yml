@@ -32,6 +32,7 @@ on:
       paths:
         - charts/**
 
+  workflow_call:
   workflow_dispatch:
     inputs:
       node_image:
@@ -74,21 +75,21 @@ jobs:
             with:
               context: backend
               push: false
-              tags: emc-backend:latest
+              tags: emc-backend:Testing-15-04-2026
 
           - name: Build emc frontend image
             uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
             with:
               context: frontend
               push: false
-              tags: emc-frontend:latest
+              tags: emc-frontend:Testing-15-04-2026
 
           # Load images into Kind
           - name: Load backend image into Kind
-            run: kind load docker-image emc-backend:latest
+            run: kind load docker-image emc-backend:Testing-15-04-2026
 
           - name: Load frontend image into Kind
-            run: kind load docker-image emc-frontend:latest
+            run: kind load docker-image emc-frontend:Testing-15-04-2026
 
           - name: Set up Helm
             uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
@@ -124,17 +125,21 @@ jobs:
             run: ct lint --validate-maintainers=false --target-branch ${{ steps.set-target-branch.outputs.target-branch }}
             
           - name: Run chart-testing (install)
-            run: ct install \
+            run: |
+              ct install \
                 --charts charts/edc-management-console \
-                --helm-extra-set-args \
+                --helm-extra-set-args "\
+                  --set backend.image.registry= \
                   --set backend.image.repository=emc-backend \
-                  --set backend.image.tag=latest \
+                  --set backend.image.tag=Testing-15-04-2026 \
+                  --set backend.image.pullPolicy=Never \
+                  --set frontend.image.registry= \
                   --set frontend.image.repository=emc-frontend \
-                  --set frontend.image.tag=latest \
-                  --set backend.persistence.enabled=false \
-                  --set backend.imagePullSecrets={} \
-                  --set frontend.imagePullSecrets={}
-
+                  --set frontend.image.tag=Testing-15-04-2026 \
+                  --set frontend.image.pullPolicy=Never \
+                  --set-json backend.imagePullSecrets=[] \
+                  --set-json frontend.imagePullSecrets=[] \
+                "
           # # Skip upgrade for now until a working chart is released
           # # Upgrade the released chart version with the locally available chart
           # # default value for event_name != workflow_dispatch
