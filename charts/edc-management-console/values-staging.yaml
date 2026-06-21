@@ -47,7 +47,7 @@ backend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "17042026"
+    tag: "Testing-21-06-2026"
   
   imagePullSecrets:
     - name: registry-creds
@@ -56,7 +56,7 @@ backend:
   env:
     - name: "CLUSTER_NAME"
       value: "staging"
-    - name: "VAULT_ADDR_STAGING"
+    - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
 
 
@@ -258,7 +258,7 @@ frontend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "txcd-latest"
+    tag: "Testing-21-06-2026"
   imagePullSecrets:
     - name: registry-creds
 
