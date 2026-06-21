@@ -136,7 +136,7 @@ jobs:
 
       - name: Check Argo CD application
         run: |
-          kubectl --context="$KUBE_CONTEXT" get application emc-staging -n argocd
+          kubectl --context="$KUBE_CONTEXT" get application emc-application -n argocd
           
   chart-release:
     name: Chart Release
