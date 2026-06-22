@@ -45,7 +45,7 @@ backend:
     # repository: nginx
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     # This sets the pull policy for images.
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: "17042026"
   
@@ -140,7 +140,7 @@ backend:
 
       clusterConfig:
         context: "staging" 
-        namespace: "emc-staging"
+        namespace: "edc-management-console"
 
       sde:
         url: https://sde.staging.arena2036-x.de
@@ -217,7 +217,7 @@ backend:
     - name: emc-backend-config
       configMap:
         name: "{{ .Release.Name }}-emc-backend-config"
-    # -- persist the backend data directories
+        # -- persist the backend data directories
     # - name: pvc-emc-backend
     #   persistentVolumeClaim:
     #     claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
@@ -256,7 +256,7 @@ frontend:
     # repository: nginx
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     # This sets the pull policy for images.
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: "txcd-latest"
   imagePullSecrets:
@@ -264,26 +264,26 @@ frontend:
 
   env:
     - name: VITE_API_BASE_URL
-      value: ""
+      value: https://emc-backend.staging.arena2036-x.de
     - name: VITE_API_KEY
-      value: ""
+      value: emc-api-key
     - name: EDC_HOSTNAME
-      value: ""
+      value: staging.arena2036-x.de
     - name: VITE_KEYCLOAK_URL
-      value: ""
+      value: https://centralidp.staging.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
-      value: ""
+      value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
-      value: ""
+      value: A36-EMC
     
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: "",
-    apiKey: "",
-    edcHost: "",
-    keycloakUrl: "",
-    realm: "",
-    clientId: ""
+    apiUrl: "https://emc-backend.staging.arena2036-x.de",
+    apiKey: "emc-api-key",
+    edcHost: "staging.arena2036-x.de",
+    keycloakUrl: "https://centralidp.staging.arena2036-x.de/auth",
+    realm: "CX-Central",
+    clientId: "A36-EMC"
     };
 
   service:
@@ -327,7 +327,6 @@ frontend:
     - name: emc-frontend-config
       configMap:
         name: "{{ .Release.Name }}-emc-frontend-config"
-
   volumeMounts:
     # -- mounted path for the backend configuration added in the config maps
     - name: emc-frontend-config
