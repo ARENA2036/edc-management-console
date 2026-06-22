@@ -45,7 +45,7 @@ backend:
     # repository: nginx
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     # This sets the pull policy for images.
-    # pullPolicy: IfNotPresent
+    pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: "Testing-21-06-2026"
   
@@ -256,7 +256,7 @@ frontend:
     # repository: nginx
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     # This sets the pull policy for images.
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: "Testing-21-06-2026"
   imagePullSecrets:
