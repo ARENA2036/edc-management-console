@@ -383,7 +383,6 @@ readinessProbe:
     path: /health
     port: 8001
 
-
 nodeSelector: {}
 
 tolerations: []
