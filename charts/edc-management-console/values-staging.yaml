@@ -1,0 +1,390 @@
+#################################################################################
+# Tractus-X - EDC Management Console
+#
+# Copyright (c) 2026 ARENA2036 e.V.
+# Copyright (c) 2025 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+################################################################################
+---
+
+# Default values for edc-management-console.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This is to override the chart name.
+# Default values for edc-management-console.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This is to override the chart name.
+name: "edc-management-console"
+nameOverride: ""
+fullnameOverride: "emc"
+
+backend:
+  enabled: true
+  name: "emc-backend"
+  # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+  replicaCount: 1
+  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  image:
+    # repository: nginx
+    repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
+    # This sets the pull policy for images.
+    pullPolicy: Always
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "17042026"
+  
+  imagePullSecrets:
+    - name: registry-creds
+
+  envFrom: []
+  env:
+    - name: "CLUSTER_NAME"
+      value: "staging"
+    - name: "VAULT_ADDR"
+      value: "https://vault.staging.arena2036-x.de"
+
+
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    # className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-staging
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - host: &hostname "emc-backend.staging.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: emc-backend-staging-tls
+        hosts:
+          - *hostname
+
+  podAnnotations: {}
+    # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+  service:
+    # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+    type: ClusterIP
+    # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+    port: 8001
+
+
+  configuration:
+    yml: |-
+      appConfig:
+        name: "ARENA2036 EDC Management Console"
+        client_id: "A36-EMC"
+        version: "1.0.0"
+        port: 5000
+        host: "0.0.0.0"
+
+      authorization:
+        enabled: true
+        apiKey:
+          key: "X-Api-Key"
+          value: "emc-api-key"
+
+      startup:
+        checks: true
+        refresh_interval: 10
+
+      dataspaceConfig:
+        name: "ARENA2036-X"
+        authority_id: "BPNL00000003CRHK"
+        centralidp:
+          url: "https://centralidp.staging.arena2036-x.de/auth/"
+          realm: "CX-Central"
+          client_id: "${CENTRALIDP_CLIENT_ID}"
+          client_secret: "${CENTRALIDP_CLIENT_SECRET}"
+        ssi_wallet:
+          url: "https://ssi-dim-wallet-stub.staging.arena2036-x.de"
+          client_id: "sa-cl5-custodian-2"
+          client_secret: "changeme"
+        portal:
+          url: "https://portal.staging.arena2036-x.de"
+          client_id: "sa-cl1-reg-2"
+          client_secret: "changeme"
+        discovery:
+          semantics:
+            url: "https://semantics.staging.arena2036-x.de"
+          discoveryFinder:
+            endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
+            keys:
+              edc_discovery: "bpn"
+            client_id: "sa-cl21-01"
+            client_secret: "changeme"
+          bpnDiscovery:
+            endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
+            client_id: "sa-cl22-01"
+            client_secret: "changeme"
+
+
+      clusterConfig:
+        context: "staging" 
+        namespace: "edc-management-console"
+
+      sde:
+        url: https://sde.staging.arena2036-x.de
+        client_id: "CX-SDE"
+        manufacturerId: BPNL00000003AYRE
+        providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de
+        consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de
+        registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry
+
+      edc:
+        default_url: "https://dataconsumer-controlplane.staging.arena2036-x.de"
+        helm_chart_directory: "./tractusx-connector"
+        endpoints:
+          assets: "/v3/assets"
+          policies: "/v3/policydefinitions"
+          contracts: "/v3/contractdefinitions"
+          readiness: "/api/check/readiness"
+          liveness: "/api/check/liveness"
+          catalog: "/management/v3/catalog/request"
+          edr_prefix: "/management/v3/edrs"
+          view_edr: "/request"
+          transfer_edr: "/dataaddress?auto_refresh=true"
+          dsp: "/api/v1/dsp"
+        hostname:
+          cp: controlplane.arena2036-x.de
+          dp: dataplane.arena2036-x.de
+
+      database:
+        url: "${DATABASE_URL}"
+        echo: false
+      
+      files:
+        charts:
+          v9: /Chart_v9.yaml
+          v10: /Chart_v10.yaml
+          v11: /Chart_v11.yaml
+        values:
+          v9: /values_v9.yaml
+          v10: /values_v10.yaml
+          v11: /values_v11.yaml
+
+  resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  ## Additional volumes on the output Deployment definition.
+  volumes:
+    # -- persist the backend configuration
+    - name: emc-backend-config
+      configMap:
+        name: "{{ .Release.Name }}-emc-backend-config"
+        # -- persist the backend data directories
+    # - name: pvc-emc-backend
+    #   persistentVolumeClaim:
+    #     claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
+    # -- temporary file system mount
+    - name: tmpfs
+      emptyDir: {}
+    #  - name: secrets-store
+    #    csi:
+    #      driver: secrets-store.csi.k8s.io
+    #      readOnly: true
+    #      volumeAttributes:
+    #        secretProviderClass: "secrets-provider
+
+    # -- specifies the volume mounts for the backend deployment
+  volumeMounts:
+    # -- mounted path for the backend configuration added in the config maps
+    - name: emc-backend-config
+      mountPath: /backend/config/configuration.yml
+      subPath: configuration.yml
+    # -- contains the location for the process data directory
+    # - name: pvc-emc-backend
+    #   mountPath: /backend/data
+    #   subPath: data
+    # -- contains the log directory uses by the backend
+    - name: tmpfs
+      mountPath: /backend/logs
+      subPath: logs
+
+frontend:
+  enabled: true
+  name: "emc-frontend"
+  # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+  replicaCount: 1
+  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  image:
+    # repository: nginx
+    repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
+    # This sets the pull policy for images.
+    pullPolicy: Always
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "txcd-latest"
+  imagePullSecrets:
+    - name: registry-creds
+
+  env:
+    - name: VITE_API_BASE_URL
+      value: https://emc-backend.staging.arena2036-x.de
+    - name: VITE_API_KEY
+      value: emc-api-key
+    - name: EDC_HOSTNAME
+      value: staging.arena2036-x.de
+    - name: VITE_KEYCLOAK_URL
+      value: https://centralidp.staging.arena2036-x.de/auth/
+    - name: VITE_KEYCLOAK_REALM
+      value: "CX-Central"
+    - name: VITE_KEYCLOAK_CLIENT_ID
+      value: A36-EMC
+    
+  configuration: |-
+    window.__RUNTIME_CONFIG__ = {
+    apiUrl: "https://emc-backend.staging.arena2036-x.de",
+    apiKey: "emc-api-key",
+    edcHost: "staging.arena2036-x.de",
+    keycloakUrl: "https://centralidp.staging.arena2036-x.de/auth",
+    realm: "CX-Central",
+    clientId: "A36-EMC"
+    };
+
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    # className: "webapprouting.kubernetes.azure.com"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-staging
+      # kubernetes.io/tls-acme: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      # nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+    hosts:
+      - host: &hostname "emc.staging.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: emc-frontend-staging-tls
+        hosts:
+          - *hostname
+
+  resources: { }
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  volumes:
+    # -- persist the frontend configuration
+    - name: emc-frontend-config
+      configMap:
+        name: "{{ .Release.Name }}-emc-frontend-config"
+  volumeMounts:
+    # -- mounted path for the backend configuration added in the config maps
+    - name: emc-frontend-config
+      mountPath: /frontend/.env
+      subPath: .env
+
+  # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
