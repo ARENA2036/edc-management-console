@@ -33,7 +33,7 @@ on:
         default: 'latest-15-04-2026'
 
 env:
-  IMAGE_NAMESPACE: 'registry.example.com'
+  IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   BACKEND_IMAGE_NAME: 'emc-backend'
   FRONTEND_IMAGE_NAME: 'emc-frontend'
   SERVER_URL: '${{ github.server_url }}'
@@ -73,7 +73,7 @@ jobs:
           context: backend
           push: true
           # push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:latest-15-04-2026
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:17042026
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
@@ -117,7 +117,7 @@ jobs:
           context: frontend
           # push: ${{ github.event_name != 'pull_request' }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:latest-15-04-2026
+          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:txcd-latest
           labels: ${{ steps.meta.outputs.labels }}
 
       # # https://github.com/peter-evans/dockerhub-description
