@@ -91,7 +91,7 @@ class EdcService:
                 chart,
                 values,
                 namespace=namespace,
-                create_namespace=True,
+                create_namespace=False,
                 atomic=True,
                 cleanup_on_fail=True,
                 wait=False,

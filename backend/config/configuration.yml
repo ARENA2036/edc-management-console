@@ -137,11 +137,16 @@ components:
       cp_bdrs_server_url: "{wallet_url}{bdrs_endpoint}"
       cp_hostname: "{name}-{controlplane_hostname}"
       dp_hostname: "{name}-{dataplane_hostname}"
-      # The chart adds cert-manager.io/cluster-issuer automatically from each
-      # ingress's certManager.clusterIssuer, and external-dns auto-discovers the
-      # per-plane host from the ingress rules — so neither belongs here.
-      annotations:
-        - external-dns.alpha.kubernetes.io/hostname: test-connector-controlplane.txcd.arena2036-x.de
+      # Per-plane ingress annotations — each points external-dns at that plane's
+      # OWN host. Authored as maps (the shape Helm ingress annotations expect),
+      # with templated values resolved against the derivation context.
+      controlplane_annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-{controlplane_hostname}"
+      dataplane_annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-{dataplane_hostname}"
+      # Image pull secrets — the tractusx-connector chart uses ONE top-level
+      # `imagePullSecrets` for both the control plane and data plane (it has no
+      # per-plane override), so this single list applies to both.
       imagePullSecrets:
         - name: registry-creds
 
@@ -162,7 +167,7 @@ components:
         from: sts_oauth_client_id
       - path: iatp.sts.oauth.client.secret_alias
         from: sts_oauth_secretAlias
-      - path: controlplane.imagePullSecrets
+      - path: imagePullSecrets
         from: imagePullSecrets
       - path: controlplane.bdrs.server.url
         from: cp_bdrs_server_url
@@ -179,8 +184,7 @@ components:
       - path: controlplane.ingresses[0].className
         value: 'nginx'
       - path: controlplane.ingresses[0].annotations
-        from: annotations
-        transform: listtomap
+        from: controlplane_annotations
       - path: controlplane.ingresses[0].tls.enabled
         value: true
       - path: controlplane.ingresses[0].tls.secretName
@@ -194,8 +198,7 @@ components:
       - path: dataplane.ingresses[0].className
         value: 'nginx'
       - path: dataplane.ingresses[0].annotations
-        from: annotations
-        transform: listtomap
+        from: dataplane_annotations
       - path: dataplane.ingresses[0].tls.enabled
         value: true
       - path: dataplane.ingresses[0].tls.secretName
@@ -207,9 +210,9 @@ components:
       - path: postgresql.auth.database
         from: db_name
       - path: postgresql.auth.username
-        from: db_username
+        from: 'db_username'
       - path: postgresql.auth.password
-        from: db_password
+        from: 'db_password'
 
   # Submodel Server — its own chart + release, deployed only when the request
   # carries a submodel URL.
@@ -217,21 +220,45 @@ components:
     deployWhen: submodel.url
     releaseName: "{name}-submodelserver"
     chart:
-      name: simple-data-backend
-      repo: tractusx-dev
-    # Last stable releases of this chart (latest first). Deploys versions[0]
-    # unless a `version` selector is added. Source: tractusx charts/dev index.
+      # Deploy from the LOCAL chart copy in config/ (patched with probe enable
+      # toggles) instead of pulling simple-data-backend from the repo.
+      directory: config/simple-data-backend
+    # Base values come from config/submodelserver-templates (NOT the chart default).
+    templatesDir: config/submodelserver-templates
     versions:
       - version: "0.1.0"
+        valuesYaml: /values-0.1.0.yaml
+    derive:
+      # simple-data-backend has NO certManager field — TLS is issued via the
+      # cert-manager annotation. external-dns points at this component's own host.
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-submodel.txcd.arena2036-x.de"
+        cert-manager.io/cluster-issuer: "letsencrypt-int"
     valueMappings:
       - path: fullnameOverride
         template: "{name}-submodelserver"
+      - path: ingress.enabled           # chart default is false
+        value: true
+      - path: ingress.className
+        value: 'nginx'
+      - path: ingress.annotations
+        from: annotations
       - path: ingress.hosts[0].host
-        template: "{name}.int.construct-x.net"
+        template: "{name}-submodel.txcd.arena2036-x.de"
+      - path: ingress.hosts[0].paths[0].path
+        value: '/'
+      - path: ingress.hosts[0].paths[0].pathType
+        value: 'Prefix'
       - path: ingress.tls[0].hosts[0]
-        template: "{name}.int.construct-x.net"
+        template: "{name}-submodel.txcd.arena2036-x.de"
       - path: ingress.tls[0].secretName
         template: "{name}-submodel-tls"
+      # Liveness/readiness probes — the local chart gates them on `.enabled`.
+      # The image's /actuator/health/* paths 404, so keep them off here.
+      - path: livenessProbe.enabled
+        value: false
+      - path: readinessProbe.enabled
+        value: false
 
   # Digital Twin Registry — its own chart + release, deployed only when the
   # request carries a registry URL.
@@ -245,25 +272,45 @@ components:
     versions:
       - version: "0.12.0"
       - version: "0.11.0"
-      - version: "0.10.0"
+    derive:
+      # digital-twin-registry issues TLS via the cert-manager annotation (no
+      # certManager field). external-dns points at this component's own host.
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-dtr.txcd.arena2036-x.de"
+        cert-manager.io/cluster-issuer: "letsencrypt-int"
+        nginx.ingress.kubernetes.io/rewrite-target: /$2
+        nginx.ingress.kubernetes.io/use-regex: "true"
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
     valueMappings:
+      - path: fullnameOverride          # top-level (the chart has no registry.fullnameOverride)
+        template: "{name}-dtr"
       - path: enableKeycloak
-        value: true
+        value: false
+      # Bundled postgres (like the connector). With enablePostgres=true the chart
+      # deploys its own DB and wires the registry to it via postgres-init, so the
+      # registry-secret's external `dataSource` block is skipped entirely.
       - path: enablePostgres
         value: true
-      - path: keycloak.fullnameOverride
-        template: "{name}-keycloak"
-      - path: keycloak.externalDatabase.existingSecret
-        template: "{name}-keycloak-database-credentials"
-      - path: registry.fullnameOverride
-        template: "{name}-registry"
-      - path: registry.host
-        template: "{name}.int.construct-x.net"
-      - path: registry.ingress.hosts[0].host
-        template: "{name}.int.construct-x.net"
-      - path: registry.ingress.tls[0].hosts[0]
-        template: "{name}.int.construct-x.net"
-      - path: registry.ingress.tls[0].secretName
+      - path: postgresql.auth.username
+        from: db_username               # from the deploy request, like the connector
+      - path: postgresql.auth.password
+        from: db_password               # per-connector; empty -> chart generates a random one
+      - path: postgresql.auth.database
+        template: "{name}-digital-twin-db"   # template, not value — renders {name}
+      - path: registry.host             # the externally-resolvable ingress host
+        template: "{name}-dtr.txcd.arena2036-x.de"
+      - path: registry.ingress.enabled
+        value: true
+      - path: registry.ingress.urlPrefix
+        value: '/semantics/registry'
+      - path: registry.ingress.className
+        value: 'nginx'
+      - path: registry.ingress.annotations
+        from: annotations
+      - path: registry.ingress.tls.enabled        # tls is a MAP here, not a list
+        value: true
+      - path: registry.ingress.tls.secretName
         template: "{name}-dtr-tls"
 
   # IdentityHub — its own chart + release, deployed for every connector

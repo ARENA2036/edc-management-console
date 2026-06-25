@@ -224,7 +224,7 @@ async def add_connector(connector: Connector, request: Request):
                 url = connector.url,
                 version = connector.version,
                 namespace = namespace,
-                status = "unhealthy",
+                status = "healthy",
                 cp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("controlplane"),
                 dp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("dataplane"),
                 db_name = 'edc',

@@ -157,9 +157,12 @@ class EdcManager:
         if not cfg:
             return {"error": f"No component named '{component}' is configured"}
 
+        # A chart is either a local directory (`chart.directory`) or a named chart
+        # pulled from a repo (`chart.name` + `chart.repo`).
         chart = cfg.get("chart") or {}
-        if not chart.get("name"):
-            return {"error": f"Component '{component}' has no chart.name configured"}
+        chart_directory = chart.get("directory")
+        if not chart_directory and not chart.get("name"):
+            return {"error": f"Component '{component}' needs chart.directory or chart.name"}
 
         # Render source = the request's own fields overlaid with the derived ones.
         render_source = {**self._as_dict(source), **self._derive(cfg.get("derive", {}), source)}
@@ -183,10 +186,19 @@ class EdcManager:
         mappings = (merge_value_mappings(cfg.get("valueMappings"), entry.get("valueMappings"))
                     if entry else cfg.get("valueMappings", []))
 
+        if chart_directory:
+            # Local chart: ref = the directory (kept as configured, i.e. relative to
+            # the app's working dir). NOT abspath'd — pyhelm3 shells the command out
+            # via shlex/cmd.exe, which mangles Windows absolute paths that contain
+            # spaces (e.g. "C:\Users\Saud Khan\..."). repo/version come from Chart.yaml.
+            chart_ref, repo, release_version = chart_directory, None, None
+        else:
+            chart_ref, repo, release_version = chart.get("name"), chart.get("repo"), version
+
         return {
             "release_name": render_template(cfg.get("releaseName", "{name}"), render_source),
             "values": render_values(render_source, template_path, mappings),
-            "chart": chart.get("name"),
-            "repo": chart.get("repo"),
-            "version": version,
+            "chart": chart_ref,
+            "repo": repo,
+            "version": release_version,
         }
