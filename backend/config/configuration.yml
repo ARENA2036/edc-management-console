@@ -85,8 +85,8 @@ connector:
     transfer_edr: "/dataaddress?auto_refresh=true"
     dsp: "/api/v1/dsp"
   hostname:
-    controlplane: controlplane.int.construct-x.net
-    dataplane: dataplane.int.construct-x.net
+    controlplane: controlplane.txcd.arena2036-x.de
+    dataplane: dataplane.txcd.arena2036-x.de
   # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
   sts:
     dimEndpoint: "/api/sts"
@@ -141,7 +141,7 @@ components:
       # ingress's certManager.clusterIssuer, and external-dns auto-discovers the
       # per-plane host from the ingress rules — so neither belongs here.
       annotations:
-        - traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+        - external-dns.alpha.kubernetes.io/hostname: test-connector-controlplane.txcd.arena2036-x.de
       imagePullSecrets:
         - name: registry-creds
 
@@ -177,7 +177,7 @@ components:
       - path: controlplane.ingresses[0].certManager.clusterIssuer
         value: 'letsencrypt-int'
       - path: controlplane.ingresses[0].className
-        value: 'traefik'
+        value: 'nginx'
       - path: controlplane.ingresses[0].annotations
         from: annotations
         transform: listtomap
@@ -192,7 +192,7 @@ components:
       - path: dataplane.ingresses[0].certManager.clusterIssuer
         value: 'letsencrypt-int'
       - path: dataplane.ingresses[0].className
-        value: 'traefik'
+        value: 'nginx'
       - path: dataplane.ingresses[0].annotations
         from: annotations
         transform: listtomap
