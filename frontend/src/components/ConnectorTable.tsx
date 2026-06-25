@@ -22,7 +22,7 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
   const handleDelete = async () => {
     if (!deleteConnector) return;
     try {
-      await connectorApi.delete(deleteConnector.id);
+      await connectorApi.delete(deleteConnector.name);
       onConnectorDeleted();
       setDeleteConnector(null);
     } catch (error) {
@@ -36,19 +36,19 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 URL
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 BPN
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-3 md:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -56,16 +56,16 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
           <tbody className="bg-white divide-y divide-gray-200">
             {connectors.map((connector) => (
               <tr key={connector.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {connector.name}
                 </td>
                 {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {connector.url}
                 </td> */}
-                <td className="px-6 py-4 text-sm text-gray-500 max-w-[250px] overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <td className="px-3 md:px-6 py-4 text-sm text-gray-500 max-w-[250px] overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                   {connector.url}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       connector.status === 'deployed'
@@ -78,10 +78,10 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                     {connector.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {connector.bpn || 'N/A'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <td className="px-3 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
                     onClick={() => setDetailsConnector(connector)}
                     className="text-blue-600 hover:text-blue-900 mr-3"

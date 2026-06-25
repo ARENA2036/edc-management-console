@@ -44,11 +44,11 @@ This project includes a primary Helm chart that deploys both the backend and fro
 ### Chart.yaml 
 -   apiVersion: v2 
 -   name: edc-management-console 
-[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/main/charts/edc-management-console/Chart.yaml)
+[... (full content)](https://github.com/eclipse-tractusx/edc-management-console/blob/main/charts/edc-management-console/Chart.yaml)
 
 ### values.yaml 
 -   Default values for edc-management-console 
-[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/main/charts/edc-management-console/values.yaml)
+[... (full content)](https://github.com/eclipse-tractusx/edc-management-console/blob/main/charts/edc-management-console/values.yaml)
  
 
 The Helm charts define Kubernetes resources such as: 
@@ -67,7 +67,7 @@ The project contains Dockerfiles for both backend services.
 ### Backend Dockerfile 
 
 FROM python:3.13-alpine 
-[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/main/backend/Dockerfile)
+[... (full content)](https://github.com/eclipse-tractusx/edc-management-console/blob/main/backend/Dockerfile)
 
 This backend image includes: 
 
@@ -81,7 +81,7 @@ This backend image includes:
 ### Frontend Dockerfile 
 
 FROM node:lts-alpine as builder
-[... (full content)](https://github.com/ARENA2036/edc-management-console/blob/main/frontend/Dockerfile)
+[... (full content)](https://github.com/eclipse-tractusx/edc-management-console/blob/main/frontend/Dockerfile)
 
 ### 🚀 Deployment Using Helm Chart 
 

@@ -5,15 +5,15 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import logging
 
-logger = logging.getLogger('staging')
+logger = logging.getLogger('app')
 
 security = HTTPBearer()
 
 class KeycloakOpenID:
     def __init__(self):
-        self.keycloak_url = os.getenv("KEYCLOAK_URL", "https://centralidp.arena2036-x.de/auth/")
-        self.realm = os.getenv("KEYCLOAK_REALM", "CX-Central")
-        self.client_id = os.getenv("KEYCLOAK_CLIENT_ID", "CX-EDC")
+        self.keycloak_url = os.getenv("KEYCLOAK_URL", "__KEYCLOAK_URL__")
+        self.realm = os.getenv("KEYCLOAK_REALM", "__KEYCLOAK_REALM__")
+        self.client_id = os.getenv("KEYCLOAK_CLIENT_ID", "__KEYCLOAK_CLIENT_ID__")
         
     def add_swagger_config(self, app):
         """Add Keycloak OAuth2 to Swagger UI"""

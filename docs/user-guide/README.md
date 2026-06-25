@@ -17,7 +17,7 @@ EMC can be accessed via a web browser.
 ## Login
 1. Go to emc application url
     - Click on below url
-    - https://emc-1-txcd.arena2036-x.de/
+    - https://your-edc-console.example.com/
 
 ![alt text](images/emc-application.png)
 
@@ -118,15 +118,15 @@ The Dataspace Settings page displays configuration values that are automatically
 
 - Dataspace Name
     - Name of the dataspace environment you are operating in.
-    - Example: ARENA2036-X
+    - Example: Your Dataspace
 
 - BPN Number
     - The Business Partner Number associated with your organization.
-    - Example: BPNL00000003CRHK
+    - Example: BPNL000000000000
 
 - Realm
     - The Keycloak realm under which your user and identity settings are managed.
-    - Example: ARENA2036-X
+    - Example: Your Realm
 
 - Username
     - The username of the account currently logged into EMC.
@@ -137,17 +137,17 @@ Information about the identity provider configured for your organization.
 
 - Central IDP URL
     - URL of the Central Identity Provider used for authentication.
-    - Example: https://centralidp-txcd.arena2036-x.de/auth/
+    - Example: https://central-idp.example.com/auth/
 
 - Portal URL
     - Link to the associated dataspace portal.
-    - Example: https://portal-txcd.arena2036-x.de
+    - Example: https://portal.example.com
 
 ## Discovery Services
 
 - Semantics URL
     - URL for the semantics service used for ontology and semantic model lookups.
-    - Example: https://semantics-txcd.arena2036-x.de
+    - Example: https://semantics.example.com
 
 - Discovery Finder Endpoint
     - Endpoint for connector discovery within the dataspace.
@@ -161,7 +161,7 @@ Information about the identity provider configured for your organization.
 
 - SDE URL
     - The base URL for accessing the Simple Data Exchanger (SDE) application.
-    - Example: https://sde-1-txcd.arena2036-x.de
+    - Example: https://sde.example.com
 
 - SDE Client ID
     - The client identifier used by the SDE to authenticate with the identity provider.
@@ -169,24 +169,24 @@ Information about the identity provider configured for your organization.
 
 - Provider EDC
     - The default EDC (Eclipse Dataspace Connector) endpoint used by the SDE for data exchange operations.
-    - Example: https://emc-edc-1-controlplane-txcd.arena2036-x.de
+    - Example: https://provider-edc.example.com
 
 ## EDC Configuration
 
 - Default EDC URL
     - The preconfigured default EDC Control Plane URL for your organization.
-    - Example: https://emc-edc-1-controlplane-txcd.arena2036-x.de
+    - Example: https://default-edc.example.com
 
 - Cluster Context
   - The Kubernetes cluster context used for EDC deployments and operations.
-  - Example: arena2036_txcd
+  - Example: your-cluster-context
 
 ![alt text](images/dataspace-setting.png)
 
 # SDE Option
 When you click on the SDE option it will redirect to the Simple Data Exchanger application automatically.
 - If you need more information, visit the following link:
-- [Simple Data Exchanger User Guide](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/blob/main/docs/user-guide/README.md)
+- [Simple Data Exchanger User Guide](https://github.com/eclipse-tractusx/edc-management-console/blob/main/docs/user-guide/README.md)
 
 ![alt text](images/SDE.png)
 

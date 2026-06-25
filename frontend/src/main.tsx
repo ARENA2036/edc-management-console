@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import AppNew from './AppNew.tsx'
 import keycloak from './auth/keycloak'
+import { I18nProvider } from './i18n'
 
 const initKeycloak = async () => {
   try {
@@ -26,7 +27,9 @@ const initKeycloak = async () => {
 
       createRoot(document.getElementById('root')!).render(
         <StrictMode>
-          <AppNew />
+          <I18nProvider>
+            <AppNew />
+          </I18nProvider>
         </StrictMode>,
       );
     }

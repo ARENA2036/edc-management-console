@@ -1,4 +1,4 @@
-# ARENA2036 EDC Management Console
+# EDC Management Console
 
 EDC management platform for TractusX EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
 
@@ -49,9 +49,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env and set your values:
+# Create environment variables file
+# Create backend/.env and set your values:
 # - DATABASE_URL (PostgreSQL connection string)
 # - API_KEY (your secure API key)
 # - Keycloak credentials (if using Keycloak)
@@ -88,8 +87,7 @@ cd frontend
 npm install
 
 # Configure environment
-cp .env.example .env
-# Edit .env:
+# Create frontend/.env and set your values:
 ```
 
 **Frontend Environment (.env):**
@@ -246,7 +244,7 @@ python -c "from managers.databaseManager import DatabaseManager; import os; Data
 
 ### Environment Variables
 
-Never commit `.env` files to version control. Use `.env.example` as template.
+Never commit `.env` files to version control. Create them locally and keep real values outside the repository.
 
 ## Development
 
@@ -308,4 +306,7 @@ npm run lint
 
 ## License
 
-Copyright © ARENA2036-X Network
+- Code: Apache-2.0
+- Non-code: CC-BY-4.0
+- Notice: see [NOTICE](/Users/bahaa/Documents/New%20project/edc-management-console/NOTICE)
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console

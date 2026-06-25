@@ -49,7 +49,7 @@ The EDC Management Console is a comprehensive management platform designed to fa
 
 ### User Manual
 
-The user manual to operate the EMC application can be found [here](https://github.com/ARENA2036/edc-management-console/tree/main/docs/user-guide)
+The user manual to operate the EMC application can be found [here](https://github.com/eclipse-tractusx/edc-management-console/tree/main/docs/user-guide)
 
 
 ## Step 3: SDE Application
@@ -62,7 +62,7 @@ With the SDE, users can upload, request, and transfer files without needing to m
 
 ### User Manual
 
-The user manual to operate the SDE application can be found [here](https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/tree/main/docs/user-guide)
+The user manual to operate the SDE application can be found [here](https://github.com/eclipse-tractusx/edc-management-console/tree/main/docs/user-guide)
 
 
 ## Workshop Feedback
