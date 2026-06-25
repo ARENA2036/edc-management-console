@@ -5,15 +5,15 @@ appConfig:
   port: 5000
   host: "0.0.0.0"
 
-authorization:
-  enabled: true
-  apiKey:
-    key: "X-Api-Key"
-    value: "emc-api-key"
+  authorization:
+    enabled: true
+    apiKey:
+      key: "X-Api-Key"
+      value: "emc-api-key"
 
-startup:
-  checks: true
-  refresh_interval: 10
+  startup:
+    checks: true
+    refresh_interval: 10
 
 dataspaceConfig:
   name: "ARENA2036-X"
@@ -44,23 +44,35 @@ dataspaceConfig:
       endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
       client_id: "${BPN_DISCOVERY_CLIENT_ID}"
       client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
+  clusterConfig:
+    context: "k8s-ap6-01"
+    namespace: "edc-management-console"
 
 
-clusterConfig:
-  context: "arena2036_txcd"
-  namespace: "edc-management-console"
+externalApps:
+  sde:
+    url: https://sde-1-txcd.arena2036-x.de
+    client_id: "SDE-1"
+    manufacturerId: BPNLA360COMPANY1
+    providerEDC:  https://emc-edc-1-controlplane-txcd.arena2036-x.de
+    consumerEDC: https://emc-edc-2-controlplane-txcd.arena2036-x.de
+    registryUrl: https://emc-edc-dtr-1-txcd.arena2036-x.de/semantics/registry
 
-sde:
-  url: https://sde-1-txcd.arena2036-x.de
-  client_id: "SDE-1"
-  manufacturerId: BPNLA360COMPANY1
-  providerEDC:  https://emc-edc-1-controlplane-txcd.arena2036-x.de
-  consumerEDC: https://emc-edc-2-controlplane-txcd.arena2036-x.de
-  registryUrl: https://emc-edc-dtr-1-txcd.arena2036-x.de/semantics/registry
 
-edc:
+# Dataspace/EDC query config + the inputs to the deployment derivation context
+# (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
+# component's chart + subchart dependencies can be resolved.
+connector:
   default_url: "https://dataconsumer-controlplane.arena2036-x.de"
-  helm_chart_directory: "./tractusx-connector"
+  # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
+  didMethod: "did:web"
+  helmRepositories:
+    - name: tractusx-dev
+      url: https://eclipse-tractusx.github.io/charts/dev
+    - name: hashicorp
+      url: https://helm.releases.hashicorp.com
+    - name: bitnami
+      url: https://charts.bitnami.com/bitnami
   endpoints:
     assets: "/v3/assets"
     policies: "/v3/policydefinitions"
@@ -73,19 +85,211 @@ edc:
     transfer_edr: "/dataaddress?auto_refresh=true"
     dsp: "/api/v1/dsp"
   hostname:
-    cp: controlplane.arena2036-x.de
-    dp: dataplane.arena2036-x.de
+    controlplane: controlplane.int.construct-x.net
+    dataplane: dataplane.int.construct-x.net
+  # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
+  sts:
+    dimEndpoint: "/api/sts"
+    oauthTokenEndpoint: "/oauth/token"
+    secretAlias: "edc-wallet-secret"
+  # BPN Directory Service (BDRS) path appended to the SSI wallet url.
+  bdrs:
+    directoryEndpoint: "/api/v1/directory"
+
+# Generic, component-agnostic deployment definitions. Each component describes
+# its chart, supported versions (base values templates), `derive` rules (computed
+# attributes) and `valueMappings`. Adding a new component is a config change only.
+#
+# valueMappings entry:
+#   path:      dotted target in the values, supports list indices e.g. a.b[0].c
+#   from:      read the value from a source field, OR
+#   value:     use this literal, OR
+#   template:  render this string with {name} (and any source field)
+#   transform: optional, e.g. "urlencode"
+#   mode:      "set" (default) or "append" (for list-valued leaves)
+#   when:      optional flag gate, e.g. "registry" / "submodel"
+components:
+  # The EDC connector itself.
+  connector:
+    deployWhen: always            # always / registry / submodel (gated on request flags)
+    releaseName: "{name}"
+    version: "{version}"          # selected from the deploy request, validated against `versions`
+    chart:
+      name: tractusx-connector
+      repo: tractusx-dev    # name resolved against connector.helmRepositories
+    templatesDir: config/connector-templates
+    versions:
+      - version: "0.12.1"
+        valuesYaml: /values-0.12.1.yaml
+      - version: "0.11.2"
+        valuesYaml: /values-0.11.2.yaml
+      - version: "0.10.3"
+        valuesYaml: /values-0.10.3.yaml
+    # Computed attributes (templated against request fields + dataspace context),
+    # set on the request and referenced below via `from`.
+    derive:
+      iatp_id: "{did_method}:{wallet_host}:{bpn}"
+      trustedIssuers: "{did_method}:{wallet_host}:{authority_id}"
+      sts_dim_url: "{wallet_url}{sts_dim_endpoint}"
+      sts_oauth_tokenUrl: "{wallet_url}{sts_oauth_token_endpoint}"
+      sts_oauth_client_id: "{bpn}"
+      sts_oauth_secretAlias: "{sts_secret_alias}"
+      cp_bdrs_server_url: "{wallet_url}{bdrs_endpoint}"
+      cp_hostname: "{name}-{controlplane_hostname}"
+      dp_hostname: "{name}-{dataplane_hostname}"
+      # The chart adds cert-manager.io/cluster-issuer automatically from each
+      # ingress's certManager.clusterIssuer, and external-dns auto-discovers the
+      # per-plane host from the ingress rules — so neither belongs here.
+      annotations:
+        - traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      imagePullSecrets:
+        - name: registry-creds
+
+    valueMappings:
+      - path: participant.id
+        from: bpn
+        transform: urlencode
+      - path: iatp.id
+        from: iatp_id
+      - path: iatp.trustedIssuers
+        from: trustedIssuers
+        mode: append
+      - path: iatp.sts.dim.url
+        from: sts_dim_url
+      - path: iatp.sts.oauth.token_url
+        from: sts_oauth_tokenUrl
+      - path: iatp.sts.oauth.client.id
+        from: sts_oauth_client_id
+      - path: iatp.sts.oauth.client.secret_alias
+        from: sts_oauth_secretAlias
+      - path: controlplane.imagePullSecrets
+        from: imagePullSecrets
+      - path: controlplane.bdrs.server.url
+        from: cp_bdrs_server_url
+      - path: controlplane.ingresses[0].enabled
+        value: true
+      - path: controlplane.ingresses[0].endpoints[0]
+        value: 'protocol'
+      - path: controlplane.ingresses[0].endpoints[1]
+        value: 'management'
+      - path: controlplane.ingresses[0].hostname
+        from: cp_hostname
+      - path: controlplane.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: controlplane.ingresses[0].className
+        value: 'traefik'
+      - path: controlplane.ingresses[0].annotations
+        from: annotations
+        transform: listtomap
+      - path: controlplane.ingresses[0].tls.enabled
+        value: true
+      - path: controlplane.ingresses[0].tls.secretName
+        template: "{name}-cp-tls"
+      - path: dataplane.ingresses[0].enabled
+        value: true
+      - path: dataplane.ingresses[0].hostname
+        from: dp_hostname
+      - path: dataplane.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: dataplane.ingresses[0].className
+        value: 'traefik'
+      - path: dataplane.ingresses[0].annotations
+        from: annotations
+        transform: listtomap
+      - path: dataplane.ingresses[0].tls.enabled
+        value: true
+      - path: dataplane.ingresses[0].tls.secretName
+        template: "{name}-dp-tls"
+      - path: dataplane.token.signer.privatekey_alias
+        value: "tokenSignerPrivateKey"
+      - path: dataplane.token.verifier.publickey_alias
+        value: "tokenSignerPublicKey"
+      - path: postgresql.auth.database
+        from: db_name
+      - path: postgresql.auth.username
+        from: db_username
+      - path: postgresql.auth.password
+        from: db_password
+
+  # Submodel Server — its own chart + release, deployed only when the request
+  # carries a submodel URL.
+  submodelServer:
+    deployWhen: submodel.url
+    releaseName: "{name}-submodelserver"
+    chart:
+      name: simple-data-backend
+      repo: tractusx-dev
+    # Last stable releases of this chart (latest first). Deploys versions[0]
+    # unless a `version` selector is added. Source: tractusx charts/dev index.
+    versions:
+      - version: "0.1.0"
+    valueMappings:
+      - path: fullnameOverride
+        template: "{name}-submodelserver"
+      - path: ingress.hosts[0].host
+        template: "{name}.int.construct-x.net"
+      - path: ingress.tls[0].hosts[0]
+        template: "{name}.int.construct-x.net"
+      - path: ingress.tls[0].secretName
+        template: "{name}-submodel-tls"
+
+  # Digital Twin Registry — its own chart + release, deployed only when the
+  # request carries a registry URL.
+  digitalTwinRegistry:
+    deployWhen: registry.url
+    releaseName: "{name}-dtr"
+    chart:
+      name: digital-twin-registry
+      repo: tractusx-dev
+    # Last 3 stable releases (latest first). Source: tractusx charts/dev index.
+    versions:
+      - version: "0.12.0"
+      - version: "0.11.0"
+      - version: "0.10.0"
+    valueMappings:
+      - path: enableKeycloak
+        value: true
+      - path: enablePostgres
+        value: true
+      - path: keycloak.fullnameOverride
+        template: "{name}-keycloak"
+      - path: keycloak.externalDatabase.existingSecret
+        template: "{name}-keycloak-database-credentials"
+      - path: registry.fullnameOverride
+        template: "{name}-registry"
+      - path: registry.host
+        template: "{name}.int.construct-x.net"
+      - path: registry.ingress.hosts[0].host
+        template: "{name}.int.construct-x.net"
+      - path: registry.ingress.tls[0].hosts[0]
+        template: "{name}.int.construct-x.net"
+      - path: registry.ingress.tls[0].secretName
+        template: "{name}-dtr-tls"
+
+  # IdentityHub — its own chart + release, deployed for every connector
+  # (it is the connector's own DID/credential service, not an optional add-on).
+  # identityhub:
+  #   deployWhen: always
+  #   releaseName: "{name}-idhub"
+  #   chart:
+  #     name: tractusx-identityhub
+  #     repo: tractusx-dev
+  #   # Last 3 stable releases (latest first; note the chart tags carry a 'v').
+  #   # Source: tractusx charts/dev index.
+  #   versions:
+  #     - version: "v0.3.2"
+  #     - version: "v0.3.1"
+  #     - version: "v0.3.0"
+  #   valueMappings:
+  #     - path: fullnameOverride
+  #       template: "{name}-idhub"
+  #     - path: ingress.hosts[0].host
+  #       template: "{name}.int.construct-x.net"
+  #     - path: ingress.tls[0].hosts[0]
+  #       template: "{name}.int.construct-x.net"
+  #     - path: ingress.tls[0].secretName
+  #       template: "{name}-idhub-tls"
 
 database:
   url: "${DATABASE_URL}"
   echo: false
-
-files:
-  charts:
-    v9: /Chart_v9.yaml
-    v10: /Chart_v10.yaml
-    v11: /Chart_v11.yaml
-  values:
-    v9: /values_v9.yaml
-    v10: /values_v10.yaml
-    v11: /values_v11.yaml

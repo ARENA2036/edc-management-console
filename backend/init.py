@@ -20,6 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 import argparse
+import asyncio
 import logging.config
 import yaml
 import urllib3
@@ -139,9 +140,9 @@ async def list_connectors(request: Request):
             databaseManager.update_connector(cnctor)
             
             url_list = []
-            for endpoint in app_configuration.get("edc", {}).get("endpoints", {}).keys():
+            for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
                 url_list.append(
-                    'https://' + cnctor.cp_hostname + app_configuration.get("edc", {}).get("endpoints", {}).get(endpoint)
+                    'https://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
                 )
             if len(cnctor.registry) != 0:
                 url_list.append(f'https://{cnctor.registry}/semantics/registry/')
@@ -183,30 +184,25 @@ async def add_connector(connector: Connector, request: Request):
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
-
         #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
         #We can then call the endpoint when the user clicks on the DeployEDC button itself.
         logger.info(connector)
-        is_registry_enabled = len(connector.registry.url) != 0
-        is_submodel_enabled = len(connector.submodel.url) != 0
-       
-        existingDeployments = edcService.get_connector_by_name(
-            connector_name=connector.name,
-            namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
-        )
-        if existingDeployments.get("status_code") != 200:
-            # set edc helm chart directory
-            value_file_name = edcManager.add_edc(
-                connector,
-                is_registry_enabled=is_registry_enabled,
-                is_submodel_enabled=is_submodel_enabled
+        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+
+        # Deploy the connector plus every component whose `deployWhen` condition
+        # the request satisfies (gating is entirely config-driven).
+        for component in edcManager.deployments_for(connector):
+            plan = edcManager.prepare_deployment(component, connector)
+            if "error" in plan:
+                raise Exception(plan["error"])
+            await edcService.install_or_upgrade(
+                release_name=plan["release_name"],
+                chart_name=plan["chart"],
+                repo=plan["repo"],
+                version=plan["version"],
+                values=plan["values"],
+                namespace=namespace,
             )
-            response: dict = edcService.install_helm_chart(deployment_name=connector.name,
-                                                           values_files=[value_file_name],
-                                                           namespace=app_configuration.get("clusterConfig",{}).get("namespace", None)
-                                                        )
-            if (response.get("status_code", 0) != 200):
-                raise Exception(response.get("data",{}).split('Error')[1])
 
         connector_db = databaseManager.get_connector_by_name(connector.name)
         if connector_db is None:
@@ -227,15 +223,15 @@ async def add_connector(connector: Connector, request: Request):
                 bpn=connector.bpn,
                 url = connector.url,
                 version = connector.version,
-                namespace = app_configuration.get("clusterConfig", {}).get("namespace", None),
+                namespace = namespace,
                 status = "unhealthy",
-                cp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("cp"),
-                dp_hostname = connector.name + '-' + app_configuration.get("edc", {}).get("hostname", {}).get("dp"),
+                cp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("controlplane"),
+                dp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("dataplane"),
                 db_name = 'edc',
                 db_username = connector.db_username,
                 db_password = connector.db_password,
-                registry=connector.registry.url,
-                submodel=connector.submodel.url
+                registry=connector.registry.url if connector.registry else "",
+                submodel=connector.submodel.url if connector.submodel else ""
             )
             connector_db = databaseManager.create_connector(connector=connector_db)
 
@@ -255,24 +251,31 @@ async def upgrade_connector(connector_id: str, connector: Connector, request: Re
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        # set edc helm chart directory
-        edcManager.upgrade_edc(connector)
-        ##edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
-        response:dict = edcService.upgrade_helm_chart(deployment_name=connector.connector_name, values_files=["upgrade_values.yaml"],namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
-        if (response.get("status_code", 0) != 200):
-            raise Exception(response.get("data",{}).split('Error')[1])
-        data: dict = response.get("data", {}).split("\n")
+        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+
+        results = []
+        for component in edcManager.deployments_for(connector):
+            plan = edcManager.prepare_deployment(component, connector)
+            if "error" in plan:
+                raise Exception(plan["error"])
+            revision = await edcService.install_or_upgrade(
+                release_name=plan["release_name"],
+                chart_name=plan["chart"],
+                repo=plan["repo"],
+                version=plan["version"],
+                values=plan["values"],
+                namespace=namespace,
+            )
+            results.append({
+                "release": plan["release_name"],
+                "revision": revision.revision,
+                "status": str(revision.status),
+            })
 
         return HttpUtils.response(
             status=200,
-            message=str(data[0]),
-            data={
-                "id": str(uuid.uuid4()),
-                "Name": str(data[1].split()[1]),
-                "Namespace": str(data[3].split()[1]),
-                "Status": str(data[4].split()[1]),
-                "Revision": str(data[5].split()[1])
-            })
+            message=f"Connector '{connector.name}' upgraded",
+            data={"name": connector.name, "namespace": namespace, "releases": results})
 
     except Exception as e:
         logger.exception(str(e))
@@ -287,16 +290,18 @@ async def delete_connector(connector_name: str, request: Request):
             return HttpUtils.get_not_authorized()
 
         connector = databaseManager.get_connector_by_name(name=connector_name)
+        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
 
-        response:dict = edcService.uninstall_helm_chart(connector_id=connector.name, namespace=app_configuration.get("clusterConfig",{}).get("namespace", None))
-        if (response.get("status_code", 0) != 200):
-            raise Exception(response.get("data",{}).split('Error')[1])
+        # Uninstall every component release this connector may own (uninstalling
+        # a release that was never created is a harmless no-op).
+        for release_name in edcManager.all_release_names(connector):
+            await edcService.uninstall(release_name=release_name, namespace=namespace)
 
         databaseManager.delete_connector(connector_id=connector.id)
 
         return HttpUtils.response(
             status=200,
-            message=str(response.get("data", {})))
+            message=f"Connector '{connector.name}' uninstalled")
 
     except Exception as e:
         logger.exception(str(e))
@@ -431,7 +436,7 @@ async def get_dataspace_settings(request: Request):
     """
     try:
         dataspace_config = app_configuration.get("dataspaceConfig", {})
-        edc_config = app_configuration.get("edc", {})
+        edc_config = app_configuration.get("connector", {})
 
         dataspace_name = dataspace_config.get("name", "ARENA2036-X")
         bpn = dataspace_config.get("authority_id", "BPNL000000000000")
@@ -466,7 +471,7 @@ async def get_dataspace_settings(request: Request):
             },
             "edc": {
                 "default_url": edc_config.get("default_url", ""),
-                "cluster_context": app_configuration.get("clusterConfig", {}).get("context", "")
+                "cluster_context": dataspace_config.get("clusterConfig", {}).get("context", "")
             },
             "readonly": True
         }
@@ -494,18 +499,22 @@ def init_app(host: str, port: int, log_level: str = "info"):
         authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
                                 configured_api_key=api_key.get("value", "password"), auth_enabled=True)
 
-    edcService = EdcService(helm_chart_directory=app_configuration.get("edc",{}).get("helm_chart_directory", None))
-
     ## Get environment specific configurations
-    cluster_config: dict = app_configuration["clusterConfig"]
-    file_config: dict = app_configuration["files"]
-    edc_config: dict = app_configuration.get("edc", {})
-    logger.info(edc_config)
+    connector_config: dict = app_configuration.get("connector", {})
+
+    edcService = EdcService(repositories=connector_config.get("helmRepositories", []))
+    # Register the configured Helm repositories before serving requests so each
+    # deployable's chart + subchart dependencies can be resolved at deploy time.
+    # Runs in a throwaway loop here since uvicorn has not started its own yet.
+    try:
+        asyncio.run(edcService.ensure_repositories())
+    except Exception as e:
+        logger.error("[INIT] Failed to register Helm repositories: %s", str(e))
+
     edcManager = EdcManager(
-        cluster_config=cluster_config,
-        edc_config=edc_config,
-        dataspace_config=app_configuration.get("dataspaceConfig",{}),
-        files_config=file_config
+        connector_config=connector_config,
+        dataspace_config=app_configuration.get("dataspaceConfig", {}),
+        components_config=app_configuration.get("components", {}),
     )
 
     ## Initialize database manager

@@ -1,169 +1,129 @@
-import requests
+import asyncio
 import logging
-import os
-import json
-import subprocess
-import yaml
-from typing import Dict, Optional, List
-from utilities import httpUtils
-from utilities.common import delete_file
+from typing import Dict, List, Optional
+
+import requests
+from pyhelm3 import Client, Command, ReleaseNotFoundError
 
 logger = logging.getLogger(__name__)
 
-SUB_DIR = "charts/umbrella"
-DEFAULT_VALUES_FILE = "values.yaml"
-
 
 class EdcService:
-    def __init__(self, helm_chart_directory="./tractusx-connector"):
-       self.helm_directory = helm_chart_directory
-       self.ensure_kubectl_installed()
-       self.ensure_helm_installed()
-       self.update_helm_dependencies()
+    """Thin async wrapper around Helm 3 (via pyhelm3) for managing connector
+    releases, plus the EDC dataspace HTTP calls.
 
-    def ensure_kubectl_installed(self):
+    All Helm operations go through pyhelm3, which invokes the ``helm`` binary
+    with an argument list (no shell), passes values over stdin (no temporary
+    values files) and never changes the process working directory. This removes
+    the shell-injection surface and the global ``os.chdir`` races of the previous
+    ``subprocess(shell=True)`` implementation.
+    """
+
+    def __init__(self,
+                 repositories: Optional[List[Dict[str, str]]] = None,
+                 kubecontext: Optional[str] = None,
+                 helm_executable: str = "helm",
+                 default_timeout: str = "10m"):
+        self._repositories = repositories or []
+
+        # A single Command instance is shared by the Client (release operations)
+        # and by repo management below. kubecontext defaults to None so Helm uses
+        # the current context from KUBECONFIG (set up at container start).
+        self._command = Command(
+            executable=helm_executable,
+            kubecontext=kubecontext or None,
+            default_timeout=default_timeout,
+        )
+        self._client = Client(command=self._command)
+
+        # Serialize chart pulls + installs so concurrent deploys don't race on the
+        # shared Helm repository cache.
+        self._install_lock = asyncio.Lock()
+
+    def _repo_url(self, repo: Optional[str]) -> Optional[str]:
+        """Resolve a repository reference to a URL: pass through an explicit URL,
+        otherwise look the name up in the configured repositories."""
+        if not repo:
+            return None
+        if "://" in repo:
+            return repo
+        for entry in self._repositories:
+            if entry.get("name") == repo:
+                return entry.get("url")
+        return repo
+
+    async def ensure_repositories(self) -> None:
+        """Register the configured Helm repositories (``helm repo add``) and
+        refresh their indexes. Safe to call repeatedly — ``repo add`` uses
+        ``--force-update``."""
+        if not self._repositories:
+            return
+        for repo in self._repositories:
+            name, url = repo.get("name"), repo.get("url")
+            if not name or not url:
+                logger.warning("[EdcService] Skipping helm repo with missing name/url: %s", repo)
+                continue
+            logger.info("[EdcService] helm repo add %s %s", name, url)
+            await self._command.repo_add(name, url)
+        await self._command.repo_update()
+
+    async def install_or_upgrade(self,
+                                 release_name: str,
+                                 chart_name: str,
+                                 repo: Optional[str],
+                                 version: Optional[str],
+                                 values: Dict,
+                                 namespace: str):
+        """Install or upgrade any component's release by pulling the named chart
+        (at `version`) from `repo` and applying `values`.
+
+        Component-agnostic: the chart/repo/version are supplied by the caller
+        (from the deployable's config), so the same path deploys connectors and
+        other components. Runs atomically — on failure Helm rolls back and cleans
+        up, so a failed deploy never leaves a broken release blocking the next.
+        """
+        async with self._install_lock:
+            chart = await self._client.get_chart(
+                chart_name, repo=self._repo_url(repo), version=version,
+            )
+            revision = await self._client.install_or_upgrade_release(
+                release_name,
+                chart,
+                values,
+                namespace=namespace,
+                create_namespace=True,
+                atomic=True,
+                cleanup_on_fail=True,
+                wait=False,
+            )
+            logger.info(
+                "[EdcService] Release '%s' is now at revision %s (status: %s)",
+                release_name, revision.revision, revision.status,
+            )
+            return revision
+
+    async def uninstall(self, release_name: str, namespace: str, wait: bool = True) -> None:
+        """Uninstall a connector release. No-op if it does not exist."""
         try:
-            subprocess.run("kubectl version --client", shell=True, capture_output=True)
-            print("kubectl is already installed.")
-        except subprocess.CalledProcessError:
-            print("Installing kubectl...")
-            subprocess.run("curl -LO -s https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl")
-            subprocess.run("chmod +x kubectl")
-            subprocess.run("sudo mv kubectl /usr/local/bin/")
-            subprocess.run("kubectl version --client")
-            print("kubectl installed successfully.")
+            await self._client.uninstall_release(release_name, namespace=namespace, wait=wait)
+        except ReleaseNotFoundError:
+            logger.warning("[EdcService] Release '%s' not found in namespace '%s'; nothing to uninstall",
+                           release_name, namespace)
 
-    def switch_kubectl_context(self, context_name):
-        subprocess.run(f"kubectl config use-context {context_name}", shell=True)
-
-    def ensure_helm_installed(self):
+    async def release_exists(self, release_name: str, namespace: str) -> bool:
+        """Return True if a Helm release with this name exists in the namespace."""
         try:
-            subprocess.run("helm version --client", shell=True, capture_output=True)
-            print("helm is already installed.")
-        except subprocess.CalledProcessError:
-            print("Installing kubectl...")
-            # subprocess.run("curl -LO -s https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl")
-            # subprocess.run("chmod +x kubectl")
-            # subprocess.run("sudo mv kubectl /usr/local/bin/")
-            # subprocess.run("helm version --client")
-            print("kubectl installed successfully.")
-
-    def update_helm_dependencies(self):
-        os.chdir(f"{self.helm_directory}")
-        print(f"Working directory: {os.getcwd()}")
-        subprocess.run("helm dependency update", shell=True)
-        os.chdir("..")
-
-    def install_helm_chart(self, deployment_name:str, values_files:list, namespace:str):
-        try:
-            self.update_helm_dependencies()
-            os.chdir(f"{self.helm_directory}")
-            formatted_files = " ".join([" -f " + file for file in values_files])
-            print(f"Installing helm chart with values from {values_files}...")
-            result = subprocess.run(f"helm install {deployment_name} \
-            {formatted_files} --namespace {namespace} --set log4j2.config=\"default log4j2 config placeholder\" --create-namespace --debug .", shell=True, capture_output=True, text=True)
-            if (result.returncode !=0):
-                logger.error(f"[EdcService] It was not possible to install EDC, return code: {str(result.returncode)}")
-                return {"status_code": 500, "data": result.stderr}
-            logger.info(f"stdout: {result.stdout}")
-            logger.debug(f"stderr: {result.stderr}")
-
-            # delete a file(s) after the installation
-            # [ delete_file(f"{os.getcwd()}/{file}") for file in values_files ]
-            os.chdir("..")
-            return {"status_code": 200, "data": result.stdout}
-
-        except subprocess.CalledProcessError as err:
-            logger.error(f"[EdcService] error occurred in install EDC: {str(err.stderr)}")
-            os.chdir("..")
-            return {"status_code": 500, "data": err}
-        except Exception as e:
-            logger.error(f"[EdcService] Install EDC failed: {str(e)}")
-            os.chdir("..")
-            return {"status_code": 500, "data": e}
-
-
-    def upgrade_helm_chart(self, deployment_name:str, values_files:list, namespace:str):
-
-        try:
-            formatted_files = " ".join([" -f " + file for file in values_files])
-            print(f"Upgrading helm chart with values from {values_files}...")
-            result = subprocess.run(f"helm upgrade -i {deployment_name}  {formatted_files} --namespace {namespace} --debug .", shell=True, capture_output=True, text=True)
-            if (result.returncode !=0):
-                logger.error(f"[EdcService] It was not possible to upgrade EDC, return code: {str(result.returncode)}")
-                return {"status_code": 500, "data": result.stderr}
-            logger.info(f"stdout: {result.stdout}")
-            logger.debug(f"stderr: {result.stdout}")
-            logger.info(f"Upgrade EDC successful...")
-
-            # delete a file(s) after the installation
-            [ delete_file(f"{os.getcwd()}/{file}") for file in values_files ]
-            return {"status_code": 200, "data": result.stdout}
-
-        except subprocess.CalledProcessError as err:
-            logger.error(f"[EdcService] Internal Server error occurred in upgrade EDC: {str(err.stderr)}")
-            return {"status_code": 500, "data": err}
-        except Exception as e:
-            logger.error(f"[EdcService] Internal Server error, Upgrade EDC failed: {str(e)}")
-            return {"status_code": 500, "data": e}
-
-    def get_all_connectors(self, namespace:str):
-        try:
-            result = subprocess.run(f"helm list --namespace {namespace}", shell=True, capture_output=True, text=True)
-            if (result.returncode !=0):
-                logger.error(f"[EdcService] It was not possible to get all EDCs, return code: {str(result.returncode)}")
-                raise
-            logger.info(f"stdout: {result.stdout}")
-            logger.debug(f"stderr: {result.stdout}")
-            return {"status_code": 200, "data": result.stdout}
-
-        except Exception as e:
-            logger.error(f"[EdcService] Internal Server error, list EDCs failed: {str(e)}")
-            return {"status_code": 500, "data": e}
-
-    def get_connector_by_name(self, namespace, connector_name):
-        try:
-            ## TODO: get connector_name by Id
-            result = subprocess.run(f"helm list --namespace {namespace} | grep -i {connector_name}", shell=True, capture_output=True, text=True)
-            if (result.returncode !=0):
-                logger.error(f"[EdcService] It was not possible to get the EDC, return code: {str(result.returncode)}")
-                raise
-            logger.info(f"stdout: {result.stdout}")
-            logger.debug(f"stderr: {result.stdout}")
-            return {"status_code": 200, "data": result.stdout}
-
-        except Exception as e:
-            logger.error(f"[EdcService] Internal Server error, get the EDC failed: {str(e)}")
-            return {"status_code": 500, "data": e}
-
-    def uninstall_helm_chart(self, namespace, connector_id):
-        try:
-            ## TODO: get connector_name by Id
-            connector_name = connector_id
-            result = subprocess.run(f"helm uninstall {connector_name} --namespace {namespace}", shell=True, capture_output=True, text=True)
-            if (result.returncode !=0):
-                logger.error(f"[EdcService] It was not possible to delete the EDC, return code: {str(result.returncode)}")
-                return {"status_code": 500, "data": result.stderr}
-            logger.info(f"stdout: {result.stdout}")
-            logger.debug(f"stderr: {result.stdout}")
-            return {"status_code": 200, "data": result.stdout}
-
-        except Exception as e:
-            logger.error(f"[EdcService] Internal Server error, delete the EDC failed: {str(e)}")
-            return {"status_code": 500, "data": e}
-
-    def check_connection(self) -> bool:
-        try:
-            liveness_url = self.default_url + self.endpoints.get("liveness", "/api/check/liveness")
-            response = requests.get(liveness_url, timeout=5, verify=False)
-            return response.status_code == 200
-        except Exception as e:
-            logger.error(f"[EdcService] Connection check failed: {str(e)}")
+            await self._client.get_current_revision(release_name, namespace=namespace)
+            return True
+        except ReleaseNotFoundError:
             return False
 
-    def do_get(self, counter_party_id: str, counter_party_address: str, 
-               dct_type: Optional[str], path: str, 
-               policies: Optional[List[str]] = None, 
+    # ------------------------------------------------------------------
+    # EDC dataspace HTTP calls (unchanged — not Helm/CLI related).
+    # ------------------------------------------------------------------
+    def do_get(self, counter_party_id: str, counter_party_address: str,
+               dct_type: Optional[str], path: str,
+               policies: Optional[List[str]] = None,
                headers: Optional[Dict] = None):
         logger.info(f"[EdcService] Performing GET request to {counter_party_address}{path}")
         try:
@@ -174,10 +134,10 @@ class EdcService:
             logger.error(f"[EdcService] GET request failed: {str(e)}")
             raise
 
-    def do_post(self, counter_party_id: str, counter_party_address: str, 
-                dct_type: Optional[str], path: str, 
+    def do_post(self, counter_party_id: str, counter_party_address: str,
+                dct_type: Optional[str], path: str,
                 body: Optional[Dict] = None,
-                policies: Optional[List[str]] = None, 
+                policies: Optional[List[str]] = None,
                 headers: Optional[Dict] = None,
                 content_type: str = "application/json"):
         logger.info(f"[EdcService] Performing POST request to {counter_party_address}{path}")

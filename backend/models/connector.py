@@ -1,7 +1,7 @@
 import base64
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 ## Define here the search parameters or filters 
 class DigitalTwinRegistry(BaseModel):
@@ -13,6 +13,11 @@ class SubModelServer(BaseModel):
     credentials: str
 
 class Connector(BaseModel):
+    # Accept arbitrary extra fields so new dataspace components can be gated /
+    # mapped from configuration (e.g. a component's `deployWhen: <field>.url`)
+    # without adding a model field for each one.
+    model_config = ConfigDict(extra="allow")
+
     name: str
     bpn: str
     version: str
