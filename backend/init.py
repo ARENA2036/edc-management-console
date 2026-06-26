@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth.keycloak_config import keycloak_openid
 
-from models.connector import Connector
+from models.connector import Connector, DeploymentRequest
 from models.database import ConnectorDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
@@ -134,19 +134,21 @@ async def list_connectors(request: Request):
         json_list: list = []
         for cnctor in existingDeployments:
             connectorMap[cnctor.name] = cnctor
-            status = edcManager.check_health('https://' + cnctor.cp_hostname)
-            logger.info("Health check status %s", status)
-            cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
-            databaseManager.update_connector(cnctor)
-            
+
             url_list = []
-            for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
-                url_list.append(
-                    'https://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
-                )
-            if len(cnctor.registry) != 0:
+            # Only connector rows carry a control-plane host to health-check / build URLs from.
+            if cnctor.cp_hostname:
+                status = edcManager.check_health('https://' + cnctor.cp_hostname)
+                logger.info("Health check status %s", status)
+                cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
+                databaseManager.update_connector(cnctor)
+                for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
+                    url_list.append(
+                        'https://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
+                    )
+            if cnctor.registry:
                 url_list.append(f'https://{cnctor.registry}/semantics/registry/')
-            if len(cnctor.submodel) != 0:
+            if cnctor.submodel:
                 url_list.append(f'https://{cnctor.submodel}/')
 
             connector_dict = cnctor.to_dict()
@@ -179,20 +181,24 @@ async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_curr
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.post("/api/connector", tags=["EDC"])
-async def add_connector(connector: Connector, request: Request):
+async def add_connector(payload: DeploymentRequest, request: Request):
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
-        #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
-        #We can then call the endpoint when the user clicks on the DeployEDC button itself.
-        logger.info(connector)
+        logger.info(payload)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+        cp_host = app_configuration.get("connector", {}).get("hostname", {}).get("controlplane")
+        dp_host = app_configuration.get("connector", {}).get("hostname", {}).get("dataplane")
 
-        # Deploy the connector plus every component whose `deployWhen` condition
-        # the request satisfies (gating is entirely config-driven).
-        for component in edcManager.deployments_for(connector):
-            plan = edcManager.prepare_deployment(component, connector)
+        deployed = []
+        for comp in payload.components:
+            # Gate: a component is deployed only when present with data (type + name).
+            # Empty / typeless / nameless entries are optional and skipped.
+            if not comp.type or not comp.name:
+                continue
+
+            plan = edcManager.prepare_deployment(comp.type, comp)
             if "error" in plan:
                 raise Exception(plan["error"])
             await edcService.install_or_upgrade(
@@ -203,42 +209,39 @@ async def add_connector(connector: Connector, request: Request):
                 values=plan["values"],
                 namespace=namespace,
             )
+            deployed.append({"type": comp.type, "name": comp.name,
+                             "release": plan["release_name"], "version": plan["version"]})
 
-        connector_db = databaseManager.get_connector_by_name(connector.name)
-        if connector_db is None:
-            logger.info(f"Entry not found in database, creating entry for {connector.name}")
+            # Persist each deployed component as its own row (keyed by its name).
+            auth = getattr(comp, "auth", None) or {}
+            record = databaseManager.get_connector_by_name(comp.name)
+            row_config = {"type": comp.type, "release": plan["release_name"], "chart": plan["chart"]}
+            if record is None:
+                record = ConnectorDB(
+                    id=str(uuid.uuid4()),
+                    name=comp.name,
+                    bpn=getattr(comp, "bpn", "") or "",
+                    url=getattr(comp, "url", "") or "",
+                    version=plan["version"] or "",
+                    namespace=namespace,
+                    status="healthy",
+                    config=row_config,
+                    # cp/dp hostnames only apply to the connector itself.
+                    cp_hostname=(f"{comp.name}-{cp_host}" if comp.type == "connector" and cp_host else None),
+                    dp_hostname=(f"{comp.name}-{dp_host}" if comp.type == "connector" and dp_host else None),
+                    db_name='edc',
+                    db_username=auth.get("db_username"),
+                    db_password=auth.get("db_password"),
+                    registry="",
+                    submodel="",
+                )
+                databaseManager.create_connector(connector=record)
+            else:
+                record.config = row_config
+                record.status = "healthy"
+                databaseManager.update_connector(record)
 
-            # dtr_db = DigitalTwinRegistryDB(
-            #     url=connector.registry.url,
-            #     credentials=connector.registry.credentials
-            # )
-
-            # submodel_db = SubModelServerDB(
-            #     url=connector.submodel.url,
-            #     credentials=connector.submodel.credentials
-            # )
-            connector_db = ConnectorDB(
-                id=str(uuid.uuid4()),
-                name=connector.name,
-                bpn=connector.bpn,
-                url = connector.url,
-                version = connector.version,
-                namespace = namespace,
-                status = "healthy",
-                cp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("controlplane"),
-                dp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("dataplane"),
-                db_name = 'edc',
-                db_username = connector.db_username,
-                db_password = connector.db_password,
-                registry=connector.registry.url if connector.registry else "",
-                submodel=connector.submodel.url if connector.submodel else ""
-            )
-            connector_db = databaseManager.create_connector(connector=connector_db)
-
-        return HttpUtils.response(
-            status=200,
-            data=connector_db.to_dict()
-        )
+        return HttpUtils.response(status=200, data={"deployed": deployed})
 
     except Exception as e:
         logger.exception(str(e))

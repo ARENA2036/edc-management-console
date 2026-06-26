@@ -21,7 +21,9 @@ class Connector(BaseModel):
     name: str
     bpn: str
     version: str
-    url: str
+    # Optional: the connector itself is only deployed when an endpoint url is
+    # given (components.connector.deployWhen: url). Absent/empty -> connector skipped.
+    url: Optional[str] = None
     iatp_id: Optional[str] = None
     trustedIssuers: Optional[str] = None
     sts_dim_url: Optional[str] = None
@@ -36,3 +38,24 @@ class Connector(BaseModel):
     db_password: Optional[str] = ""
     registry: Optional[DigitalTwinRegistry] = None
     submodel: Optional[SubModelServer] = None
+
+
+class ComponentRequest(BaseModel):
+    """A single component to deploy. `type` selects the config under
+    `components.<type>`; every other field (name, version, url, bpn, auth, ...)
+    is the deployment source and is read by that component's value mappings.
+    Extra fields are allowed so the payload can carry anything the mappings need.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    type: str
+    name: Optional[str] = None
+
+
+class DeploymentRequest(BaseModel):
+    """The deploy payload: a list of components. A component is deployed when it
+    is present with data; an empty/typeless/nameless entry is skipped (optional).
+    """
+    model_config = ConfigDict(extra="allow")
+
+    components: List[ComponentRequest] = []
