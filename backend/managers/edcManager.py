@@ -76,6 +76,48 @@ class EdcManager:
             logger.error("[EdcManager] Failed to query %s at %s: %s", endpoint_key, target, e)
             return {"error": str(e)}
 
+    def _http_status(self, url: str) -> Optional[int]:
+        """GET a URL and return its HTTP status code, or None if unreachable."""
+        try:
+            return requests.get(url, timeout=5, verify=False).status_code
+        except Exception as e:
+            logger.warning("[EdcManager] Health probe failed for %s: %s", url, e)
+            return None
+
+    @staticmethod
+    def _with_scheme(url: str) -> str:
+        return url if url.startswith(("http://", "https://")) else "https://" + url
+
+    def component_health(self, record) -> Dict:
+        """Health of a single deployed component (a persisted ConnectorDB row).
+
+        Type-aware: the connector is probed via its EDC liveness/readiness
+        endpoints on the control plane; every other component via a simple HTTP
+        reachability check of its ingress ``url`` plus the component's configured
+        ``healthPath`` (a response with status < 500 means the ingress + pod are
+        serving). Returns a normalized dict ``{name, type, healthy, url, details}``
+        so the frontend can poll any component the same way.
+        """
+        config = record.config or {}
+        ctype = config.get("type") or ("connector" if record.cp_hostname else None)
+        result = {"name": record.name, "type": ctype, "healthy": False, "url": None, "details": {}}
+
+        if ctype == "connector" and record.cp_hostname:
+            health = self.check_health("https://" + record.cp_hostname)
+            result["url"] = health["url"]
+            result["healthy"] = health["healthy"]
+            result["details"] = {"liveness": health["liveness"], "readiness": health["readiness"]}
+            return result
+
+        if record.url:
+            health_path = self.components.get(ctype, {}).get("healthPath", "/")
+            target = self._with_scheme(record.url) + health_path
+            status = self._http_status(target)
+            result["url"] = target
+            result["healthy"] = status is not None and status < 500
+            result["details"] = {"status_code": status}
+        return result
+
     def get_assets(self, connector_url: Optional[str] = None) -> Dict:
         return self._edc_query(connector_url, "assets", "/v3/assets")
 

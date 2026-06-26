@@ -224,18 +224,21 @@ components:
   submodelServer:
     releaseName: "{name}"             # the component's own name
     version: "{version}"              # the component's own version
+    healthPath: "/actuator/health/liveness"                   # reachability probe path appended to the ingress url
     chart:
-      name: simple-data-backend
-      repo: tractusx-dev
+      # This config would be used for local deployment without Docker
+      # name: simple-data-backend
+      # repo: tractusx-dev
+
       # Deploy from the LOCAL chart copy in config/ (patched with probe enable
       # toggles) instead of pulling simple-data-backend from the repo. Having path issues on windows, 
       # but should be working inside container
-      # directory: config/simple-data-backend
+      directory: config/simple-data-backend
     # Base values come from config/submodelserver-templates (NOT the chart default).
-    # templatesDir: config/submodelserver-templates
+    templatesDir: config/submodelserver-templates
     versions:
       - version: "0.1.0"
-        #valuesYaml: /values-0.1.0.yaml used to deploy local chart
+        valuesYaml: /values-0.1.0.yaml
     derive:
       # simple-data-backend has NO certManager field — TLS is issued via the
       # cert-manager annotation. external-dns points at this component's own host.
@@ -273,6 +276,7 @@ components:
   digitalTwinRegistry:
     releaseName: "{name}"             # the component's own name
     version: "{version}"             # the component's own version
+    healthPath: "/semantics/registry/"   # reachability probe path appended to the ingress url
     chart:
       name: digital-twin-registry
       repo: tractusx-dev
