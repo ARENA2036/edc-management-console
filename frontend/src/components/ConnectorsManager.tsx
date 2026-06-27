@@ -1,4 +1,4 @@
-import { FileText, MoreHorizontal, Plus, Trash2, Zap } from 'lucide-react';
+import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
@@ -12,6 +12,7 @@ interface Props {
   components: ManagedComponent[];
   onDelete: (connector: DashboardConnector) => Promise<void> | void;
   onAddComponent: (connector: DashboardConnector) => void;
+  onEditConnector: (connector: DashboardConnector) => void;
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -40,6 +41,7 @@ export default function ConnectorsManager({
   components,
   onDelete,
   onAddComponent,
+  onEditConnector,
 }: Props) {
   const { language, t } = useI18n();
   const [selectedConnector, setSelectedConnector] = useState<DashboardConnector | null>(null);
@@ -156,6 +158,20 @@ export default function ConnectorsManager({
                             className="rounded-lg p-2 text-orange-500 transition-colors hover:bg-orange-50"
                           >
                             <FileText size={16} />
+                          </button>
+                        </Tooltip>
+                        <Tooltip
+                          content={
+                            language === 'de'
+                              ? 'EDC und verknüpfte Komponenten ändern'
+                              : 'Edit the EDC and its linked components'
+                          }
+                        >
+                          <button
+                            onClick={() => onEditConnector(connector)}
+                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
+                          >
+                            <PencilLine size={16} />
                           </button>
                         </Tooltip>
                         <Tooltip

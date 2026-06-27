@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Connector } from '../types';
 import { connectorApi } from '../api/client';
+import { buildDeployRequest } from '../utils/deployment';
 
 interface Props {
   connector: Connector;
@@ -19,7 +20,36 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
     e.preventDefault();
     setLoading(true);
     try {
-      await connectorApi.update(connector.id, { name, url, bpn: bpn || undefined });
+      await connectorApi.update(
+        connector.id,
+        buildDeployRequest({
+          connector: {
+            name,
+            version: connector.version || '0.11.2',
+            url,
+            bpn: bpn || '',
+            dataPlaneUrl: connector.dp_hostname || '',
+          },
+          submodelServer: {
+            enabled: false,
+            name: '',
+            version: '0.1.0',
+            url: '',
+            dbName: '',
+            username: '',
+            password: '',
+          },
+          digitalTwinRegistry: {
+            enabled: false,
+            name: '',
+            version: '0.12.0',
+            url: '',
+            dbName: '',
+            username: '',
+            password: '',
+          },
+        }),
+      );
       onUpdated();
     } catch (error) {
       console.error('Failed to update connector:', error);

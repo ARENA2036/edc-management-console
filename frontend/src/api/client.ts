@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
+import type { DeployRequest } from '../types';
 
 const backendUrl = getRuntimeConfigValue(
   import.meta.env.VITE_BACKEND_URL,
@@ -42,8 +43,8 @@ export const edcClient = (name: string) => {
 export const connectorApi = {
   getAll: () => apiClient.get('/connectors'),
   getById: (id: number) => apiClient.get(`/connectors/${id}`),
-  create: (data: any) => apiClient.post('/connector', data),
-  update: (id: number, data: any) => apiClient.put(`/connectors/${id}`, data),
+  create: (data: DeployRequest) => apiClient.post('/connector', data),
+  update: (id: number, data: DeployRequest) => apiClient.put(`/connectors/${id}`, data),
   delete: (name: string) => apiClient.delete(`/connectors/${name}`),
   checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
 };
