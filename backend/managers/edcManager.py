@@ -225,6 +225,8 @@ class EdcManager:
 
         values_yaml = (entry or cfg).get("valuesYaml", "")
         template_path = (cfg.get("templatesDir", "") + values_yaml) if values_yaml else None
+        logger.info("Component = %s", component)
+        logger.info("cfg = %s", cfg)
         mappings = (merge_value_mappings(cfg.get("valueMappings"), entry.get("valueMappings"))
                     if entry else cfg.get("valueMappings", []))
 

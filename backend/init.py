@@ -200,7 +200,7 @@ async def get_component_health(connector_name: str, request: Request):
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
         health = edcManager.component_health(record)
-        record.status = "healthy" if health.get("healthy") else "unhealthy"
+        record.status = "healthy" if health.get("healthy") else "deploying"
         databaseManager.update_connector(record)
         return HttpUtils.response(status=200, data=health)
     except Exception as e:
@@ -242,7 +242,7 @@ def _upsert_component_row(comp, plan, namespace):
             url=getattr(comp, "url", "") or "",
             version=plan["version"] or "",
             namespace=namespace,
-            status="healthy",
+            status="deploying",
             config=row_config,
             cp_hostname=(f"{comp.name}-{cp_host}" if comp.type == "connector" and cp_host else None),
             dp_hostname=(f"{comp.name}-{dp_host}" if comp.type == "connector" and dp_host else None),
