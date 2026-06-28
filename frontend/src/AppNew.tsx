@@ -8,8 +8,9 @@ import {
   SquareActivity,
 } from 'lucide-react';
 import { activityApi, connectorApi, dataspaceApi } from './api/client';
-import type { ActivityLog, DashboardConnector, DeployRequest, ManagedComponent, DeployComponent } from './types';
+import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
+import { buildDeployRequest, buildStandaloneConnector, buildManagedComponentFromDraft, type DeploymentDraft } from './utils/deployment';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -333,6 +334,10 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const [dataspaceBpn, setDataspaceBpn] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
+  const [deploymentTarget, setDeploymentTarget] = useState<{
+    connector?: DashboardConnector;
+    mode: 'create' | 'edit';
+  }>({ mode: 'create' });
   const [showComponentWizard, setShowComponentWizard] = useState(false);
   const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
     linkedConnector?: string;
@@ -373,94 +378,81 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     return () => clearInterval(interval);
   }, [t]);
 
-  const persistConnector = async (
+  const updateLocalConnectorState = (
     connector: DashboardConnector,
-    deployDtr = false,
-    deploySubmodel = false
+    draft: DeploymentDraft,
   ) => {
-    const updatedConnectors = mergeConnectors([], [
-      ...readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []),
-      connector,
-    ]);
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, updatedConnectors);
-    setConnectors(updatedConnectors);
+    const storedConnectors = readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []);
+    const nextConnector = {
+      ...connector,
+      name: draft.connector.name,
+      url: draft.connector.url,
+      bpn: draft.connector.bpn,
+      version: draft.connector.version,
+      cp_hostname: draft.connector.url,
+      dp_hostname: draft.connector.dataPlaneUrl,
+      db_username: `${draft.connector.name}-username`,
+      db_password: `${draft.connector.name}-password`,
+      config: {
+        ...(connector.config || {}),
+        connectorType: 'EDC Connector',
+        endpoint: draft.connector.url,
+        dataPlaneUrl: draft.connector.dataPlaneUrl,
+        bpn: draft.connector.bpn,
+        version: draft.connector.version,
+        dbName: `${draft.connector.name}-db`,
+      },
+      source: connector.source || 'local',
+    } as DashboardConnector;
 
-    try {
-      const components: DeployComponent[] = [
-        {
-          type: "connector",
-          name: connector.name,
-          bpn: connector.bpn!,
-          version: connector.version!,
-          url: connector.url,
-          db_name: `${connector.name}-db`,
-          auth: {
-            db_username:
-              connector.db_username || `${connector.name}-username`,
-            db_password:
-              connector.db_password || `${connector.name}-password`,
-          },
-        },
-      ];
+    const nextConnectors = deploymentTarget.connector
+      ? storedConnectors.map((item) => (
+        item.id === connector.id || item.name === connector.name ? nextConnector : item
+      ))
+      : mergeConnectors([nextConnector], storedConnectors);
 
-      if (deployDtr) {
-        console.log("deployDtr:", deployDtr);
-        components.push({
-          type: "digitalTwinRegistry",
-          name: `${connector.name}-dtr`,
-          version: "0.12.0",
-          url: `${connector.name}.txcd.arena2036-x.de`,
-          db_name: `${connector.name}-dtr-db`,
-          auth: {
-            db_username:
-              connector.db_username || `${connector.name}-username`,
-            db_password:
-              connector.db_password || `${connector.name}-password`,
-          },
-        });
-      }
+    saveLocalStorage(CONNECTORS_STORAGE_KEY, nextConnectors);
+    setConnectors(nextConnectors);
 
-      if (deploySubmodel) {
-        console.log("deploySubmodel:", deploySubmodel);
-        components.push({
-          type: "submodelServer",
-          name: `${connector.name}-sms`,
-          version: "0.1.0",
-          url: `${connector.name}.txcd.arena2036-x.de`,
-          db_name: `${connector.name}-sb-db`,
-          auth: {
-            db_username:
-              connector.db_username || `${connector.name}-username`,
-            db_password:
-              connector.db_password || `${connector.name}-password`,
-          },
-        });
-      }
+    const currentComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const keptComponents = currentComponents.filter((component) => {
+      return component.linkedConnector !== connector.name
+        && component.linkedConnector !== draft.connector.name;
+    });
 
-      const request: DeployRequest = {
-        components,
-      };
-      console.log(JSON.stringify(request, null, 2));
-      await connectorApi.create(request);
-    } catch (error) {
-      console.error('Failed to deploy connector:', error);
+    const updatedComponents = [...keptComponents];
+    if (draft.submodelServer.enabled) {
+      updatedComponents.push(
+        buildManagedComponentFromDraft('submodelServer', draft.submodelServer, draft.connector.name),
+      );
+    }
+    if (draft.digitalTwinRegistry.enabled) {
+      updatedComponents.push(
+        buildManagedComponentFromDraft('digitalTwinRegistry', draft.digitalTwinRegistry, draft.connector.name),
+      );
     }
 
-    await loadConnectors();
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    setComponents(updatedComponents);
   };
 
-  const handleDeployConnector = async (connector: DashboardConnector) => {
-    await persistConnector(connector);
+  const handleDeployConnector = async (draft: DeploymentDraft) => {
+    const request = buildDeployRequest(draft);
+    const activeTarget = deploymentTarget.connector;
+
+    if (activeTarget) {
+      await connectorApi.update(activeTarget.id, request);
+      updateLocalConnectorState(activeTarget, draft);
+    } else {
+      await connectorApi.create(request);
+      updateLocalConnectorState(
+        buildStandaloneConnector(draft.connector),
+        draft,
+      );
+    }
+
     setShowDeploymentWizard(false);
-  };
-
-  const handleDeployConnectorAndAddComponent = async (
-    request: DeployRequest
-  ) => {
-    await connectorApi.create(request);
-
-    setShowDeploymentWizard(false);
-
+    setDeploymentTarget({ mode: 'create' });
     await loadConnectors();
   };
 
@@ -495,6 +487,11 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     const updatedComponents = components.filter((component) => component.id !== componentId);
     setComponents(updatedComponents);
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+  };
+
+  const openConnectorWizard = (connector?: DashboardConnector) => {
+    setDeploymentTarget(connector ? { connector, mode: 'edit' } : { mode: 'create' });
+    setShowDeploymentWizard(true);
   };
 
   const openComponentWizard = (linkedConnector?: string) => {
@@ -674,6 +671,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             components={components}
             onDelete={handleDeleteConnector}
             onAddComponent={(connector) => openComponentWizard(connector.name)}
+            onEditConnector={(connector) => openConnectorWizard(connector)}
           />
           <ComponentsManager
             components={components}
@@ -701,9 +699,20 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
       <DeploymentWizard
         open={showDeploymentWizard}
-        onOpenChange={setShowDeploymentWizard}
-        onDeploy={handleDeployConnector}
-        onDeployAndAddComponent={handleDeployConnectorAndAddComponent}
+        onOpenChange={(open) => {
+          setShowDeploymentWizard(open);
+          if (!open) {
+            setDeploymentTarget({ mode: 'create' });
+          }
+        }}
+        onSubmit={handleDeployConnector}
+        initialConnector={deploymentTarget.connector}
+        initialComponents={components.filter(
+          (component) =>
+            deploymentTarget.connector
+              ? component.linkedConnector === deploymentTarget.connector.name
+              : false,
+        )}
         prefilledBpn={dataspaceBpn || sessionBpn}
       />
 

@@ -145,13 +145,7 @@ export default function ComponentWizard({
     "installing" | "health" | "ready"
   >("installing");
 
-  const eligibleConnectors = connectors.filter(connector => {
-    if (componentType.type === "digitalTwinRegistry") {
-      return !connector.registry;
-    }
-
-    return !connector.submodel;
-  });
+  const eligibleConnectors = connectors;
 
   useEffect(() => {
     if (!open) {
@@ -160,11 +154,6 @@ export default function ComponentWizard({
 
     if (initialLinkedConnector) {
       setLinkedConnector(initialLinkedConnector);
-      return;
-    }
-
-    if (eligibleConnectors.length > 0 && !linkedConnector) {
-      setLinkedConnector(eligibleConnectors[0].name);
     }
   }, [eligibleConnectors, initialLinkedConnector, linkedConnector, open]);
 
@@ -172,7 +161,7 @@ export default function ComponentWizard({
     setStep(1);
     setComponentType(componentTypes[0]);
     setName('');
-    setLinkedConnector(initialLinkedConnector ?? eligibleConnectors[0]?.name ?? '');
+    setLinkedConnector(initialLinkedConnector ?? '');
     setConnectionMode('new');
     setExistingEndpoint('');
     setExistingCredentials('');
@@ -188,7 +177,6 @@ export default function ComponentWizard({
       ? Boolean(componentType)
       : Boolean(
         name.trim() &&
-        linkedConnector &&
         (connectionMode === 'new' || existingEndpoint.trim()),
       );
 
@@ -254,7 +242,7 @@ export default function ComponentWizard({
         where:
           'Diese Informationen kommen häufig vom Service-Verantwortlichen, aus Helm-/Kubernetes-Werten, API-Dokumentation oder aus Ihrem Plattform-Wiki.',
         restriction:
-          'Services werden erst nach dem EDC-Deployment verknüpft. Wählen Sie also zuerst einen bestehenden Connector als Basis aus.',
+          'Services können eigenständig deployt oder mit einem vorhandenen Connector verknüpft werden, wenn Sie einen unten auswählen.',
       }
       : {
         choose:
@@ -264,7 +252,7 @@ export default function ComponentWizard({
         where:
           'These values often come from the service owner, Helm or Kubernetes values, API documentation or your platform wiki.',
         restriction:
-          'Services are linked only after the EDC deployment. Choose an existing connector first and then decide whether to deploy a new service or connect an existing one.',
+          'Services can be deployed independently or linked to an existing connector if you choose one below.',
       };
 
   return (
@@ -402,18 +390,14 @@ export default function ComponentWizard({
                       <select
                         value={linkedConnector}
                         onChange={(event) => setLinkedConnector(event.target.value)}
-                        disabled={eligibleConnectors.length === 0}
                         className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-gray-900 outline-none transition-colors focus:border-blue-400 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-800"
                       >
-                        {eligibleConnectors.length === 0 ? (
-                          <option>{t('linkedConnectorPlaceholder')}</option>
-                        ) : (
-                          eligibleConnectors.map((connector) => (
-                            <option key={connector.id} value={connector.name}>
-                              {connector.name} ({getConnectorType(connector)})
-                            </option>
-                          ))
-                        )}
+                        <option value="">{language === 'de' ? 'Ohne Connector' : 'Standalone / no connector'}</option>
+                        {eligibleConnectors.map((connector) => (
+                          <option key={connector.id} value={connector.name}>
+                            {connector.name} ({getConnectorType(connector)})
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown
                         size={18}
@@ -457,8 +441,8 @@ export default function ComponentWizard({
                         </p>
                         <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
                           {language === 'de'
-                            ? 'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service.'
-                            : 'Use an already running DTR or submodel service.'}
+                            ? 'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service oder registrieren Sie ihn hier als eigenständige Komponente.'
+                            : 'Use an already running DTR or submodel service, or register it here as a standalone component.'}
                         </p>
                       </button>
                     </div>
@@ -527,7 +511,7 @@ export default function ComponentWizard({
               </button>
               <button
                 onClick={step === 1 ? () => setStep(2) : handleDeploy}
-                disabled={!canContinue || eligibleConnectors.length === 0}
+                disabled={!canContinue}
                 className="rounded-lg bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
                 {step === 1 ? t('continue') : t('deployNow')}

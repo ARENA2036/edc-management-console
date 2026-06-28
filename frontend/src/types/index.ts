@@ -53,6 +53,11 @@ export interface DeployRequest {
   components: DeployComponent[];
 }
 
+export interface DeploymentState {
+  open: boolean;
+  mode: 'create' | 'edit';
+}
+
 export interface ManagedComponent {
   id: string;
 
