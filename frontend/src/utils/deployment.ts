@@ -127,7 +127,7 @@ export function buildManagedComponentFromDraft(
     type,
     name: trimOrEmpty(draft.name),
     version: trimOrEmpty(draft.version),
-    status: 'Deploying',
+    status: 'Active',
     linkedConnector,
     deployedAt: new Date().toISOString(),
     connectionMode: 'new',

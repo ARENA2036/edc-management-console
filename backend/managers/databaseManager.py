@@ -59,12 +59,29 @@ class DatabaseManager:
         try:
             existing = session.query(ConnectorDB).filter(ConnectorDB.id == connector.id).first()
             if existing:
+                existing.name = connector.name
+                existing.url = connector.url
+                existing.bpn = connector.bpn
+                existing.chart = connector.chart
+                existing.version = connector.version
+                existing.namespace = connector.namespace
                 existing.status = connector.status
+                existing.config = connector.config
+                existing.iatp_id = connector.iatp_id
+                existing.cp_hostname = connector.cp_hostname
+                existing.dp_hostname = connector.dp_hostname
+                existing.db_name = connector.db_name
+                existing.db_username = connector.db_username
+                existing.db_password = connector.db_password
+                existing.created_by = connector.created_by
+                existing.registry = connector.registry
+                existing.submodel = connector.submodel
                 session.add(existing)
                 session.commit()
                 session.refresh(existing)
                 logger.info(f"[DatabaseManager] Updated connector: {connector.name}")
-            return connector
+                return existing
+            return None
         finally:
             session.close()
 

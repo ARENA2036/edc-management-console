@@ -102,6 +102,33 @@ logger.info("[INIT] All managers initialized successfully!")
 # API ROUTES
 # ------------------------------------------------------------
 
+
+def _record_type(record: ConnectorDB) -> str:
+    config_type = (record.config or {}).get("type")
+    if isinstance(config_type, str) and config_type:
+        return config_type
+    if record.cp_hostname:
+        return "connector"
+    return ""
+
+
+def _linked_connector_name(record: ConnectorDB) -> str:
+    config = record.config or {}
+    linked = config.get("linkedConnector")
+    if isinstance(linked, str) and linked:
+        return linked
+    if _record_type(record) == "connector":
+        return record.name
+    return ""
+
+
+def _is_linked_to_connector(record: ConnectorDB, connector_name: str) -> bool:
+    linked = _linked_connector_name(record)
+    if linked:
+        return linked == connector_name
+    # Backward compatibility for rows created before linkedConnector was persisted.
+    return record.name.startswith(connector_name + "-")
+
 @app.get("/health")
 def get_health():
     """
@@ -140,7 +167,7 @@ async def list_connectors(request: Request):
             if cnctor.cp_hostname:
                 status = edcManager.check_health('https://' + cnctor.cp_hostname)
                 logger.info("Health check status %s", status)
-                cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
+                cnctor.status = "active"
                 databaseManager.update_connector(cnctor)
                 for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
                     url_list.append(
@@ -178,7 +205,7 @@ async def all_components_health(request: Request):
         results = []
         for record in databaseManager.get_all_connectors():
             health = edcManager.component_health(record)
-            record.status = "healthy" if health.get("healthy") else "unhealthy"
+            record.status = "active"
             databaseManager.update_connector(record)
             results.append(health)
 
@@ -200,7 +227,7 @@ async def get_component_health(connector_name: str, request: Request):
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
         health = edcManager.component_health(record)
-        record.status = "healthy" if health.get("healthy") else "deploying"
+        record.status = "active"
         databaseManager.update_connector(record)
         return HttpUtils.response(status=200, data=health)
     except Exception as e:
@@ -221,7 +248,7 @@ async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_curr
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-def _upsert_component_row(comp, plan, namespace):
+def _upsert_component_row(comp, plan, namespace, linked_connector):
     """Create or refresh the ConnectorDB row for one deployed component.
 
     Each component is persisted as its own row keyed by its `name`; `config`
@@ -231,7 +258,12 @@ def _upsert_component_row(comp, plan, namespace):
     cp_host = app_configuration.get("connector", {}).get("hostname", {}).get("controlplane")
     dp_host = app_configuration.get("connector", {}).get("hostname", {}).get("dataplane")
     auth = getattr(comp, "auth", None) or {}
-    row_config = {"type": comp.type, "release": plan["release_name"], "chart": plan["chart"]}
+    row_config = {
+        "type": comp.type,
+        "release": plan["release_name"],
+        "chart": plan["chart"],
+        "linkedConnector": linked_connector,
+    }
 
     record = databaseManager.get_connector_by_name(comp.name)
     if record is None:
@@ -242,7 +274,7 @@ def _upsert_component_row(comp, plan, namespace):
             url=getattr(comp, "url", "") or "",
             version=plan["version"] or "",
             namespace=namespace,
-            status="deploying",
+            status="active",
             config=row_config,
             cp_hostname=(f"{comp.name}-{cp_host}" if comp.type == "connector" and cp_host else None),
             dp_hostname=(f"{comp.name}-{dp_host}" if comp.type == "connector" and dp_host else None),
@@ -262,7 +294,7 @@ def _upsert_component_row(comp, plan, namespace):
     record.db_name = getattr(comp, "db_name", record.db_name) or record.db_name
     record.db_username = auth.get("db_username", record.db_username)
     record.db_password = auth.get("db_password", record.db_password)
-    record.status = "healthy"
+    record.status = "active"
     return databaseManager.update_connector(record)
 
 
@@ -272,6 +304,8 @@ async def _deploy_components(components, namespace):
     empty/optional slot and is skipped. Shared by POST (create) and PUT (upgrade)
     since Helm install-or-upgrade is the same operation either way."""
     deployed = []
+    connector_name = next((comp.name for comp in components if comp.type == "connector"), "")
+    desired_component_names = {comp.name for comp in components if comp.type != "connector"}
     for comp in components:
         if not comp.type or not comp.name:
             continue
@@ -286,9 +320,24 @@ async def _deploy_components(components, namespace):
             values=plan["values"],
             namespace=namespace,
         )
-        _upsert_component_row(comp, plan, namespace)
+        linked_connector = connector_name if comp.type != "connector" else comp.name
+        _upsert_component_row(comp, plan, namespace, linked_connector)
         deployed.append({"type": comp.type, "name": comp.name,
                          "release": plan["release_name"], "version": plan["version"]})
+
+    if connector_name:
+        existing_rows = databaseManager.get_all_connectors()
+        rows_to_remove = [
+            row for row in existing_rows
+            if _record_type(row) != "connector"
+            and _is_linked_to_connector(row, connector_name)
+            and row.name not in desired_component_names
+        ]
+        for row in rows_to_remove:
+            release_name = (row.config or {}).get("release") or row.name
+            await edcService.uninstall(release_name=release_name, namespace=row.namespace or namespace)
+            databaseManager.delete_connector(connector_id=row.id)
+
     return deployed
 
 
@@ -328,9 +377,7 @@ async def upgrade_connector(connector_id: str, payload: DeploymentRequest, reque
 
 @app.delete("/api/connectors/{connector_name}", tags=["EDC"])
 async def delete_connector(connector_name: str, request: Request):
-    """Uninstall a single deployed component (one DB row) and remove its record.
-    Each component is its own release, so this uninstalls the release recorded on
-    the row (falling back to the row name) and deletes that row only."""
+    """Delete one row by name; if it is an EDC connector, delete linked components too."""
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
@@ -341,16 +388,25 @@ async def delete_connector(connector_name: str, request: Request):
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        # The component's own release (recorded at deploy time); falls back to its
-        # name. Uninstalling a release that was never created is a harmless no-op.
-        release_name = (record.config or {}).get("release") or record.name
-        await edcService.uninstall(release_name=release_name, namespace=namespace)
+        targets = [record]
+        if _record_type(record) == "connector":
+            linked = [
+                row for row in databaseManager.get_all_connectors()
+                if _record_type(row) != "connector" and _is_linked_to_connector(row, record.name)
+            ]
+            targets.extend(linked)
 
-        databaseManager.delete_connector(connector_id=record.id)
+        for target in targets:
+            release_name = (target.config or {}).get("release") or target.name
+            await edcService.uninstall(
+                release_name=release_name,
+                namespace=target.namespace or namespace,
+            )
+            databaseManager.delete_connector(connector_id=target.id)
 
         return HttpUtils.response(
             status=200,
-            message=f"Component '{record.name}' uninstalled")
+            message=f"Deleted '{record.name}' and {len(targets) - 1} linked component(s)")
 
     except Exception as e:
         logger.exception(str(e))

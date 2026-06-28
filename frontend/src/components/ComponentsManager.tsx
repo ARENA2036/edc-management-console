@@ -1,11 +1,11 @@
-import { Boxes, MoreHorizontal, PencilLine, Trash2, X } from 'lucide-react';
+import { Boxes, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
 
 function ComponentStatusBadge({ status }: { status: string }) {
-  if (status === 'Active' || status === 'healthy') {
+  if (status === 'Active' || status === 'active' || status === 'healthy') {
     return (
       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
         Active
@@ -35,7 +35,7 @@ function ComponentStatusBadge({ status }: { status: string }) {
 
 interface Props {
   components: ManagedComponent[];
-  onDelete: (componentId: string) => void;
+  onDelete: (component: ManagedComponent) => Promise<void> | void;
 }
 
 function ComponentDetailsModal({
@@ -242,14 +242,6 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <Tooltip content={t('tableManage')}>
-                          <button
-                            onClick={() => setSelectedComponent(component)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
-                          >
-                            <PencilLine size={16} />
-                          </button>
-                        </Tooltip>
                         <Tooltip
                           content={
                             language === 'de'
@@ -294,7 +286,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
           component={componentToDelete}
           onClose={() => setComponentToDelete(null)}
           onConfirm={() => {
-            onDelete(componentToDelete.id);
+            void onDelete(componentToDelete);
             setComponentToDelete(null);
           }}
         />

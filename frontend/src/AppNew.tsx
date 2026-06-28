@@ -206,9 +206,15 @@ function getComponentType(
  * heuristic (e.g. "beku-sms" → "beku", "beku-dtr" → "beku").
  */
 function inferLinkedConnector(
-  componentName: string,
+  row: DashboardConnector,
   edcConnectors: DashboardConnector[],
 ): string {
+  const linkedFromConfig = (row.config as Record<string, unknown> | undefined)?.linkedConnector;
+  if (typeof linkedFromConfig === 'string' && linkedFromConfig.length > 0) {
+    return linkedFromConfig;
+  }
+
+  const componentName = row.name;
   for (const connector of edcConnectors) {
     if (
       componentName.startsWith(connector.name + '-') ||
@@ -226,12 +232,13 @@ function apiRowToManagedComponent(
   type: 'digitalTwinRegistry' | 'submodelServer',
   linkedConnector: string,
 ): ManagedComponent {
+  const status = row.status?.toLowerCase() === 'deploying' ? 'Deploying' : 'Active';
   return {
     id: `${type}-${row.name}-api`,
     type,
     name: row.name,
     version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.1.0'),
-    status: (row.status as ManagedComponent['status']) || 'Active',
+    status,
     linkedConnector,
     deployedAt: row.created_at || new Date().toISOString(),
     connectionMode: 'new',
@@ -277,7 +284,7 @@ async function fetchConnectors(): Promise<FetchConnectorsResult> {
     const apiComponents: ManagedComponent[] = apiComponentRows.flatMap((row) => {
       const type = getComponentType(row);
       if (!type) return [];
-      const linkedConnector = inferLinkedConnector(row.name, merged);
+      const linkedConnector = inferLinkedConnector(row, merged);
       return [apiRowToManagedComponent(row, type, linkedConnector)];
     });
 
@@ -342,7 +349,7 @@ function formatTimestamp(
 }
 
 function getHealthTone(status: string) {
-  if (status === 'healthy' || status === 'Active') {
+  if (status === 'healthy' || status === 'active' || status === 'Active') {
     return {
       label: 'Healthy',
       badge:
@@ -564,10 +571,22 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
   };
 
-  const handleDeleteComponent = (componentId: string) => {
-    const updatedLocalComponents = localComponents.filter((component) => component.id !== componentId);
+  const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
+    const updatedLocalComponents = localComponents.filter((component) => {
+      return component.id !== componentToDelete.id && component.name !== componentToDelete.name;
+    });
     setLocalComponents(updatedLocalComponents);
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedLocalComponents);
+
+    const isApiComponent = componentToDelete.id.endsWith('-api');
+    if (isApiComponent) {
+      try {
+        await connectorApi.delete(componentToDelete.name);
+      } catch (error) {
+        console.error('Failed to delete component:', error);
+      }
+      await loadConnectors();
+    }
   };
 
   const openConnectorWizard = (connector?: DashboardConnector) => {
