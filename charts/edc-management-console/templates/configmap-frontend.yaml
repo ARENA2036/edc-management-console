@@ -8,10 +8,10 @@ data:
   config.js: |-
     {{- .Values.frontend.configuration | nindent 4 }}
   .env: |-
-    VITE_API_BASE_URL=https://emc-backend.staging.arena2036-x.de
+    VITE_API_BASE_URL=https://emc-backend.txcd.arena2036-x.de
     VITE_API_KEY=emc-api-key
     EDC_HOSTNAME=arena2036-x.de
-    VITE_KEYCLOAK_URL=https://centralidp.staging.arena2036-x.de/auth
+    VITE_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
     VITE_KEYCLOAK_REALM=CX-Central
     VITE_KEYCLOAK_CLIENT_ID=A36-EMC
 {{- end }}
