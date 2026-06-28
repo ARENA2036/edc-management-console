@@ -1,51 +1,95 @@
 #!/bin/bash
 set -e
-
+ 
 # ---- CONFIG ----
-VAULT_ADDR=""
-VAULT_TOKEN=""   # export VAULT_TOKEN before running
-SECRET_PATH="staging/data/cluster"  # KV v2 path
-SECRET_KEY="config"
-CLUSTER_NAME="staging"
-
-
-
+# These must come from environment variables in the pod/Helm values.
+VAULT_ADDR="${VAULT_ADDR:-}"
+VAULT_TOKEN="${VAULT_TOKEN:-}"
+ 
+# Example paths:
+# staging/data/cluster
+# prod/data/cluster
+# ap6/data/cluster
+VAULT_ENV="${VAULT_ENV:-staging}"
+CLUSTER_SECRET="${CLUSTER_SECRET:-cluster}"
+SECRET_PATH="${SECRET_PATH:-${VAULT_ENV}/infra/${CLUSTER_SECRET}}"
+SECRET_KEY="${SECRET_KEY:-config}"
+ 
+# Optional. If empty, the script uses kubeconfig current-context automatically.
+CLUSTER_NAME="${CLUSTER_NAME:-}"
+ 
+KUBECONFIG_PATH="/home/nonroot/.kube/config"
+ 
 # Check if kubectl is installed
-if ! command -v kubectl &> /dev/null; then
+if ! command -v kubectl >/dev/null 2>&1; then
   echo "kubectl could not be found, please install it."
   exit 1
 fi
-
-# Fetch kubeconfig inside container (put in non-root home)
-echo "Fetching kubeconfig for the cluster..."
-mkdir -p /home/nonroot/.kube
-vault login -address=$VAULT_ADDR -method=token $VAULT_TOKEN
-vault kv get -field=config $SECRET_PATH > /home/nonroot/.kube/config
-
-# vault kv get -field=json $SECRET_PATH | jq -r ".data.data.$SECRET_KEY" > /home/nonroot/.kube/config
-
-
-# Persist KUBECONFIG for all future shells
-echo 'export KUBECONFIG=/home/nonroot/.kube/config' >> /home/nonroot/.bashrc
-export KUBECONFIG=/home/nonroot/.kube/config
-
-# List available contexts (for debugging)
-echo "Available contexts:"
-kubectl config get-contexts
-
-# Check if the context exists
-if ! kubectl config get-contexts | grep -q "$CLUSTER_NAME"; then
-  echo "Context '$CLUSTER_NAME' not found!"
+ 
+# Check if vault is installed
+if ! command -v vault >/dev/null 2>&1; then
+  echo "vault could not be found, please install it."
   exit 1
 fi
-
-# Set the current context to the dynamically passed AKS_CLUSTER_NAME
+ 
+# Validate required Vault env vars
+if [ -z "$VAULT_ADDR" ]; then
+  echo "ERROR: VAULT_ADDR is not set"
+  exit 1
+fi
+ 
+if [ -z "$VAULT_TOKEN" ]; then
+  echo "ERROR: VAULT_TOKEN is not set"
+  exit 1
+fi
+ 
+echo "Fetching kubeconfig for the cluster..."
+mkdir -p "$(dirname "$KUBECONFIG_PATH")"
+ 
+# Non-interactive Vault auth.
+# Do NOT run 'vault login' inside the pod.
+export VAULT_ADDR
+export VAULT_TOKEN
+ 
+vault kv get -field="$SECRET_KEY" "$SECRET_PATH" > "$KUBECONFIG_PATH"
+ 
+chmod 600 "$KUBECONFIG_PATH"
+ 
+export KUBECONFIG="$KUBECONFIG_PATH"
+ 
+# Persist KUBECONFIG for future shells
+if [ -f /home/nonroot/.bashrc ]; then
+  if ! grep -q "export KUBECONFIG=$KUBECONFIG_PATH" /home/nonroot/.bashrc; then
+    echo "export KUBECONFIG=$KUBECONFIG_PATH" >> /home/nonroot/.bashrc
+  fi
+else
+  echo "export KUBECONFIG=$KUBECONFIG_PATH" > /home/nonroot/.bashrc
+fi
+ 
+echo "Available contexts:"
+kubectl config get-contexts
+ 
+# Auto-detect current context if CLUSTER_NAME is not set
+if [ -z "$CLUSTER_NAME" ]; then
+  CLUSTER_NAME="$(kubectl config current-context)"
+fi
+ 
+if [ -z "$CLUSTER_NAME" ]; then
+  echo "ERROR: No Kubernetes context found in kubeconfig"
+  exit 1
+fi
+ 
+# Verify context exists
+if ! kubectl config get-contexts -o name | grep -Fxq "$CLUSTER_NAME"; then
+  echo "ERROR: Context '$CLUSTER_NAME' not found!"
+  exit 1
+fi
+ 
 echo "Setting current context to '$CLUSTER_NAME'..."
-kubectl config use-context "$CLUSTER_NAME" || { echo "Failed to set context!"; exit 1; }
-
-# Verify the current context
+kubectl config use-context "$CLUSTER_NAME"
+ 
 echo "Current kubectl context:"
 kubectl config current-context
-
-# Finally, run CMD passed by Docker (Python app)
+ 
+# Finally, run CMD passed by Docker
 exec "$@"
