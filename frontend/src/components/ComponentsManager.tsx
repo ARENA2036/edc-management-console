@@ -4,6 +4,35 @@ import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
 
+function ComponentStatusBadge({ status }: { status: string }) {
+  if (status === 'Active' || status === 'healthy') {
+    return (
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+        Active
+      </span>
+    );
+  }
+  if (status === 'Deploying' || status === 'deploying') {
+    return (
+      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Deploying
+      </span>
+    );
+  }
+  if (status === 'Inactive' || status === 'inactive') {
+    return (
+      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+        Inactive
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+      {status || 'Unknown'}
+    </span>
+  );
+}
+
 interface Props {
   components: ManagedComponent[];
   onDelete: (componentId: string) => void;
@@ -206,9 +235,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                       {component.version}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                        {t('statusActive')}
-                      </span>
+                      <ComponentStatusBadge status={component.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       {component.linkedConnector}

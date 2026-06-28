@@ -16,8 +16,6 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import StatsCard from './components/StatsCard';
 import DeploymentWizard from './components/DeploymentWizard';
-import AddComponentDialog from './components/AddComponentDialog';
-import ComponentWizard from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import OnboardingGuide from './components/OnboardingGuide';
@@ -182,7 +180,76 @@ function getConnectorEndpoint(connector: DashboardConnector) {
   return '';
 }
 
-async function fetchConnectors() {
+/** Returns true only for rows that represent an EDC connector (not submodel/DTR). */
+function isEdcConnectorRow(row: DashboardConnector): boolean {
+  const configType = (row.config as Record<string, unknown> | undefined)?.type;
+  if (typeof configType === 'string') {
+    return configType === 'connector';
+  }
+  // Rows without a config.type originate from localStorage or the old schema —
+  // treat them as EDC connectors (the default).
+  return true;
+}
+
+/** Returns the component type for a non-EDC API row, or null for EDC rows. */
+function getComponentType(
+  row: DashboardConnector,
+): 'digitalTwinRegistry' | 'submodelServer' | null {
+  const configType = (row.config as Record<string, unknown> | undefined)?.type;
+  if (configType === 'digitalTwinRegistry') return 'digitalTwinRegistry';
+  if (configType === 'submodelServer') return 'submodelServer';
+  return null;
+}
+
+/**
+ * Derives the linked EDC connector name for a component row using a name-prefix
+ * heuristic (e.g. "beku-sms" → "beku", "beku-dtr" → "beku").
+ */
+function inferLinkedConnector(
+  componentName: string,
+  edcConnectors: DashboardConnector[],
+): string {
+  for (const connector of edcConnectors) {
+    if (
+      componentName.startsWith(connector.name + '-') ||
+      componentName === connector.name
+    ) {
+      return connector.name;
+    }
+  }
+  return '';
+}
+
+/** Build a ManagedComponent from an API component row (submodel/DTR). */
+function apiRowToManagedComponent(
+  row: DashboardConnector,
+  type: 'digitalTwinRegistry' | 'submodelServer',
+  linkedConnector: string,
+): ManagedComponent {
+  return {
+    id: `${type}-${row.name}-api`,
+    type,
+    name: row.name,
+    version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.1.0'),
+    status: (row.status as ManagedComponent['status']) || 'Active',
+    linkedConnector,
+    deployedAt: row.created_at || new Date().toISOString(),
+    connectionMode: 'new',
+    endpoint: row.url || '',
+    db_name: row.db_username ? row.db_username.replace(/-username$/, '-db') : '',
+    auth: {
+      db_username: row.db_username || '',
+      db_password: row.db_password || '',
+    },
+  };
+}
+
+interface FetchConnectorsResult {
+  edcConnectors: DashboardConnector[];
+  apiComponents: ManagedComponent[];
+}
+
+async function fetchConnectors(): Promise<FetchConnectorsResult> {
   const cachedConnectors = readLocalStorage<DashboardConnector[]>(
     CONNECTORS_STORAGE_KEY,
     [],
@@ -190,25 +257,38 @@ async function fetchConnectors() {
 
   try {
     const response = await connectorApi.getAll();
-    const apiConnectors = Array.isArray(response.data.data)
+    const allApiRows = Array.isArray(response.data.data)
       ? (response.data.data as DashboardConnector[])
       : [];
-    const merged = mergeConnectors(
-      apiConnectors.map((connector) => ({
-        ...connector,
-        source: 'api' as const,
-      })),
-      cachedConnectors,
+
+    // Split: EDC connector rows vs component (submodel/DTR) rows.
+    const apiEdcRows = allApiRows.filter(isEdcConnectorRow).map((row) => ({
+      ...row,
+      source: 'api' as const,
+    }));
+    const apiComponentRows = allApiRows.filter(
+      (row) => getComponentType(row) !== null,
     );
+
+    const merged = mergeConnectors(apiEdcRows, cachedConnectors);
     saveLocalStorage(CONNECTORS_STORAGE_KEY, merged);
-    return merged;
+
+    // Synthesize ManagedComponent entries from API component rows.
+    const apiComponents: ManagedComponent[] = apiComponentRows.flatMap((row) => {
+      const type = getComponentType(row);
+      if (!type) return [];
+      const linkedConnector = inferLinkedConnector(row.name, merged);
+      return [apiRowToManagedComponent(row, type, linkedConnector)];
+    });
+
+    return { edcConnectors: merged, apiComponents };
   } catch (error) {
     console.error('Failed to load connectors:', error);
-    return cachedConnectors;
+    return { edcConnectors: cachedConnectors, apiComponents: [] };
   }
 }
 
-function fetchComponents() {
+function fetchLocalComponents() {
   return readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
 }
 
@@ -328,29 +408,37 @@ function mergeConnectors(
 function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [components, setComponents] = useState<ManagedComponent[]>([]);
+  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
+  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [dataspaceBpn, setDataspaceBpn] = useState('');
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
   const [deploymentTarget, setDeploymentTarget] = useState<{
     connector?: DashboardConnector;
     mode: 'create' | 'edit';
   }>({ mode: 'create' });
-  const [showComponentWizard, setShowComponentWizard] = useState(false);
-  const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
-    linkedConnector?: string;
-  }>({});
+
+  // Merge API-sourced components with local ones; API entries are skipped if
+  // a local entry already exists for the same type+connector combination.
+  const components = useMemo<ManagedComponent[]>(() => {
+    const localKeys = new Set(
+      localComponents.map((c) => `${c.type}:${c.linkedConnector}`),
+    );
+    const dedupedApiComponents = apiComponents.filter(
+      (c) => !localKeys.has(`${c.type}:${c.linkedConnector}`),
+    );
+    return [...localComponents, ...dedupedApiComponents];
+  }, [localComponents, apiComponents]);
 
   const loadConnectors = async () => {
-    const loadedConnectors = await fetchConnectors();
-    setConnectors(loadedConnectors);
+    const result = await fetchConnectors();
+    setConnectors(result.edcConnectors);
+    setApiComponents(result.apiComponents);
   };
 
-  const loadComponents = () => {
-    const storedComponents = fetchComponents();
-    setComponents(storedComponents);
+  const loadLocalComponents = () => {
+    setLocalComponents(fetchLocalComponents());
   };
 
   const loadActivityLogs = async () => {
@@ -366,7 +454,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   useEffect(() => {
     loadConnectors();
-    loadComponents();
+    loadLocalComponents();
     loadActivityLogs();
     loadDataspace();
 
@@ -414,8 +502,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     saveLocalStorage(CONNECTORS_STORAGE_KEY, nextConnectors);
     setConnectors(nextConnectors);
 
-    const currentComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
-    const keptComponents = currentComponents.filter((component) => {
+    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const keptComponents = currentLocalComponents.filter((component) => {
       return component.linkedConnector !== connector.name
         && component.linkedConnector !== draft.connector.name;
     });
@@ -433,7 +521,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
 
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setComponents(updatedComponents);
+    setLocalComponents(updatedComponents);
   };
 
   const handleDeployConnector = async (draft: DeploymentDraft) => {
@@ -458,14 +546,14 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   const handleDeleteConnector = async (connector: DashboardConnector) => {
     const remaining = connectors.filter((item) => item.name !== connector.name);
-    const remainingComponents = components.filter(
+    const remainingLocalComponents = localComponents.filter(
       (component) => component.linkedConnector !== connector.name,
     );
 
     setConnectors(remaining);
     saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
-    setComponents(remainingComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingComponents);
+    setLocalComponents(remainingLocalComponents);
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingLocalComponents);
 
     if (connector.source !== 'local') {
       try {
@@ -476,29 +564,15 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
   };
 
-  const handleDeployComponent = (component: ManagedComponent) => {
-    const updatedComponents = [component, ...components];
-    setComponents(updatedComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setShowComponentWizard(false);
-  };
-
   const handleDeleteComponent = (componentId: string) => {
-    const updatedComponents = components.filter((component) => component.id !== componentId);
-    setComponents(updatedComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    const updatedLocalComponents = localComponents.filter((component) => component.id !== componentId);
+    setLocalComponents(updatedLocalComponents);
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedLocalComponents);
   };
 
   const openConnectorWizard = (connector?: DashboardConnector) => {
     setDeploymentTarget(connector ? { connector, mode: 'edit' } : { mode: 'create' });
     setShowDeploymentWizard(true);
-  };
-
-  const openComponentWizard = (linkedConnector?: string) => {
-    setComponentWizardDefaults(
-      linkedConnector ? { linkedConnector } : {},
-    );
-    setShowComponentWizard(true);
   };
 
   const activeConnectors = useMemo(
@@ -656,7 +730,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             position="left"
           >
             <button
-              onClick={() => setShowAddDialog(true)}
+              onClick={() => openConnectorWizard()}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-orange-600"
             >
               <Plus size={18} />
@@ -670,7 +744,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             connectors={connectors}
             components={components}
             onDelete={handleDeleteConnector}
-            onAddComponent={(connector) => openComponentWizard(connector.name)}
             onEditConnector={(connector) => openConnectorWizard(connector)}
           />
           <ComponentsManager
@@ -683,19 +756,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       <div className="bg-black px-6 py-4 text-center text-sm text-white dark:border-t dark:border-slate-800 dark:bg-slate-950">
         {t('footerCopyright')}
       </div>
-
-      <AddComponentDialog
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSelectEDC={() => {
-          setShowAddDialog(false);
-          setShowDeploymentWizard(true);
-        }}
-        onSelectComponent={() => {
-          setShowAddDialog(false);
-          openComponentWizard();
-        }}
-      />
 
       <DeploymentWizard
         open={showDeploymentWizard}
@@ -715,19 +775,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         )}
         prefilledBpn={dataspaceBpn || sessionBpn}
       />
-
-      <ComponentWizard
-        open={showComponentWizard}
-        onOpenChange={(open) => {
-          setShowComponentWizard(open);
-          if (!open) {
-            setComponentWizardDefaults({});
-          }
-        }}
-        connectors={connectors}
-        onDeploy={handleDeployComponent}
-        initialLinkedConnector={componentWizardDefaults.linkedConnector}
-      />
     </>
   );
 }
@@ -735,7 +782,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 function Monitor() {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [components, setComponents] = useState<ManagedComponent[]>([]);
+  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
+  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
@@ -743,23 +791,34 @@ function Monitor() {
     details: null,
   });
 
+  const components = useMemo<ManagedComponent[]>(() => {
+    const localKeys = new Set(
+      localComponents.map((c) => `${c.type}:${c.linkedConnector}`),
+    );
+    const dedupedApiComponents = apiComponents.filter(
+      (c) => !localKeys.has(`${c.type}:${c.linkedConnector}`),
+    );
+    return [...localComponents, ...dedupedApiComponents];
+  }, [localComponents, apiComponents]);
+
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [loadedConnectors, loadedActivityLogs, loadedDataspace] = await Promise.all([
+      const [connectorsResult, loadedActivityLogs, loadedDataspace] = await Promise.all([
         fetchConnectors(),
         fetchActivityLogs(),
         fetchDataspaceSummary(t('dataspaceFallback')),
       ]);
-      const loadedComponents = fetchComponents();
+      const loadedLocalComponents = fetchLocalComponents();
 
       if (!active) {
         return;
       }
 
-      setConnectors(loadedConnectors);
-      setComponents(loadedComponents);
+      setConnectors(connectorsResult.edcConnectors);
+      setApiComponents(connectorsResult.apiComponents);
+      setLocalComponents(loadedLocalComponents);
       setActivityLogs(loadedActivityLogs);
       setDataspace(loadedDataspace);
     };

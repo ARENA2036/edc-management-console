@@ -122,6 +122,12 @@ export default function DeploymentWizard({
     getDefaultComponentDraft('', 'digitalTwinRegistry'),
   );
 
+  // Confirmation state when user unchecks a component that was previously deployed.
+  const [removeConfirm, setRemoveConfirm] = useState<{
+    kind: 'submodelServer' | 'digitalTwinRegistry';
+    label: string;
+  } | null>(null);
+
   const initialSubmodel = useMemo(
     () => initialComponents.find((component) => component.type === 'submodelServer'),
     [initialComponents],
@@ -145,6 +151,7 @@ export default function DeploymentWizard({
     setSubmodelDraft(toDraft(connectorName, 'submodelServer', initialSubmodel));
     setDtrDraft(toDraft(connectorName, 'digitalTwinRegistry', initialDtr));
     setStep(1);
+    setRemoveConfirm(null);
   }, [initialConnector, initialDtr, initialSubmodel, open, prefilledBpn]);
 
   const resetState = () => {
@@ -156,6 +163,43 @@ export default function DeploymentWizard({
     setDataPlaneUrl('');
     setSubmodelDraft(getDefaultComponentDraft('', 'submodelServer'));
     setDtrDraft(getDefaultComponentDraft('', 'digitalTwinRegistry'));
+    setRemoveConfirm(null);
+  };
+
+  /**
+   * Handles toggling a component checkbox. If the component was part of the
+   * initial deployed state and the user is trying to disable it, show a
+   * confirmation dialog first.
+   */
+  const handleSubmodelToggle = (checked: boolean) => {
+    if (!checked && initialSubmodel) {
+      setRemoveConfirm({
+        kind: 'submodelServer',
+        label: language === 'de' ? 'Submodel Server' : 'Submodel Server',
+      });
+    } else {
+      setSubmodelDraft({ ...submodelDraft, enabled: checked });
+    }
+  };
+
+  const handleDtrToggle = (checked: boolean) => {
+    if (!checked && initialDtr) {
+      setRemoveConfirm({
+        kind: 'digitalTwinRegistry',
+        label: language === 'de' ? 'Digital Twin Registry' : 'Digital Twin Registry',
+      });
+    } else {
+      setDtrDraft({ ...dtrDraft, enabled: checked });
+    }
+  };
+
+  const confirmRemoveComponent = () => {
+    if (removeConfirm?.kind === 'submodelServer') {
+      setSubmodelDraft({ ...submodelDraft, enabled: false });
+    } else if (removeConfirm?.kind === 'digitalTwinRegistry') {
+      setDtrDraft({ ...dtrDraft, enabled: false });
+    }
+    setRemoveConfirm(null);
   };
 
   const closeDialog = () => {
@@ -334,7 +378,7 @@ export default function DeploymentWizard({
                     <input
                       type="checkbox"
                       checked={submodelDraft.enabled}
-                      onChange={(event) => setSubmodelDraft({ ...submodelDraft, enabled: event.target.checked })}
+                      onChange={(event) => handleSubmodelToggle(event.target.checked)}
                     />
                     <span className="font-medium text-gray-900 dark:text-slate-100">
                       {language === 'de' ? 'Submodel Server hinzufügen' : 'Add submodel server'}
@@ -384,7 +428,7 @@ export default function DeploymentWizard({
                     <input
                       type="checkbox"
                       checked={dtrDraft.enabled}
-                      onChange={(event) => setDtrDraft({ ...dtrDraft, enabled: event.target.checked })}
+                      onChange={(event) => handleDtrToggle(event.target.checked)}
                     />
                     <span className="font-medium text-gray-900 dark:text-slate-100">
                       {language === 'de' ? 'Digital Twin Registry hinzufügen' : 'Add digital twin registry'}
@@ -456,6 +500,38 @@ export default function DeploymentWizard({
           </div>
         )}
       </div>
+
+      {/* Remove component confirmation dialog */}
+      {removeConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+            <div className="border-b border-gray-100 px-6 py-5 dark:border-slate-800">
+              <h3 className="text-lg font-semibold text-red-600">
+                {language === 'de' ? 'Komponente entfernen?' : 'Remove component?'}
+              </h3>
+            </div>
+            <div className="px-6 py-5 text-sm leading-6 text-gray-600 dark:text-slate-300">
+              {language === 'de'
+                ? `Möchten Sie ${removeConfirm.label} wirklich entfernen? Die bestehende Deployment-Konfiguration wird beim nächsten Update deaktiviert.`
+                : `Do you want to remove the ${removeConfirm.label}? The existing deployment configuration will be disabled on the next update.`}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-slate-800">
+              <button
+                onClick={() => setRemoveConfirm(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={confirmRemoveComponent}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+              >
+                {language === 'de' ? 'Ja, entfernen' : 'Yes, remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
