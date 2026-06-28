@@ -21,3 +21,4 @@ charts/
 backend/tractusx-connector/edc_manager.db
 .history/
 /node_modules/
+*.env
