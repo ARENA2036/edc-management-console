@@ -97,6 +97,19 @@ function toDraft(
   return getDefaultComponentDraft(baseName, type, existing);
 }
 
+function prepareDraftForInput(draft: ComponentDraft, hasExistingComponent: boolean): ComponentDraft {
+  if (hasExistingComponent) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    name: '',
+    url: '',
+    dbName: '',
+  };
+}
+
 export default function DeploymentWizard({
   open,
   onOpenChange,
@@ -148,8 +161,18 @@ export default function DeploymentWizard({
     setVersion((initialConnector?.version as (typeof connectorVersions)[number]) || connectorVersions[0]);
     setApiEndpoint(initialConnector?.url || '');
     setDataPlaneUrl((initialConnector?.config as { dataPlaneUrl?: string } | undefined)?.dataPlaneUrl || initialConnector?.dp_hostname || '');
-    setSubmodelDraft(toDraft(connectorName, 'submodelServer', initialSubmodel));
-    setDtrDraft(toDraft(connectorName, 'digitalTwinRegistry', initialDtr));
+    setSubmodelDraft(
+      prepareDraftForInput(
+        toDraft(connectorName, 'submodelServer', initialSubmodel),
+        Boolean(initialSubmodel),
+      ),
+    );
+    setDtrDraft(
+      prepareDraftForInput(
+        toDraft(connectorName, 'digitalTwinRegistry', initialDtr),
+        Boolean(initialDtr),
+      ),
+    );
     setStep(1);
     setRemoveConfirm(null);
   }, [initialConnector, initialDtr, initialSubmodel, open, prefilledBpn]);
@@ -311,6 +334,7 @@ export default function DeploymentWizard({
                         type="text"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
+                        placeholder={t('connectorNamePlaceholder')}
                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
@@ -335,6 +359,7 @@ export default function DeploymentWizard({
                         type="url"
                         value={apiEndpoint}
                         onChange={(event) => setApiEndpoint(event.target.value)}
+                        placeholder={t('apiEndpointPlaceholder')}
                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
@@ -346,6 +371,7 @@ export default function DeploymentWizard({
                         type="url"
                         value={dataPlaneUrl}
                         onChange={(event) => setDataPlaneUrl(event.target.value)}
+                        placeholder={t('dataPlanePlaceholder')}
                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
@@ -386,34 +412,50 @@ export default function DeploymentWizard({
                   </label>
                   {submodelDraft.enabled && (
                     <div className="grid gap-4 md:grid-cols-2">
-                      <input
-                        type="text"
-                        value={submodelDraft.name}
-                        onChange={(event) => setSubmodelDraft({ ...submodelDraft, name: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder={language === 'de' ? 'Name' : 'Name'}
-                      />
-                      <input
-                        type="url"
-                        value={submodelDraft.url}
-                        onChange={(event) => setSubmodelDraft({ ...submodelDraft, url: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="https://submodel.example.com"
-                      />
-                      <input
-                        type="text"
-                        value={submodelDraft.dbName}
-                        onChange={(event) => setSubmodelDraft({ ...submodelDraft, dbName: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="db-name"
-                      />
-                      <input
-                        type="text"
-                        value={submodelDraft.version}
-                        onChange={(event) => setSubmodelDraft({ ...submodelDraft, version: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="0.1.0"
-                      />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Name' : 'Name'}
+                        </label>
+                        <input
+                          type="text"
+                          value={submodelDraft.name}
+                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, name: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Endpoint URL' : 'Endpoint URL'}
+                        </label>
+                        <input
+                          type="url"
+                          value={submodelDraft.url}
+                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, url: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Datenbankname' : 'Database name'}
+                        </label>
+                        <input
+                          type="text"
+                          value={submodelDraft.dbName}
+                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, dbName: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Version' : 'Version'}
+                        </label>
+                        <input
+                          type="text"
+                          value={submodelDraft.version}
+                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, version: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -436,34 +478,50 @@ export default function DeploymentWizard({
                   </label>
                   {dtrDraft.enabled && (
                     <div className="grid gap-4 md:grid-cols-2">
-                      <input
-                        type="text"
-                        value={dtrDraft.name}
-                        onChange={(event) => setDtrDraft({ ...dtrDraft, name: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder={language === 'de' ? 'Name' : 'Name'}
-                      />
-                      <input
-                        type="url"
-                        value={dtrDraft.url}
-                        onChange={(event) => setDtrDraft({ ...dtrDraft, url: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="https://registry.example.com"
-                      />
-                      <input
-                        type="text"
-                        value={dtrDraft.dbName}
-                        onChange={(event) => setDtrDraft({ ...dtrDraft, dbName: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="db-name"
-                      />
-                      <input
-                        type="text"
-                        value={dtrDraft.version}
-                        onChange={(event) => setDtrDraft({ ...dtrDraft, version: event.target.value })}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        placeholder="0.12.0"
-                      />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Name' : 'Name'}
+                        </label>
+                        <input
+                          type="text"
+                          value={dtrDraft.name}
+                          onChange={(event) => setDtrDraft({ ...dtrDraft, name: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Endpoint URL' : 'Endpoint URL'}
+                        </label>
+                        <input
+                          type="url"
+                          value={dtrDraft.url}
+                          onChange={(event) => setDtrDraft({ ...dtrDraft, url: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Datenbankname' : 'Database name'}
+                        </label>
+                        <input
+                          type="text"
+                          value={dtrDraft.dbName}
+                          onChange={(event) => setDtrDraft({ ...dtrDraft, dbName: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                          {language === 'de' ? 'Version' : 'Version'}
+                        </label>
+                        <input
+                          type="text"
+                          value={dtrDraft.version}
+                          onChange={(event) => setDtrDraft({ ...dtrDraft, version: event.target.value })}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

@@ -16,6 +16,8 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import StatsCard from './components/StatsCard';
 import DeploymentWizard from './components/DeploymentWizard';
+import AddComponentDialog from './components/AddComponentDialog';
+import ComponentWizard from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import OnboardingGuide from './components/OnboardingGuide';
@@ -421,6 +423,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [dataspaceBpn, setDataspaceBpn] = useState('');
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showComponentWizard, setShowComponentWizard] = useState(false);
   const [deploymentTarget, setDeploymentTarget] = useState<{
     connector?: DashboardConnector;
     mode: 'create' | 'edit';
@@ -589,9 +593,31 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
   };
 
+  const handleDeployComponent = (component: ManagedComponent) => {
+    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const updatedComponents = [...currentLocalComponents, component];
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    setLocalComponents(updatedComponents);
+    setShowComponentWizard(false);
+  };
+
   const openConnectorWizard = (connector?: DashboardConnector) => {
     setDeploymentTarget(connector ? { connector, mode: 'edit' } : { mode: 'create' });
     setShowDeploymentWizard(true);
+  };
+
+  const openAddDialog = () => {
+    setShowAddDialog(true);
+  };
+
+  const handleAddEdcSelection = () => {
+    setShowAddDialog(false);
+    openConnectorWizard();
+  };
+
+  const handleAddComponentSelection = () => {
+    setShowAddDialog(false);
+    setShowComponentWizard(true);
   };
 
   const activeConnectors = useMemo(
@@ -749,7 +775,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             position="left"
           >
             <button
-              onClick={() => openConnectorWizard()}
+              onClick={openAddDialog}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-orange-600"
             >
               <Plus size={18} />
@@ -793,6 +819,18 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
               : false,
         )}
         prefilledBpn={dataspaceBpn || sessionBpn}
+      />
+      <AddComponentDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onSelectEDC={handleAddEdcSelection}
+        onSelectComponent={handleAddComponentSelection}
+      />
+      <ComponentWizard
+        open={showComponentWizard}
+        onOpenChange={setShowComponentWizard}
+        connectors={connectors}
+        onDeploy={handleDeployComponent}
       />
     </>
   );
