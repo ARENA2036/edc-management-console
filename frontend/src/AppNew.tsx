@@ -10,7 +10,7 @@ import {
 import { activityApi, connectorApi, dataspaceApi } from './api/client';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
-import { buildDeployRequest, buildStandaloneConnector, buildManagedComponentFromDraft, type DeploymentDraft } from './utils/deployment';
+import { buildDeployRequest, buildStandaloneConnector, buildManagedComponentFromDraft, buildComponentPayload, type DeploymentDraft } from './utils/deployment';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -593,12 +593,31 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
   };
 
-  const handleDeployComponent = (component: ManagedComponent) => {
+  const handleDeployComponent = async (component: ManagedComponent) => {
+    if (component.connectionMode === 'new') {
+      await connectorApi.create({
+        components: [
+          buildComponentPayload(component.type, {
+            name: component.name,
+            version: component.version,
+            url: component.endpoint ?? `${component.name}.txcd.arena2036-x.de`,
+            dbName: component.db_name,
+            username: component.auth.db_username,
+            password: component.auth.db_password,
+          }),
+        ],
+      });
+    }
+
     const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
     const updatedComponents = [...currentLocalComponents, component];
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
     setLocalComponents(updatedComponents);
     setShowComponentWizard(false);
+
+    if (component.connectionMode === 'new') {
+      await loadConnectors();
+    }
   };
 
   const openConnectorWizard = (connector?: DashboardConnector) => {
@@ -1262,7 +1281,7 @@ function Monitor() {
                         {component.name}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {component.type}
+                        {component.type === 'submodelServer' ? t('componentTypeSubmodel') : t('componentTypeTwin')}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {component.linkedConnector}

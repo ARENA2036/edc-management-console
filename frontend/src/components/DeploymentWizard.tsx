@@ -414,11 +414,11 @@ export default function DeploymentWizard({
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Name' : 'Name'}
+                          {t("submodelNamePlaceholder")}
                         </label>
                         <input
                           type="text"
-                          value={submodelDraft.name}
+                          placeholder={t("submodelNamePlaceholder")}
                           onChange={(event) => setSubmodelDraft({ ...submodelDraft, name: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
@@ -430,6 +430,7 @@ export default function DeploymentWizard({
                         <input
                           type="url"
                           value={submodelDraft.url}
+                          placeholder={t("submodelEndpointPlaceholder")}
                           onChange={(event) => setSubmodelDraft({ ...submodelDraft, url: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
@@ -441,6 +442,7 @@ export default function DeploymentWizard({
                         <input
                           type="text"
                           value={submodelDraft.dbName}
+                          placeholder={t("submodelDbPlaceholder")}
                           onChange={(event) => setSubmodelDraft({ ...submodelDraft, dbName: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
@@ -480,11 +482,12 @@ export default function DeploymentWizard({
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Name' : 'Name'}
+                          {t("dtrNamePlaceholder")}
                         </label>
                         <input
                           type="text"
                           value={dtrDraft.name}
+                          placeholder={t("dtrNamePlaceholder")}
                           onChange={(event) => setDtrDraft({ ...dtrDraft, name: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
@@ -496,6 +499,7 @@ export default function DeploymentWizard({
                         <input
                           type="url"
                           value={dtrDraft.url}
+                          placeholder={t("dtrEndpointPlaceholder")}
                           onChange={(event) => setDtrDraft({ ...dtrDraft, url: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
@@ -507,6 +511,7 @@ export default function DeploymentWizard({
                         <input
                           type="text"
                           value={dtrDraft.dbName}
+                          placeholder={t("dtrDbPlaceholder")}
                           onChange={(event) => setDtrDraft({ ...dtrDraft, dbName: event.target.value })}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
