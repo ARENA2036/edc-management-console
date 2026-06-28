@@ -19,7 +19,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "17042026"
+    tag: "250625-kube-fix"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -193,10 +193,15 @@ backend:
 
   envFrom: []
   env:
-    - name: "CLUSTER_NAME"
-      value: "k8s-ap6-01"
+    - name: CLUSTER_SECRET
+      value: "cluster-int"
     - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
+    - name: VAULT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-token
+          key: token
 
   ## Additional volumes on the output Deployment definition.
   volumes:
