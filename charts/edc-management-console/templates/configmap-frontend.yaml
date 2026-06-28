@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name:  {{ .Release.Name }}-emc-frontend-config
+  name:  {{ .Release.Name }}-frontend-config
 data:
   config.js: |-
     {{- .Values.frontend.configuration | nindent 4 }}
