@@ -625,6 +625,10 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       });
     }
 
+    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const updatedComponents = [...currentLocalComponents, component];
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    setLocalComponents(updatedComponents);
     setShowComponentWizard(false);
 
     if (component.connectionMode === 'new') {
@@ -1293,7 +1297,7 @@ function Monitor() {
                         {component.name}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {component.type === 'submodelServer' ? t('componentTypeSubmodel') : t('componentTypeTwin')}
+                        {component.type}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {component.linkedConnector}

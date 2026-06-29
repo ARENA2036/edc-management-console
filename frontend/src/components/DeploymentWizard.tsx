@@ -232,8 +232,7 @@ export default function DeploymentWizard({
 
   const canProceedStep1 =
     name.trim().length > 0 &&
-    /^BPNL[A-Z0-9]{12}$/.test(bpn.trim().toUpperCase()) &&
-    apiEndpoint.trim().length > 0;
+    /^BPNL[A-Z0-9]{12}$/.test(bpn.trim().toUpperCase());
 
   const canProceedStep2 =
     !submodelDraft.enabled ||
@@ -350,7 +349,7 @@ export default function DeploymentWizard({
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  {/* <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                         {t('apiEndpointLabel')}
@@ -375,7 +374,7 @@ export default function DeploymentWizard({
                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                       {language === 'de' ? 'Version' : 'Version'}
