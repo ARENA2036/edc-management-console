@@ -8,6 +8,8 @@ __pycache__/
 
 *.idea/
 
+*.env
+
 build/
 lib/
 lib64/
@@ -21,4 +23,3 @@ charts/
 backend/tractusx-connector/edc_manager.db
 .history/
 /node_modules/
-*.env

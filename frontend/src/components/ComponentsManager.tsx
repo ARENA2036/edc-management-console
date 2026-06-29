@@ -82,12 +82,6 @@ function ComponentDetailsModal({
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableLinkedTo')}</p>
             <p>{component.linkedConnector}</p>
           </div>
-          {component.connectionMode && (
-            <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">Mode</p>
-              <p>{component.connectionMode === 'existing' ? 'Existing service' : 'New deployment'}</p>
-            </div>
-          )}
           {component.endpoint && (
             <div>
               <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableEndpoint')}</p>

@@ -47,6 +47,7 @@ export const connectorApi = {
   update: (id: number, data: DeployRequest) => apiClient.put(`/connectors/${id}`, data),
   delete: (name: string) => apiClient.delete(`/connectors/${name}`),
   checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
+  getConnectorsHealth: () => apiClient.get('/connectors/health'),
 };
 
 export const healthApi = {

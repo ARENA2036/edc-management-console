@@ -4,11 +4,11 @@ import yaml from 'js-yaml';
 
 interface Props {
   connector: Connector;
-  components: ManagedComponent[];
+  components?: ManagedComponent[];
   onClose: () => void;
 }
 
-export default function YamlViewModal({ connector, components, onClose }: Props) {
+export default function YamlViewModal({ connector, components = [], onClose }: Props) {
   const submodel = components.find((c) => c.type === 'submodelServer');
   const registry = components.find((c) => c.type === 'digitalTwinRegistry');
 

@@ -448,6 +448,14 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     setApiComponents(result.apiComponents);
   };
 
+  const loadConnectorsHealth = async () => {
+    try {
+      await connectorApi.getConnectorsHealth();
+    } catch (error) {
+      console.error('Failed to load connectors health:', error);
+    }
+  };
+
   const loadLocalComponents = () => {
     setLocalComponents(fetchLocalComponents());
   };
@@ -468,13 +476,21 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     loadLocalComponents();
     loadActivityLogs();
     loadDataspace();
+    loadConnectorsHealth();
 
     const interval = setInterval(() => {
       loadConnectors();
       loadActivityLogs();
     }, 30000);
 
-    return () => clearInterval(interval);
+    const connectorsHealthInterval = setInterval(() => {
+      loadConnectorsHealth();
+    }, 60000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(connectorsHealthInterval);
+    };
   }, [t]);
 
   const updateLocalConnectorState = (
@@ -609,10 +625,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       });
     }
 
-    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
-    const updatedComponents = [...currentLocalComponents, component];
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setLocalComponents(updatedComponents);
     setShowComponentWizard(false);
 
     if (component.connectionMode === 'new') {

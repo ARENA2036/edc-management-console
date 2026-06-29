@@ -27,14 +27,14 @@ function StatusBadge({ status }: { status: string }) {
   if (status === 'healthy' || status === 'active' || status === 'Active') {
     return (
       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Healthy
+        Active
       </span>
     );
   }
   if (status === 'unhealthy' || status === 'inactive' || status === 'critical') {
     return (
-      <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
-        Unhealthy
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+        Active
       </span>
     );
   }

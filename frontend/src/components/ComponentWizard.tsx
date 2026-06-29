@@ -136,9 +136,6 @@ export default function ComponentWizard({
   );
   const [name, setName] = useState('');
   const [linkedConnector, setLinkedConnector] = useState('');
-  const [connectionMode, setConnectionMode] = useState<'new' | 'existing'>('new');
-  const [existingEndpoint, setExistingEndpoint] = useState('');
-  const [existingCredentials, setExistingCredentials] = useState('');
   const [deploying, setDeploying] = useState(false);
 
   const [deploymentStep, setDeploymentStep] = useState<
@@ -162,9 +159,6 @@ export default function ComponentWizard({
     setComponentType(componentTypes[0]);
     setName('');
     setLinkedConnector(initialLinkedConnector ?? '');
-    setConnectionMode('new');
-    setExistingEndpoint('');
-    setExistingCredentials('');
   };
 
   const closeDialog = () => {
@@ -175,10 +169,7 @@ export default function ComponentWizard({
   const canContinue =
     step === 1
       ? Boolean(componentType)
-      : Boolean(
-        name.trim() &&
-        (connectionMode === 'new' || existingEndpoint.trim()),
-      );
+      : Boolean(name.trim());
 
   const handleDeploy = async () => {
     setDeploying(true);
@@ -193,20 +184,9 @@ export default function ComponentWizard({
         status: "Deploying",
         linkedConnector,
         deployedAt: new Date().toISOString(),
-        connectionMode,
-
-        endpoint:
-          connectionMode === "existing"
-            ? existingEndpoint.trim()
-            : `${name.trim()}.txcd.arena2036-x.de`,
-
-        credentials:
-          connectionMode === "existing"
-            ? existingCredentials.trim()
-            : undefined,
-
+        connectionMode: 'new',
+        endpoint: `${name.trim()}.txcd.arena2036-x.de`,
         db_name: `${name.trim()}-db`,
-
         auth: {
           db_username: `${name.trim()}-username`,
           db_password: `${name.trim()}-password`,
@@ -406,84 +386,6 @@ export default function ComponentWizard({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {language === 'de' ? 'Service-Modus' : 'Service mode'}
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => setConnectionMode('new')}
-                        className={`rounded-xl border px-4 py-4 text-left transition-all ${connectionMode === 'new'
-                          ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
-                          : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
-                          }`}
-                      >
-                        <p className="font-medium text-gray-900 dark:text-slate-100">
-                          {language === 'de' ? 'Neu deployen' : 'Deploy new'}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                          {language === 'de'
-                            ? 'Der Service wird als neue Komponente im Dashboard erfasst.'
-                            : 'Register the service as a new component in the dashboard.'}
-                        </p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConnectionMode('existing')}
-                        className={`rounded-xl border px-4 py-4 text-left transition-all ${connectionMode === 'existing'
-                          ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
-                          : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
-                          }`}
-                      >
-                        <p className="font-medium text-gray-900 dark:text-slate-100">
-                          {language === 'de' ? 'Bestehenden Service verbinden' : 'Connect existing'}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                          {language === 'de'
-                            ? 'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service oder registrieren Sie ihn hier als eigenständige Komponente.'
-                            : 'Use an already running DTR or submodel service, or register it here as a standalone component.'}
-                        </p>
-                      </button>
-                    </div>
-                  </div>
-
-                  {connectionMode === 'existing' && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Bestehende Service-URL' : 'Existing service URL'}
-                        </label>
-                        <input
-                          type="url"
-                          value={existingEndpoint}
-                          onChange={(event) => setExistingEndpoint(event.target.value)}
-                          placeholder={
-                            componentType.type === "digitalTwinRegistry"
-                              ? 'https://registry.example.com'
-                              : 'https://submodel.example.com'
-                          }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Credentials / API Key' : 'Credentials / API Key'}
-                        </label>
-                        <input
-                          type="text"
-                          value={existingCredentials}
-                          onChange={(event) => setExistingCredentials(event.target.value)}
-                          placeholder={
-                            language === 'de'
-                              ? 'Optionaler Zugriffswert'
-                              : 'Optional access value'
-                          }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </>
