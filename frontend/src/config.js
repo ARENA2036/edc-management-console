@@ -1,8 +1,10 @@
 window.__RUNTIME_CONFIG__ = {
-  apiUrl: "http://localhost:8001",
-  apiKey: "emc-api-key",
-  edcHost: "__EDC_HOST__",
-  keycloakUrl: "__KEYCLOAK_URL__",
-  realm: "__KEYCLOAK_REALM__",
-  clientId: "__KEYCLOAK_CLIENT_ID__"
+  apiUrl: "__VITE_BACKEND_URL__",
+  apiKey: "__VITE_API_KEY__",
+  edcHost: "__VITE_EDC_HOSTNAME__",
+  keycloakUrl: "__VITE_KEYCLOAK_URL__",
+  realm: "__VITE_KEYCLOAK_REALM__",
+  clientId: "__VITE_KEYCLOAK_CLIENT_ID__",
+  sdeUrl: "__VITE_SDE_URL__",
+  portalUrl: "__VITE_PORTAL_URL__",
 };

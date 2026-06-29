@@ -115,7 +115,7 @@ const translations = {
     settingsLoading: 'Loading settings...',
     settingsDescription:
       'These dataspace and platform settings are shown for reference and cannot be modified here.',
-    footerCopyright: 'Licenses: Apache-2.0 (code) | CC-BY-4.0 (non-code)',
+    footerCopyright: 'Licenses: ARENA2036 e.V.',
     deleteConnectorTitle: 'Delete connector',
     deleteConnectorMessage:
       'Are you sure you want to delete "{name}"? This action cannot be undone.',
