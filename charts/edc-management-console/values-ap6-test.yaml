@@ -283,11 +283,11 @@ backend:
             - path: controlplane.ingresses[0].annotations
               from: controlplane_annotations
             - path: controlplane.ingresses[0].tls.enabled
-              value: true
+              value: false
             - path: controlplane.ingresses[0].tls.secretName
               template: "{name}-cp-tls"
             - path: dataplane.ingresses[0].enabled
-              value: true
+              value: false
             - path: dataplane.ingresses[0].hostname
               from: dp_hostname
             - path: dataplane.ingresses[0].certManager.clusterIssuer
@@ -297,7 +297,7 @@ backend:
             - path: dataplane.ingresses[0].annotations
               from: dataplane_annotations
             - path: dataplane.ingresses[0].tls.enabled
-              value: true
+              value: false
             - path: dataplane.ingresses[0].tls.secretName
               template: "{name}-dp-tls"
             - path: dataplane.token.signer.privatekey_alias
@@ -341,14 +341,14 @@ backend:
             # cert-manager annotation. external-dns points at this component's own host.
             annotations:
               external-dns.alpha.kubernetes.io/hostname: "{url}"
-              cert-manager.io/cluster-issuer: "letsencrypt-int"
+              #cert-manager.io/cluster-issuer: "letsencrypt-int"
           valueMappings:
             - path: fullnameOverride
               template: "{name}"
             - path: ingress.enabled           # chart default is false
               value: true
             - path: ingress.className
-              value: 'nginx'
+              value: ''
             - path: ingress.annotations
               from: annotations
             - path: ingress.hosts[0].host
@@ -391,7 +391,7 @@ backend:
             # certManager field). external-dns points at this component's own host.
             annotations:
               external-dns.alpha.kubernetes.io/hostname: "{url}"
-              cert-manager.io/cluster-issuer: "letsencrypt-int"
+              #cert-manager.io/cluster-issuer: "letsencrypt-int"
               nginx.ingress.kubernetes.io/rewrite-target: /$2
               nginx.ingress.kubernetes.io/use-regex: "true"
               nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
@@ -494,7 +494,7 @@ backend:
     # -- persist the backend configuration
     - name: emc-backend-config
       configMap:
-        name: "{{ .Release.Name }}-emc-backend-config"
+        name: "{{ .Release.Name }}-backend-config"
     # -- per-version upstream tractusx-connector default values.yaml (render templates)
     - name: connector-tpl-0-12-1
       configMap:
