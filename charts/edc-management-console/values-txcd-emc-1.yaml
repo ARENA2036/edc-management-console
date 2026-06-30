@@ -560,7 +560,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "30-06-2026-01"
+    tag: "30-06-2026-emc1"
   imagePullSecrets:
     - name: registry-creds
 
