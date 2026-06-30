@@ -1,0 +1,22 @@
+{{- if .Values.backend.enabled }}
+{{- if .Values.backend.registry.templates.enabled }}
+# One ConfigMap per supported digital-twin-registry version, each holding that
+# version's upstream default values.yaml. The backend mounts these read-only and
+# renders a per-registry values file from the template matching the request version.
+# Source: https://github.com/eclipse-tractusx/sldt-digital-twin-registry/blob/<version>/charts/registry/values.yaml
+{{- range $version := .Values.backend.registry.templates.versions }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.Release.Name }}-dtr-values-{{ $version | replace "." "-" }}
+  labels:
+    app.kubernetes.io/part-of: {{ $.Release.Name }}
+    app.kubernetes.io/component: registry-template
+    registry.tractusx.org/version: {{ $version | quote }}
+data:
+  values.yaml: |-
+{{ $.Files.Get (printf "registry-templates/dtr-values-%s.yaml" $version) | indent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
