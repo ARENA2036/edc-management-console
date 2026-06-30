@@ -14,8 +14,8 @@ function ComponentStatusBadge({ status }: { status: string }) {
   }
   if (status === 'Deploying' || status === 'deploying') {
     return (
-      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Deploying
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Active
       </span>
     );
   }
