@@ -124,7 +124,17 @@ export default function DeploymentWizard({
   const [deploymentStep, setDeploymentStep] = useState<'installing' | 'health' | 'ready'>('installing');
 
   const [name, setName] = useState('');
+
   const [bpn, setBpn] = useState('');
+
+  const handleBpnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+
+
+    if (/^[A-Z0-9]*$/.test(value) && value.length <= 16) {
+      setBpn(value);
+    }
+  };
   const [version, setVersion] = useState<(typeof connectorVersions)[number]>(connectorVersions[0]);
   const [apiEndpoint, setApiEndpoint] = useState('');
   const [dataPlaneUrl, setDataPlaneUrl] = useState('');
@@ -157,7 +167,7 @@ export default function DeploymentWizard({
 
     const connectorName = initialConnector?.name || '';
     setName(connectorName);
-    setBpn(initialConnector?.bpn || prefilledBpn || '');
+    setBpn(initialConnector?.bpn || '');
     setVersion((initialConnector?.version as (typeof connectorVersions)[number]) || connectorVersions[0]);
     setApiEndpoint(initialConnector?.url || '');
     setDataPlaneUrl((initialConnector?.config as { dataPlaneUrl?: string } | undefined)?.dataPlaneUrl || initialConnector?.dp_hostname || '');
@@ -341,10 +351,15 @@ export default function DeploymentWizard({
                       <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                         BPNL
                       </label>
+
                       <input
                         type="text"
+                        name="bpn-input"
+                        autoComplete="new-password"
                         value={bpn}
-                        onChange={(event) => setBpn(event.target.value.toUpperCase())}
+                        onChange={handleBpnChange}
+                        maxLength={16}
+                        placeholder="BPNL000000000000"
                         className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 uppercase text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
@@ -417,7 +432,7 @@ export default function DeploymentWizard({
                         </label>
                         <input
                           type="text"
-                           value={submodelDraft.name}
+                          value={submodelDraft.name}
                           placeholder={t("submodelNamePlaceholder")}
                           onChange={(event) => {
                             const name = event.target.value.trim();
@@ -461,12 +476,18 @@ export default function DeploymentWizard({
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                           {language === 'de' ? 'Version' : 'Version'}
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={submodelDraft.version}
-                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, version: event.target.value })}
+                          onChange={(event) =>
+                            setSubmodelDraft({
+                              ...submodelDraft,
+                              version: event.target.value,
+                            })
+                          }
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        />
+                        >
+                          <option value="0.1.0">0.1.0</option>
+                        </select>
                       </div>
                     </div>
                   )}
@@ -540,12 +561,19 @@ export default function DeploymentWizard({
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                           {language === 'de' ? 'Version' : 'Version'}
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={dtrDraft.version}
-                          onChange={(event) => setDtrDraft({ ...dtrDraft, version: event.target.value })}
+                          onChange={(event) =>
+                            setDtrDraft({
+                              ...dtrDraft,
+                              version: event.target.value,
+                            })
+                          }
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                        />
+                        >
+                          <option value="0.12.0">0.12.0</option>
+                          <option value="0.11.0">0.11.0</option>
+                        </select>
                       </div>
                     </div>
                   )}

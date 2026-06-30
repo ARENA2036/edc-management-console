@@ -288,7 +288,7 @@ function apiRowToManagedComponent(
     id: `${type}-${row.name}-api`,
     type,
     name: row.name,
-    version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.1.0'),
+    version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.11.0'),
     status,
     linkedConnector,
     deployedAt: row.created_at || new Date().toISOString(),
