@@ -417,8 +417,19 @@ export default function DeploymentWizard({
                         </label>
                         <input
                           type="text"
+                           value={submodelDraft.name}
                           placeholder={t("submodelNamePlaceholder")}
-                          onChange={(event) => setSubmodelDraft({ ...submodelDraft, name: event.target.value })}
+                          onChange={(event) => {
+                            const name = event.target.value.trim();
+
+                            setSubmodelDraft({
+                              ...submodelDraft,
+                              name,
+                              dbName: `${name}-db`,
+                              username: `${name}-user`,
+                              password: `${name}-password`,
+                            });
+                          }}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                       </div>
@@ -487,7 +498,17 @@ export default function DeploymentWizard({
                           type="text"
                           value={dtrDraft.name}
                           placeholder={t("dtrNamePlaceholder")}
-                          onChange={(event) => setDtrDraft({ ...dtrDraft, name: event.target.value })}
+                          onChange={(event) => {
+                            const name = event.target.value.trim();
+
+                            setDtrDraft({
+                              ...dtrDraft,
+                              name,
+                              dbName: `${name}-db`,
+                              username: `${name}-user`,
+                              password: `${name}-password`,
+                            });
+                          }}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                       </div>

@@ -182,6 +182,55 @@ function getConnectorEndpoint(connector: DashboardConnector) {
   return '';
 }
 
+function normalizeComponentIdentityPart(value: string | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function getManagedComponentIdentity(component: Pick<ManagedComponent, 'type' | 'name' | 'linkedConnector'>) {
+  const normalizedType = normalizeComponentIdentityPart(component.type);
+  const normalizedName = normalizeComponentIdentityPart(component.name);
+  if (normalizedName) {
+    return `${normalizedType}:${normalizedName}`;
+  }
+
+  return `${normalizedType}:${normalizeComponentIdentityPart(component.linkedConnector)}`;
+}
+
+function mergeManagedComponents(
+  localComponents: ManagedComponent[],
+  apiComponents: ManagedComponent[],
+) {
+  const merged = new Map<string, ManagedComponent>();
+
+  for (const component of localComponents) {
+    merged.set(getManagedComponentIdentity(component), component);
+  }
+
+  for (const component of apiComponents) {
+    const key = getManagedComponentIdentity(component);
+    if (!merged.has(key)) {
+      merged.set(key, component);
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+function isComponentLinkedToConnector(
+  component: Pick<ManagedComponent, 'name' | 'linkedConnector'>,
+  connectorName: string,
+) {
+  const normalizedConnectorName = normalizeComponentIdentityPart(connectorName);
+  if (!normalizedConnectorName) {
+    return false;
+  }
+
+  return (
+    normalizeComponentIdentityPart(component.linkedConnector) === normalizedConnectorName
+    || normalizeComponentIdentityPart(component.name).startsWith(`${normalizedConnectorName}-`)
+  );
+}
+
 /** Returns true only for rows that represent an EDC connector (not submodel/DTR). */
 function isEdcConnectorRow(row: DashboardConnector): boolean {
   const configType = (row.config as Record<string, unknown> | undefined)?.type;
@@ -431,15 +480,9 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   }>({ mode: 'create' });
 
   // Merge API-sourced components with local ones; API entries are skipped if
-  // a local entry already exists for the same type+connector combination.
+  // a local entry already exists for the same persisted component identity.
   const components = useMemo<ManagedComponent[]>(() => {
-    const localKeys = new Set(
-      localComponents.map((c) => `${c.type}:${c.linkedConnector}`),
-    );
-    const dedupedApiComponents = apiComponents.filter(
-      (c) => !localKeys.has(`${c.type}:${c.linkedConnector}`),
-    );
-    return [...localComponents, ...dedupedApiComponents];
+    return mergeManagedComponents(localComponents, apiComponents);
   }, [localComponents, apiComponents]);
 
   const loadConnectors = async () => {
@@ -574,20 +617,28 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const handleDeleteConnector = async (connector: DashboardConnector) => {
     const remaining = connectors.filter((item) => item.name !== connector.name);
     const remainingLocalComponents = localComponents.filter(
-      (component) => component.linkedConnector !== connector.name,
+      (component) => !isComponentLinkedToConnector(component, connector.name),
+    );
+    const remainingApiComponents = apiComponents.filter(
+      (component) => !isComponentLinkedToConnector(component, connector.name),
     );
 
-    setConnectors(remaining);
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
-    setLocalComponents(remainingLocalComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingLocalComponents);
-
-    if (connector.source !== 'local') {
-      try {
+    try {
+      if (connector.source !== 'local') {
         await connectorApi.delete(connector.name);
-      } catch (error) {
-        console.error('Failed to delete connector:', error);
       }
+
+      setConnectors(remaining);
+      saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
+      setLocalComponents(remainingLocalComponents);
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingLocalComponents);
+      setApiComponents(remainingApiComponents);
+
+      if (connector.source !== 'local') {
+        await loadConnectors();
+      }
+    } catch (error) {
+      console.error('Failed to delete connector:', error);
     }
   };
 
@@ -884,13 +935,7 @@ function Monitor() {
   });
 
   const components = useMemo<ManagedComponent[]>(() => {
-    const localKeys = new Set(
-      localComponents.map((c) => `${c.type}:${c.linkedConnector}`),
-    );
-    const dedupedApiComponents = apiComponents.filter(
-      (c) => !localKeys.has(`${c.type}:${c.linkedConnector}`),
-    );
-    return [...localComponents, ...dedupedApiComponents];
+    return mergeManagedComponents(localComponents, apiComponents);
   }, [localComponents, apiComponents]);
 
   useEffect(() => {
