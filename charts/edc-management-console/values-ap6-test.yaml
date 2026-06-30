@@ -560,18 +560,18 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "latest-28-06-2026"
+    tag: "30-06-2026-01"
   imagePullSecrets:
     - name: registry-creds
 
 
 
   env:
-    - name: VITE_API_BASE_URL
+    - name: VITE_BACKEND_URL
       value: https://emc-backend.txcd.arena2036-x.de
     - name: VITE_API_KEY
       value: emc-api-key
-    - name: EDC_HOSTNAME
+    - name: VITE_EDC_HOSTNAME
       value: txcd.arena2036-x.de
     - name: VITE_KEYCLOAK_URL
       value: https://centralidp.txcd.arena2036-x.de/auth/
@@ -579,6 +579,10 @@ frontend:
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
       value: A36-EMC
+    - name: VITE_SDE_URL
+      value: https://sde.txcd.arena2036-x.de
+    - name: VITE_PORTAL_URL
+      value: https://portal.txcd.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
@@ -587,7 +591,9 @@ frontend:
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: A36-EMC
+    clientId: A36-EMC,
+    sdeUrl: https://sde.txcd.arena2036-x.de,
+    portalUrl: https://portal.txcd.arena2036-x.de
     };
 
   service:
