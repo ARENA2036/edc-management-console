@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-
+ 
 # ---- CONFIG ----
 # These must come from environment variables in the pod/Helm values.
 VAULT_ADDR="${VAULT_ADDR:-}"

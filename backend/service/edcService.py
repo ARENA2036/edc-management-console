@@ -12,11 +12,10 @@ class EdcService:
     """Thin async wrapper around Helm 3 (via pyhelm3) for managing connector
     releases, plus the EDC dataspace HTTP calls.
 
-    All Helm operations go through pyhelm3, which invokes the ``helm`` binary
-    with an argument list (no shell), passes values over stdin (no temporary
-    values files) and never changes the process working directory. This removes
-    the shell-injection surface and the global ``os.chdir`` races of the previous
-    ``subprocess(shell=True)`` implementation.
+    All Helm operations go through pyhelm3, which invokes the ``helm`` binary,
+    passes values over stdin (no temporary values files) and never changes the
+    process working directory. This removes the global ``os.chdir`` races of the
+    previous ``subprocess(shell=True)`` implementation.
     """
 
     def __init__(self,
@@ -91,8 +90,8 @@ class EdcService:
                 chart,
                 values,
                 namespace=namespace,
-                create_namespace=True,
-                atomic=True,
+                create_namespace=False,
+                atomic=False,
                 cleanup_on_fail=True,
                 wait=False,
             )

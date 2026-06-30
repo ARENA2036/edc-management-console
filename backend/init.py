@@ -31,7 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth.keycloak_config import keycloak_openid
 
-from models.connector import Connector
+from models.connector import DeploymentRequest
 from models.database import ConnectorDB
 from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
@@ -134,19 +134,21 @@ async def list_connectors(request: Request):
         json_list: list = []
         for cnctor in existingDeployments:
             connectorMap[cnctor.name] = cnctor
-            status = edcManager.check_health('https://' + cnctor.cp_hostname)
-            logger.info("Health check status %s", status)
-            cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
-            databaseManager.update_connector(cnctor)
-            
+
             url_list = []
-            for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
-                url_list.append(
-                    'https://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
-                )
-            if len(cnctor.registry) != 0:
+            # Only connector rows carry a control-plane host to health-check / build URLs from.
+            if cnctor.cp_hostname:
+                status = edcManager.check_health('https://' + cnctor.cp_hostname)
+                logger.info("Health check status %s", status)
+                cnctor.status = "healthy" if status.get("healthy", False) else "unhealthy"
+                databaseManager.update_connector(cnctor)
+                for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
+                    url_list.append(
+                        'https://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
+                    )
+            if cnctor.registry:
                 url_list.append(f'https://{cnctor.registry}/semantics/registry/')
-            if len(cnctor.submodel) != 0:
+            if cnctor.submodel:
                 url_list.append(f'https://{cnctor.submodel}/')
 
             connector_dict = cnctor.to_dict()
@@ -160,6 +162,47 @@ async def list_connectors(request: Request):
             status=200,
             data=json_list
         )
+    except Exception as e:
+        logger.exception(str(e))
+        return HttpUtils.get_error_response(status=500, message=str(e))
+
+@app.get("/api/connectors/health", tags=["EDC"])
+async def all_components_health(request: Request):
+    """Health of every deployed component — for continuous polling from the
+    frontend. Each component is probed by type (connector -> EDC liveness/
+    readiness, others -> ingress reachability) and its row status is refreshed."""
+    try:
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        results = []
+        for record in databaseManager.get_all_connectors():
+            health = edcManager.component_health(record)
+            record.status = "healthy" if health.get("healthy") else "unhealthy"
+            databaseManager.update_connector(record)
+            results.append(health)
+
+        return HttpUtils.response(status=200, data=results)
+    except Exception as e:
+        logger.exception(str(e))
+        return HttpUtils.get_error_response(status=500, message=str(e))
+
+@app.get("/api/connectors/{connector_name}/health", tags=["EDC"])
+async def get_component_health(connector_name: str, request: Request):
+    """Health of a single deployed component (by name) — for continuous polling
+    from the frontend. Refreshes and returns the component's health + status."""
+    try:
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        record = databaseManager.get_connector_by_name(name=connector_name)
+        if not record:
+            return HttpUtils.get_error_response(status=404, message="Component not found")
+
+        health = edcManager.component_health(record)
+        record.status = "healthy" if health.get("healthy") else "unhealthy"
+        databaseManager.update_connector(record)
+        return HttpUtils.response(status=200, data=health)
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
@@ -178,104 +221,106 @@ async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_curr
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
+def _upsert_component_row(comp, plan, namespace):
+    """Create or refresh the ConnectorDB row for one deployed component.
+
+    Each component is persisted as its own row keyed by its `name`; `config`
+    records its type + release. cp/dp hostnames are only meaningful for the
+    connector itself (used by the health probe), so they stay None for others.
+    """
+    cp_host = app_configuration.get("connector", {}).get("hostname", {}).get("controlplane")
+    dp_host = app_configuration.get("connector", {}).get("hostname", {}).get("dataplane")
+    auth = getattr(comp, "auth", None) or {}
+    row_config = {"type": comp.type, "release": plan["release_name"], "chart": plan["chart"]}
+
+    record = databaseManager.get_connector_by_name(comp.name)
+    if record is None:
+        record = ConnectorDB(
+            id=str(uuid.uuid4()),
+            name=comp.name,
+            bpn=getattr(comp, "bpn", "") or "",
+            url=getattr(comp, "url", "") or "",
+            version=plan["version"] or "",
+            namespace=namespace,
+            status="healthy",
+            config=row_config,
+            cp_hostname=(f"{comp.name}-{cp_host}" if comp.type == "connector" and cp_host else None),
+            dp_hostname=(f"{comp.name}-{dp_host}" if comp.type == "connector" and dp_host else None),
+            db_name=getattr(comp, "db_name", None) or "edc",
+            db_username=auth.get("db_username"),
+            db_password=auth.get("db_password"),
+            registry="",
+            submodel="",
+        )
+        return databaseManager.create_connector(connector=record)
+
+    # Re-deploy/upgrade: refresh the request-derived fields and recorded release.
+    record.config = row_config
+    record.bpn = getattr(comp, "bpn", record.bpn) or record.bpn
+    record.url = getattr(comp, "url", record.url) or record.url
+    record.version = plan["version"] or record.version
+    record.db_name = getattr(comp, "db_name", record.db_name) or record.db_name
+    record.db_username = auth.get("db_username", record.db_username)
+    record.db_password = auth.get("db_password", record.db_password)
+    record.status = "healthy"
+    return databaseManager.update_connector(record)
+
+
+async def _deploy_components(components, namespace):
+    """Install-or-upgrade every component in the request (config-driven) and
+    persist one DB row per component. A component with no `type`/`name` is an
+    empty/optional slot and is skipped. Shared by POST (create) and PUT (upgrade)
+    since Helm install-or-upgrade is the same operation either way."""
+    deployed = []
+    for comp in components:
+        if not comp.type or not comp.name:
+            continue
+        plan = edcManager.prepare_deployment(comp.type, comp)
+        if "error" in plan:
+            raise Exception(plan["error"])
+        await edcService.install_or_upgrade(
+            release_name=plan["release_name"],
+            chart_name=plan["chart"],
+            repo=plan["repo"],
+            version=plan["version"],
+            values=plan["values"],
+            namespace=namespace,
+        )
+        _upsert_component_row(comp, plan, namespace)
+        deployed.append({"type": comp.type, "name": comp.name,
+                         "release": plan["release_name"], "version": plan["version"]})
+    return deployed
+
+
 @app.post("/api/connector", tags=["EDC"])
-async def add_connector(connector: Connector, request: Request):
+async def add_connector(payload: DeploymentRequest, request: Request):
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
-        #Check if the user has more than 2 edcs already deployed, maybe create another endpoint for user check
-        #We can then call the endpoint when the user clicks on the DeployEDC button itself.
-        logger.info(connector)
+        logger.info(payload)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-
-        # Deploy the connector plus every component whose `deployWhen` condition
-        # the request satisfies (gating is entirely config-driven).
-        for component in edcManager.deployments_for(connector):
-            plan = edcManager.prepare_deployment(component, connector)
-            if "error" in plan:
-                raise Exception(plan["error"])
-            await edcService.install_or_upgrade(
-                release_name=plan["release_name"],
-                chart_name=plan["chart"],
-                repo=plan["repo"],
-                version=plan["version"],
-                values=plan["values"],
-                namespace=namespace,
-            )
-
-        connector_db = databaseManager.get_connector_by_name(connector.name)
-        if connector_db is None:
-            logger.info(f"Entry not found in database, creating entry for {connector.name}")
-
-            # dtr_db = DigitalTwinRegistryDB(
-            #     url=connector.registry.url,
-            #     credentials=connector.registry.credentials
-            # )
-
-            # submodel_db = SubModelServerDB(
-            #     url=connector.submodel.url,
-            #     credentials=connector.submodel.credentials
-            # )
-            connector_db = ConnectorDB(
-                id=str(uuid.uuid4()),
-                name=connector.name,
-                bpn=connector.bpn,
-                url = connector.url,
-                version = connector.version,
-                namespace = namespace,
-                status = "unhealthy",
-                cp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("controlplane"),
-                dp_hostname = connector.name + '-' + app_configuration.get("connector", {}).get("hostname", {}).get("dataplane"),
-                db_name = 'edc',
-                db_username = connector.db_username,
-                db_password = connector.db_password,
-                registry=connector.registry.url if connector.registry else "",
-                submodel=connector.submodel.url if connector.submodel else ""
-            )
-            connector_db = databaseManager.create_connector(connector=connector_db)
-
-        return HttpUtils.response(
-            status=200,
-            data=connector_db.to_dict()
-        )
+        deployed = await _deploy_components(payload.components, namespace)
+        return HttpUtils.response(status=200, data={"deployed": deployed})
 
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.put("/api/connectors/{connector_id}", tags=["EDC"])
-async def upgrade_connector(connector_id: str, connector: Connector, request: Request):
+async def upgrade_connector(connector_id: str, payload: DeploymentRequest, request: Request):
+    """Upgrade (or install) the components in the request. Same array payload and
+    config-driven path as POST — Helm install-or-upgrade is the same operation, so
+    this re-renders each component's values and rolls the release forward."""
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
-
+        logger.info(payload)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-
-        results = []
-        for component in edcManager.deployments_for(connector):
-            plan = edcManager.prepare_deployment(component, connector)
-            if "error" in plan:
-                raise Exception(plan["error"])
-            revision = await edcService.install_or_upgrade(
-                release_name=plan["release_name"],
-                chart_name=plan["chart"],
-                repo=plan["repo"],
-                version=plan["version"],
-                values=plan["values"],
-                namespace=namespace,
-            )
-            results.append({
-                "release": plan["release_name"],
-                "revision": revision.revision,
-                "status": str(revision.status),
-            })
-
-        return HttpUtils.response(
-            status=200,
-            message=f"Connector '{connector.name}' upgraded",
-            data={"name": connector.name, "namespace": namespace, "releases": results})
+        upgraded = await _deploy_components(payload.components, namespace)
+        return HttpUtils.response(status=200, message="Components upgraded",
+                                  data={"upgraded": upgraded})
 
     except Exception as e:
         logger.exception(str(e))
@@ -283,25 +328,29 @@ async def upgrade_connector(connector_id: str, connector: Connector, request: Re
 
 @app.delete("/api/connectors/{connector_name}", tags=["EDC"])
 async def delete_connector(connector_name: str, request: Request):
-
+    """Uninstall a single deployed component (one DB row) and remove its record.
+    Each component is its own release, so this uninstalls the release recorded on
+    the row (falling back to the row name) and deletes that row only."""
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        connector = databaseManager.get_connector_by_name(name=connector_name)
+        record = databaseManager.get_connector_by_name(name=connector_name)
+        if not record:
+            return HttpUtils.get_error_response(status=404, message="Component not found")
+
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+        # The component's own release (recorded at deploy time); falls back to its
+        # name. Uninstalling a release that was never created is a harmless no-op.
+        release_name = (record.config or {}).get("release") or record.name
+        await edcService.uninstall(release_name=release_name, namespace=namespace)
 
-        # Uninstall every component release this connector may own (uninstalling
-        # a release that was never created is a harmless no-op).
-        for release_name in edcManager.all_release_names(connector):
-            await edcService.uninstall(release_name=release_name, namespace=namespace)
-
-        databaseManager.delete_connector(connector_id=connector.id)
+        databaseManager.delete_connector(connector_id=record.id)
 
         return HttpUtils.response(
             status=200,
-            message=f"Connector '{connector.name}' uninstalled")
+            message=f"Component '{record.name}' uninstalled")
 
     except Exception as e:
         logger.exception(str(e))

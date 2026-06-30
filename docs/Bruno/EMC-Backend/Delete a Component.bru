@@ -1,0 +1,20 @@
+meta {
+  name: Delete a Component
+  type: http
+  seq: 6
+}
+
+delete {
+  url: http://localhost:8001/api/connectors/sbvr-1
+  body: json
+  auth: inherit
+}
+
+headers {
+  X-Api-key: emc-api-key
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
