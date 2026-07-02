@@ -77,7 +77,7 @@ backend:
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend-2.txcd.arena2036-x.de"
+      - host: &hostname "emc-backend-2.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
@@ -148,19 +148,19 @@ backend:
 
       externalApps:
         sde:
-          url: https://sde.txcd.arena2036-x.de
-          client_id: "CX-SDE"
-          manufacturerId: BPNLA360COMPANY1
-          providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de
-          consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de
-          registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry
+          url: https://sde-2.services.construct-x.net
+          client_id: "SDE-2"
+          manufacturerId: BPNL00000000052O
+          providerEDC:  https://connector-2-controlplane.services.construct-x.net
+          consumerEDC: https://connector-2-controlplane.services.construct-x.net
+          registryUrl: https://connector-2-dtr.services.construct-x.net/semantics/registry
 
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
       # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://dataconsumer-controlplane.staging.arena2036-x.de"
+        default_url: "https://connector-2-controlplane.services.construct-x.net"
         # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
         didMethod: "did:web"
         helmRepositories:
@@ -182,8 +182,8 @@ backend:
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
         hostname:
-          controlplane: controlplane.txcd.arena2036-x.de
-          dataplane: dataplane.txcd.arena2036-x.de
+          controlplane: controlplane.txcd.arena2036.app
+          dataplane: dataplane.txcd.arena2036.app
         # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
         sts:
           dimEndpoint: "/api/sts"
@@ -283,11 +283,11 @@ backend:
             - path: controlplane.ingresses[0].annotations
               from: controlplane_annotations
             - path: controlplane.ingresses[0].tls.enabled
-              value: false
+              value: true
             - path: controlplane.ingresses[0].tls.secretName
               template: "{name}-cp-tls"
             - path: dataplane.ingresses[0].enabled
-              value: false
+              value: true
             - path: dataplane.ingresses[0].hostname
               from: dp_hostname
             - path: dataplane.ingresses[0].certManager.clusterIssuer
@@ -297,7 +297,7 @@ backend:
             - path: dataplane.ingresses[0].annotations
               from: dataplane_annotations
             - path: dataplane.ingresses[0].tls.enabled
-              value: false
+              value: true
             - path: dataplane.ingresses[0].tls.secretName
               template: "{name}-dp-tls"
             - path: dataplane.token.signer.privatekey_alias
@@ -560,7 +560,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "30-06-2026-emc2"
+    tag: "02-07-2026-emc2"
   imagePullSecrets:
     - name: registry-creds
 
@@ -568,11 +568,11 @@ frontend:
 
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend-2.txcd.arena2036-x.de
+      value: https://emc-backend-2.txcd.arena2036.app
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
-      value: txcd.arena2036-x.de
+      value: txcd.arena2036.app
     - name: VITE_KEYCLOAK_URL
       value: https://centralidp.txcd.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
@@ -580,19 +580,19 @@ frontend:
     - name: VITE_KEYCLOAK_CLIENT_ID
       value: EMC-2
     - name: VITE_SDE_URL
-      value: https://sde-2.txcd.arena2036-x.de
+      value: https://sde-2.services.construct-x.net
     - name: VITE_PORTAL_URL
       value: https://portal.txcd.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend-2.txcd.arena2036-x.de,
+    apiUrl: https://emc-backend-2.txcd.arena2036.app,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: A36-EMC,
-    sdeUrl: https://sde-2.txcd.arena2036-x.de,
+    clientId: EMC-2,
+    sdeUrl: https://sde-2.services.construct-x.net,
     portalUrl: https://portal.txcd.arena2036-x.de
     };
 
@@ -609,7 +609,7 @@ frontend:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc-2.txcd.arena2036-x.de"
+      - host: &fehostname "emc-2.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
