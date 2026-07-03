@@ -72,6 +72,8 @@ With SDE, users can upload, request, and transfer files without manually navigat
 ### User Manual
 
 Open SDE from the EMC sidebar after the SDE URL has been configured for the environment. If separate SDE documentation is available for your deployment, use that guide for the exchange-specific steps.
+SDE USer Manual-
+https://github.com/ARENA2036/managed-simple-data-exchanger-frontend/tree/main/docs/user-guide
 
 
 ## Workshop Feedback
