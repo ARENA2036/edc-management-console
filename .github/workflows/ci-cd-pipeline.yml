@@ -3,11 +3,29 @@ name: EMC CI-CD Pipeline
 on:
   push:
     branches:
+      - develop
+      - 'release/**'
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
       - ci-cd-branch
   pull_request:
     branches:
+      - develop
+      - 'release/**'
       - ci-cd-branch
+
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select deployment environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
 
 permissions:
   contents: write
@@ -53,7 +71,6 @@ jobs:
     uses: ./.github/workflows/dependencies-frontend.yaml
     secrets: inherit
 
-
   build:
     name: Build Images
     needs:
@@ -67,20 +84,134 @@ jobs:
     uses: ./.github/workflows/emc-build.yaml
     secrets: inherit
 
+  update-image-tag:
+    name: Update Helm Image Tag
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Select Helm values file
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "dev" ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "staging" ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
+
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "prod" ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
+
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
+
+          elif [[ "${{ github.ref_name }}" == release/* ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
+
+          else
+            echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
+          fi
+
+      - name: Update image tags
+        run: |
+          echo "Updating image tags in $VALUES_FILE"
+
+          yq -i '.backend.image.tag = "${{ github.sha }}"' "$VALUES_FILE"
+          yq -i '.frontend.image.tag = "${{ github.sha }}"' "$VALUES_FILE"
+
+          cat "$VALUES_FILE"
+
+      - name: Commit updated Helm values
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add "$VALUES_FILE"
+          git commit -m "Update image tag to ${{ github.sha }}" || echo "No changes to commit"
+          git push
+
   trivy:
     name: Trivy Image Scan
-    needs: build
+    needs: update-image-tag
     uses: ./.github/workflows/reusable-trivy.yml
     secrets: inherit
 
+  deploy-emc-dev: 
+    name: Deploy EMC to Dev via Argo CD 
+    needs: trivy 
+    runs-on: ubuntu-latest 
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev' 
+    
+    steps: 
+      - name: Checkout repository 
+        uses: actions/checkout@v4 
+
+      - name: Install kubectl 
+        run: | 
+          curl -LO -s "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 
+          chmod +x kubectl 
+          sudo mv kubectl /usr/local/bin/ 
+          kubectl version --client 
+            
+      - name: Install yq 
+        run: | 
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 
+          sudo chmod +x /usr/local/bin/yq 
+          yq --version 
+          
+      - name: Install Vault CLI 
+        run: |
+          curl -sSL https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip -o vault.zip 
+          unzip vault.zip 
+          chmod +x vault 
+          sudo mv vault /usr/local/bin/ 
+          vault --version 
+      
+      - name: Fetch dev kubeconfig from Vault 
+        run: | 
+          mkdir -p "$HOME/.kube" 
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}" 
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_DEV }}" 
+          CLUSTER_PATH="dev/infra/cluster-dev"
+
+          vault kv get -field=config "$CLUSTER_PATH" > "$HOME/.kube/config" 
+          chmod 600 "$HOME/.kube/config" 
+          CONTEXT=$(yq e '.current-context' "$HOME/.kube/config") 
+          kubectl --context="$CONTEXT" cluster-info 
+          echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV" 
+      
+      - name: Apply Dev Argo CD application 
+        run: | 
+          kubectl --context="$KUBE_CONTEXT" apply -f .github/argocd/emc-dev-app.yaml 
+      
+      - name: Check Dev Argo CD application 
+        run: |
+          kubectl --context="$KUBE_CONTEXT" get application emc-dev -n argocd
+  
   deploy-emc-staging:
     name: Deploy EMC to Staging via Argo CD
     needs: trivy
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
+    if: | 
+      (github.event_name == 'push' && github.ref_name == 'ci-cd-branch') || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
 
-    env:
-      TARGET_CONTEXT: staging
+    # env:
+    #   TARGET_CONTEXT: staging
 
     steps:
       - name: Checkout repository
@@ -136,7 +267,73 @@ jobs:
 
       - name: Check Argo CD application
         run: |
-          kubectl --context="$KUBE_CONTEXT" get application emc-application -n argocd
+          kubectl --context="$KUBE_CONTEXT" get application emc-staging -n argocd
+
+  deploy-emc-prod:
+    name: Deploy EMC to Prod via Argo CD
+    needs: trivy
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        run: |
+          curl -LO -s "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Install Vault CLI
+        run: |
+          curl -sSL https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip -o vault.zip
+          unzip vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/
+          vault --version
+
+      - name: Fetch prod kubeconfig from Vault
+        run: |
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
+          CLUSTER_PATH="staging/infra/cluster-prod"
+
+          vault kv get -field=config "$CLUSTER_PATH" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT=$(yq e '.current-context' "$HOME/.kube/config")
+          kubectl --context="$CONTEXT" cluster-info
+
+          echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Apply Prod Argo CD application
+        run: |
+          kubectl --context="$KUBE_CONTEXT" apply -f .github/argocd/emc-prod-app.yaml
+
+      - name: Check Prod Argo CD application
+        run: |
+          kubectl --context="$KUBE_CONTEXT" get application emc-prod -n argocd
+
+  # chart-release:
+  #   name: Chart Release
+  #   needs: deploy-emc-prod
+  #   if: |
+  #     (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
+  #     (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+  #   uses: ./.github/workflows/chart-release.yaml
+  #   secrets: inherit
           
   chart-release:
     name: Chart Release
