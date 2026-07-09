@@ -20,7 +20,7 @@ on:
       environment:
         description: "Select deployment environment"
         required: true
-        default: "dev"
+        default: "staging"
         type: choice
         options:
           - dev
