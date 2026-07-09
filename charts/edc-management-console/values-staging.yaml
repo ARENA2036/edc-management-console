@@ -46,7 +46,7 @@ backend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "c2cd08c4f27d5bb4b19711d53177ddaa65e03597"
+    tag: "5178cbf2152ea5b67618826fa55397e8fb389ae7"
   imagePullSecrets:
     - name: registry-creds
   envFrom: []
@@ -157,7 +157,7 @@ frontend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "c2cd08c4f27d5bb4b19711d53177ddaa65e03597"
+    tag: "5178cbf2152ea5b67618826fa55397e8fb389ae7"
   imagePullSecrets:
     - name: registry-creds
   env:
