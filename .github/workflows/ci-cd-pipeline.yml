@@ -166,7 +166,8 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git add "$VALUES_FILE"
+          # Use git add -f because charts directory is ignored by .gitignore.
+          git add -f "$VALUES_FILE"
           git commit -m "Update image tag to ${{ github.sha }}" || echo "No changes to commit"
           git push
 
