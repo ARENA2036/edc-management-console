@@ -34,7 +34,6 @@
 name: "edc-management-console"
 nameOverride: ""
 fullnameOverride: "emc"
-
 backend:
   enabled: true
   name: "emc-backend"
@@ -47,18 +46,15 @@ backend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
-  
+    tag: "c2cd08c4f27d5bb4b19711d53177ddaa65e03597"
   imagePullSecrets:
     - name: registry-creds
-
   envFrom: []
   env:
     - name: "CLUSTER_NAME"
       value: "staging"
     - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
-
   ingress:
     enabled: true
     ingressClassName: "nginx"
@@ -77,119 +73,24 @@ backend:
       - secretName: emc-backend-staging-tls
         hosts:
           - *hostname
-
   podAnnotations: {}
-    # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+  # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
   service:
     # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
     type: ClusterIP
     # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
     port: 8001
-
-
   configuration:
-    yml: |-
-      appConfig:
-        name: "ARENA2036 EDC Management Console"
-        client_id: "A36-EMC"
-        version: "1.0.0"
-        port: 5000
-        host: "0.0.0.0"
-
-      authorization:
-        enabled: true
-        apiKey:
-          key: "X-Api-Key"
-          value: "emc-api-key"
-
-      startup:
-        checks: true
-        refresh_interval: 10
-
-      dataspaceConfig:
-        name: "ARENA2036-X"
-        authority_id: "BPNL00000003CRHK"
-        centralidp:
-          url: "https://centralidp.staging.arena2036-x.de/auth/"
-          realm: "CX-Central"
-          client_id: "${CENTRALIDP_CLIENT_ID}"
-          client_secret: "${CENTRALIDP_CLIENT_SECRET}"
-        ssi_wallet:
-          url: "https://ssi-dim-wallet-stub.staging.arena2036-x.de"
-          client_id: "sa-cl5-custodian-2"
-          client_secret: "changeme"
-        portal:
-          url: "https://portal.staging.arena2036-x.de"
-          client_id: "sa-cl1-reg-2"
-          client_secret: "changeme"
-        discovery:
-          semantics:
-            url: "https://semantics.staging.arena2036-x.de"
-          discoveryFinder:
-            endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
-            keys:
-              edc_discovery: "bpn"
-            client_id: "sa-cl21-01"
-            client_secret: "changeme"
-          bpnDiscovery:
-            endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
-            client_id: "sa-cl22-01"
-            client_secret: "changeme"
-
-
-      clusterConfig:
-        context: "staging" 
-        namespace: "edc-management-console"
-
-      sde:
-        url: https://sde.staging.arena2036-x.de
-        client_id: "CX-SDE"
-        manufacturerId: BPNL00000003AYRE
-        providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de
-        consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de
-        registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry
-
-      edc:
-        default_url: "https://dataconsumer-controlplane.staging.arena2036-x.de"
-        helm_chart_directory: "./tractusx-connector"
-        endpoints:
-          assets: "/v3/assets"
-          policies: "/v3/policydefinitions"
-          contracts: "/v3/contractdefinitions"
-          readiness: "/api/check/readiness"
-          liveness: "/api/check/liveness"
-          catalog: "/management/v3/catalog/request"
-          edr_prefix: "/management/v3/edrs"
-          view_edr: "/request"
-          transfer_edr: "/dataaddress?auto_refresh=true"
-          dsp: "/api/v1/dsp"
-        hostname:
-          cp: controlplane.arena2036-x.de
-          dp: dataplane.arena2036-x.de
-
-      database:
-        url: "${DATABASE_URL}"
-        echo: false
-      
-      files:
-        charts:
-          v9: /Chart_v9.yaml
-          v10: /Chart_v10.yaml
-          v11: /Chart_v11.yaml
-        values:
-          v9: /values_v9.yaml
-          v10: /values_v10.yaml
-          v11: /values_v11.yaml
-
+    yml: "appConfig:\n  name: \"ARENA2036 EDC Management Console\"\n  client_id: \"A36-EMC\"\n  version: \"1.0.0\"\n  port: 5000\n  host: \"0.0.0.0\"\n\nauthorization:\n  enabled: true\n  apiKey:\n    key: \"X-Api-Key\"\n    value: \"emc-api-key\"\n\nstartup:\n  checks: true\n  refresh_interval: 10\n\ndataspaceConfig:\n  name: \"ARENA2036-X\"\n  authority_id: \"BPNL00000003CRHK\"\n  centralidp:\n    url: \"https://centralidp.staging.arena2036-x.de/auth/\"\n    realm: \"CX-Central\"\n    client_id: \"${CENTRALIDP_CLIENT_ID}\"\n    client_secret: \"${CENTRALIDP_CLIENT_SECRET}\"\n  ssi_wallet:\n    url: \"https://ssi-dim-wallet-stub.staging.arena2036-x.de\"\n    client_id: \"sa-cl5-custodian-2\"\n    client_secret: \"changeme\"\n  portal:\n    url: \"https://portal.staging.arena2036-x.de\"\n    client_id: \"sa-cl1-reg-2\"\n    client_secret: \"changeme\"\n  discovery:\n    semantics:\n      url: \"https://semantics.staging.arena2036-x.de\"\n    discoveryFinder:\n      endpoint: \"/discoveryfinder/api/v1.0/administration/connectors/discovery/search\"\n      keys:\n        edc_discovery: \"bpn\"\n      client_id: \"sa-cl21-01\"\n      client_secret: \"changeme\"\n    bpnDiscovery:\n      endpoint: \"/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search\"\n      client_id: \"sa-cl22-01\"\n      client_secret: \"changeme\"\n\n\nclusterConfig:\n  context: \"staging\" \n  namespace: \"edc-management-console\"\n\nsde:\n  url: https://sde.staging.arena2036-x.de\n  client_id: \"CX-SDE\"\n  manufacturerId: BPNL00000003AYRE\n  providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de\n  consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de\n  registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry\n\nedc:\n  default_url: \"https://dataconsumer-controlplane.staging.arena2036-x.de\"\n  helm_chart_directory: \"./tractusx-connector\"\n  endpoints:\n    assets: \"/v3/assets\"\n    policies: \"/v3/policydefinitions\"\n    contracts: \"/v3/contractdefinitions\"\n    readiness: \"/api/check/readiness\"\n    liveness: \"/api/check/liveness\"\n    catalog: \"/management/v3/catalog/request\"\n    edr_prefix: \"/management/v3/edrs\"\n    view_edr: \"/request\"\n    transfer_edr: \"/dataaddress?auto_refresh=true\"\n    dsp: \"/api/v1/dsp\"\n  hostname:\n    cp: controlplane.arena2036-x.de\n    dp: dataplane.arena2036-x.de\n\ndatabase:\n  url: \"${DATABASE_URL}\"\n  echo: false\n\nfiles:\n  charts:\n    v9: /Chart_v9.yaml\n    v10: /Chart_v10.yaml\n    v11: /Chart_v11.yaml\n  values:\n    v9: /values_v9.yaml\n    v10: /values_v10.yaml\n    v11: /values_v11.yaml"
   resources: {}
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
   #   cpu: 100m
   #   memory: 128Mi
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
@@ -200,15 +101,15 @@ backend:
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
   podSecurityContext: {}
-    # fsGroup: 2000
+  # fsGroup: 2000
 
   securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
 
   ## Additional volumes on the output Deployment definition.
   volumes:
@@ -223,14 +124,14 @@ backend:
     # -- temporary file system mount
     - name: tmpfs
       emptyDir: {}
-    #  - name: secrets-store
-    #    csi:
-    #      driver: secrets-store.csi.k8s.io
-    #      readOnly: true
-    #      volumeAttributes:
-    #        secretProviderClass: "secrets-provider
+  #  - name: secrets-store
+  #    csi:
+  #      driver: secrets-store.csi.k8s.io
+  #      readOnly: true
+  #      volumeAttributes:
+  #        secretProviderClass: "secrets-provider
+  # -- specifies the volume mounts for the backend deployment
 
-    # -- specifies the volume mounts for the backend deployment
   volumeMounts:
     # -- mounted path for the backend configuration added in the config maps
     - name: emc-backend-config
@@ -244,7 +145,6 @@ backend:
     - name: tmpfs
       mountPath: /backend/logs
       subPath: logs
-
 frontend:
   enabled: true
   name: "emc-frontend"
@@ -257,10 +157,9 @@ frontend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
+    tag: "c2cd08c4f27d5bb4b19711d53177ddaa65e03597"
   imagePullSecrets:
     - name: registry-creds
-
   env:
     - name: VITE_API_BASE_URL
       value: https://emc-backend.staging.arena2036-x.de
@@ -274,7 +173,6 @@ frontend:
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
       value: A36-EMC
-    
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
     apiUrl: "https://emc-backend.staging.arena2036-x.de",
@@ -284,7 +182,6 @@ frontend:
     realm: "CX-Central",
     clientId: "A36-EMC"
     };
-
   service:
     type: ClusterIP
     port: 8080
@@ -309,16 +206,15 @@ frontend:
       - secretName: emc-frontend-staging-tls
         hosts:
           - *hostname
-
-  resources: { }
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
+  resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
   #   cpu: 100m
   #   memory: 128Mi
   volumes:
@@ -331,7 +227,6 @@ frontend:
     - name: emc-frontend-config
       mountPath: /frontend/.env
       subPath: .env
-
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
   autoscaling:
     enabled: false
@@ -339,8 +234,6 @@ frontend:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
-
-
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # Specifies whether a service account should be created
@@ -352,25 +245,22 @@ serviceAccount:
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
-
 # This is for setting Kubernetes Annotations to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 podAnnotations: {}
 # This is for setting Kubernetes Labels to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
-
 podSecurityContext: {}
-  # fsGroup: 2000
+# fsGroup: 2000
 
 securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
-
+# capabilities:
+#   drop:
+#   - ALL
+# readOnlyRootFilesystem: true
+# runAsNonRoot: true
+# runAsUser: 1000
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
@@ -381,10 +271,6 @@ readinessProbe:
   httpGet:
     path: /health
     port: 8001
-
-
 nodeSelector: {}
-
 tolerations: []
-
 affinity: {}
