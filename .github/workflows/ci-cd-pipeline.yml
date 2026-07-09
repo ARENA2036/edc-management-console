@@ -105,6 +105,29 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
+      # uncomment this when everything work fine
+      # - name: Select Helm values file
+      #   run: |
+      #     if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "dev" ]]; then
+      #       echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
+
+      #     elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "staging" ]]; then
+      #       echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
+
+      #     elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "prod" ]]; then
+      #       echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
+
+      #     elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+      #       echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
+
+      #     elif [[ "${{ github.ref_name }}" == release/* ]]; then
+      #       echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
+
+      #     else
+      #       echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
+      #     fi
+  
+        # For testing only then delete this after testing
       - name: Select Helm values file
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "dev" ]]; then
@@ -119,11 +142,14 @@ jobs:
           elif [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
 
+          elif [[ "${{ github.ref_name }}" == "ci-cd-branch" ]]; then
+            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
+
           elif [[ "${{ github.ref_name }}" == release/* ]]; then
             echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
 
           else
-            echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
+            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
           fi
 
       - name: Update image tags

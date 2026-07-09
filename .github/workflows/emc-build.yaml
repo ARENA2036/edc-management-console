@@ -31,8 +31,7 @@ on:
       - 'bugfix/**'
       - 'hotfix/**'
       - 'release/**'
-      - ci-cd-branch
-
+      
   workflow_call:
   workflow_dispatch:
     inputs:
