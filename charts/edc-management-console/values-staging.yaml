@@ -47,7 +47,7 @@ backend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "Testing-21-06-2026"
+    tag: "latest"
   
   imagePullSecrets:
     - name: registry-creds
@@ -58,7 +58,6 @@ backend:
       value: "staging"
     - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
-
 
   ingress:
     enabled: true
@@ -258,7 +257,7 @@ frontend:
     # This sets the pull policy for images.
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "Testing-21-06-2026"
+    tag: "latest"
   imagePullSecrets:
     - name: registry-creds
 

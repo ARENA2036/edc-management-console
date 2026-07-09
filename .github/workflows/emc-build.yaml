@@ -24,15 +24,24 @@ name: emc-build
 
 on:
   push:
-    branches: ["main", "backend", "feature/frontend, ci-cd-branch"]
+    branches: 
+      - develop
+      - main
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+      - 'release/**'
+      - ci-cd-branch
+
   workflow_call:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'tag'
-        required: true
-        default: 'latest-15-04-2026'
-
+        description: 'Optional Docker image tag'
+        required: false
+        default: ""
+        type: string
+        
 env:
   IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
   IMAGE_NAMESPACE: 'harbor-hub-shared.arena.3ascloud.de/arena2036'
@@ -47,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       packages: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -66,32 +76,23 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.event.inputs.image_tag }}
             type=raw,value=${{ github.sha }}
+            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
+
       
       - name: Build and push Docker image
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
         with:
           context: backend
           push: true
-          # push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:Testing-21-06-2026
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      # # https://github.com/peter-evans/dockerhub-description
-      # - name: Update Docker Hub description
-      #   if: github.event_name != 'pull_request'
-      #   uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4.0.2
-      #   with:
-      #     username: ${{ secrets.DOCKER_HUB_USER }}
-      #     password: ${{ secrets.DOCKER_HUB_TOKEN }}
-      #     repository: ${{ env.IMAGE_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}
-      #     # readme-filepath: 'industry-flag-service'
 
   build-and-push-frontend:
     runs-on: ubuntu-latest
     permissions:
       packages: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -110,24 +111,14 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.event.inputs.image_tag }}
             type=raw,value=${{ github.sha }}
+            type=raw,value=${{ github.event.inputs.image_tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '' }}
+
       
       - name: Build and push Docker image
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
         with:
           context: frontend
-          # push: ${{ github.event_name != 'pull_request' }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}, ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:Testing-21-06-2026
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      # # https://github.com/peter-evans/dockerhub-description
-      # - name: Update Docker Hub description
-      #   if: github.event_name != 'pull_request'
-      #   uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4.0.2
-      #   with:
-      #     username: ${{ secrets.DOCKER_HUB_USER }}
-      #     password: ${{ secrets.DOCKER_HUB_TOKEN }}
-      #     repository: ${{ env.IMAGE_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}
-      #     readme-filepath: 'industry-flag-service/frontend/README.md'

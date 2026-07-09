@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: emc-application
+  name: emc-dev
   namespace: argocd
 
 spec:
@@ -10,22 +10,18 @@ spec:
 
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
-    targetRevision: ci-cd-branch
-    # targetRevision: develop
+    targetRevision: HEAD
     path: charts/edc-management-console
     helm:
-      releaseName: emc
+      releaseName: emc-dev
       valueFiles:
-        - values-staging.yaml
+        - values-dev.yaml
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: edc-management-console
+    namespace: emc-dev
 
   syncPolicy:
-    # automated:
-    #   prune: true
-    #   selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - Replace=true
