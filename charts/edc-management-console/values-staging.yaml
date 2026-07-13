@@ -19,7 +19,7 @@ backend:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "dd774f9d045301c28a3d12fd779f723d15e99a83"
+    tag: "f4f9a9787a3b2bd7e3f188504bd0fb6517bc9a03"
   imagePullSecrets:
     - name: registry-creds
   envFrom: []
@@ -142,7 +142,7 @@ frontend:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "dd774f9d045301c28a3d12fd779f723d15e99a83"
+    tag: "f4f9a9787a3b2bd7e3f188504bd0fb6517bc9a03"
   imagePullSecrets:
     - name: registry-creds
   env:
@@ -228,42 +228,33 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
 # By default we're disabling observability
 grafana:
   enabled: true
-
   ingress:
     enabled: true
     ingressClassName: nginx
-
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-staging
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-
     hosts:
       - grafana.staging.arena2036-x.de
-
     path: /
     pathType: Prefix
-
     tls:
       - secretName: emc-grafana-staging-tls
         hosts:
           - grafana.staging.arena2036-x.de
-
   sidecar:
     dashboards:
       enabled: true
       label: grafana_dashboard
       labelValue: "1"
       searchNamespace: ALL
-
   datasources:
     datasources.yaml:
       apiVersion: 1
-
       datasources:
         - name: Prometheus
           uid: prometheus
@@ -272,81 +263,59 @@ grafana:
           url: http://emc-prometheus-server
           isDefault: true
           editable: false
-
         - name: Loki
           uid: loki
           type: loki
           access: proxy
           url: http://emc-loki-gateway
           editable: false
-
 prometheus:
   enabled: true
-
 loki:
   enabled: true
-
   deploymentMode: SingleBinary
-
   loki:
     auth_enabled: false
-
     commonConfig:
       replication_factor: 1
       path_prefix: /var/loki
-
     storage:
       type: filesystem
-
       # Required by Loki chart 6.27.0 template helpers.
       # These names are placeholders for filesystem mode.
       bucketNames:
         chunks: chunks
         ruler: ruler
         admin: admin
-
     useTestSchema: true
-
     limits_config:
       allow_structured_metadata: true
       volume_enabled: true
       retention_period: 168h
-
     compactor:
       retention_enabled: true
       delete_request_store: filesystem
-
   singleBinary:
     replicas: 1
-
     persistence:
       enabled: true
       size: 10Gi
       storageClass: ""
-
   read:
     replicas: 0
-
   write:
     replicas: 0
-
   backend:
     replicas: 0
-
   chunksCache:
     enabled: false
-
   resultsCache:
     enabled: false
-
   gateway:
     enabled: true
-
   lokiCanary:
     enabled: true
-
 opentelemetry-collector:
   enabled: false
-
 jaeger:
   enabled: false
