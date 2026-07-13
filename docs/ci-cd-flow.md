@@ -3,41 +3,41 @@
 ```mermaid
 flowchart TD
 
-     A[Developer Push / Workflow Dispatch] --> B[GitHub Actions CI-CD Pipeline]
+    A[Developer Push<br/>Workflow Dispatch] --> B[GitHub Actions<br/>CI-CD Pipeline]
 
-    B --> C[Verify / Helm Lint / Security Scans]
+    B --> C[Verify<br/>Helm Lint<br/>Security Scans]
 
-    C --> D[Build Backend & Frontend Docker Images]
+    C --> D[Build Backend & Frontend<br/>Docker Images]
 
-    D --> E[Push Images to Harbor Registry]
+    D --> E[Push Images to<br/>Harbor Registry]
 
-    E --> F[Trivy Image Scan]
+    E --> F[Trivy<br/>Image Scan]
 
-    F --> G[Update Helm Image Tag using Git SHA]
+    F --> G[Update Helm Image Tag<br/>using Git SHA]
 
-    G --> H{Select Values File}
+    G --> H{Select<br/>Values File}
 
-    H -->|Feature Branch / Manual Dev| H1[values-dev.yaml]
-    H -->|Develop Branch| H2[values-staging.yaml]
-    H -->|Release Branch| H3[values-prod.yaml]
+    H -->|Feature Branch<br/>Manual Dev| H1[values-dev.yaml]
+    H -->|Develop<br/>Branch| H2[values-staging.yaml]
+    H -->|Release<br/>Branch| H3[values-prod.yaml]
 
-    H1 --> I[Commit Updated Helm Values]
+    H1 --> I[Commit Updated<br/>Helm Values]
     H2 --> I
     H3 --> I
 
-    I --> J{Deployment Target}
+    I --> J{Deployment<br/>Target}
 
-    J -->|Dev| K[Apply emc-dev-app.yaml]
-    J -->|Staging| L[Apply emc-staging-app.yaml]
-    J -->|Production| M[Apply emc-prod-app.yaml]
+    J -->|Dev| K[Apply<br/>emc-dev-app.yaml]
+    J -->|Staging| L[Apply<br/>emc-staging-app.yaml]
+    J -->|Production| M[Apply<br/>emc-prod-app.yaml]
 
-    K --> N[Dev Argo CD]
-    L --> O[Staging Argo CD]
-    M --> P[Production Argo CD]
+    K --> N[Dev<br/>Argo CD]
+    L --> O[Staging<br/>Argo CD]
+    M --> P[Production<br/>Argo CD]
 
-    N --> Q[Deploy EMC Application]
+    N --> Q[Deploy EMC<br/>Application]
 
-    O --> R[Deploy EMC + Grafana + Prometheus + Loki]
+    O --> R[Deploy EMC<br/>Application<br/>+ Grafana<br/>+ Prometheus<br/>+ Loki]
 
-    P --> S[Deploy EMC + Grafana + Prometheus + Loki]
+    P --> S[Deploy EMC<br/>Application<br/>+ Grafana<br/>+ Prometheus<br/>+ Loki]
 ```
