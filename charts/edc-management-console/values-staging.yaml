@@ -19,7 +19,7 @@ backend:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "f4f9a9787a3b2bd7e3f188504bd0fb6517bc9a03"
+    tag: "3683d7ca613271654b99647e286bdb56846ecda5"
   imagePullSecrets:
     - name: registry-creds
   envFrom: []
@@ -142,7 +142,7 @@ frontend:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "f4f9a9787a3b2bd7e3f188504bd0fb6517bc9a03"
+    tag: "3683d7ca613271654b99647e286bdb56846ecda5"
   imagePullSecrets:
     - name: registry-creds
   env:
