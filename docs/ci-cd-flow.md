@@ -1,7 +1,9 @@
+# EMC CI/CD Flow
+
 ```mermaid
 flowchart TD
 
-    A[Developer Push / Manual Dispatch] --> B[GitHub Actions CI-CD Pipeline]
+     A[Developer Push / Workflow Dispatch] --> B[GitHub Actions CI-CD Pipeline]
 
     B --> C[Verify / Helm Lint / Security Scans]
 
@@ -9,35 +11,33 @@ flowchart TD
 
     D --> E[Push Images to Harbor Registry]
 
-    E --> F[Update Helm Image Tag using Git SHA]
+    E --> F[Trivy Image Scan]
 
-    F --> G{Select Values File}
+    F --> G[Update Helm Image Tag using Git SHA]
 
-    G -->|Feature Branch / Manual Dev| G1[values-dev.yaml]
-    G -->|Develop Branch| G2[values-staging.yaml]
-    G -->|Release Branch| G3[values-prod.yaml]
+    G --> H{Select Values File}
 
-    G1 --> H[Commit Updated Helm Values]
-    G2 --> H
-    G3 --> H
+    H -->|Feature Branch / Manual Dev| H1[values-dev.yaml]
+    H -->|Develop Branch| H2[values-staging.yaml]
+    H -->|Release Branch| H3[values-prod.yaml]
 
-    H --> I[Trivy Image Scan]
+    H1 --> I[Commit Updated Helm Values]
+    H2 --> I
+    H3 --> I
 
     I --> J{Deployment Target}
 
     J -->|Dev| K[Apply emc-dev-app.yaml]
     J -->|Staging| L[Apply emc-staging-app.yaml]
-    J -->|Production Approval| M[Apply emc-prod-app.yaml]
+    J -->|Production| M[Apply emc-prod-app.yaml]
 
     K --> N[Dev Argo CD]
     L --> O[Staging Argo CD]
     M --> P[Production Argo CD]
 
-    N --> Q[Dev Kubernetes Cluster]
-    O --> R[Staging Kubernetes Cluster]
-    P --> S[Production Kubernetes Cluster]
+    N --> Q[Deploy EMC Application]
 
-    Q --> T[EMC Application Running]
-    R --> T
-    S --> T
+    O --> R[Deploy EMC + Grafana + Prometheus + Loki]
+
+    P --> S[Deploy EMC + Grafana + Prometheus + Loki]
 ```

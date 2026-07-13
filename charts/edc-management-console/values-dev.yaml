@@ -19,26 +19,65 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: "3b608972728f451fac451e11afca7dc29bf1fe1a"
-  imagePullSecrets:
-    - name: registry-creds
-  envFrom: []
-  env:
-    - name: "CLUSTER_NAME"
-      value: "staging"
-    - name: "VAULT_ADDR"
-      value: "https://vault.staging.arena2036-x.de"
+    tag: "latest"
+  envFrom:
+    - secretRef:
+        name: registry-creds
+
+  # ---------------------------------------------------------------------------
+  # Connector deployment settings (chart-level toggles for the template/mount).
+  # The runtime values consumed by the backend source live in the embedded
+  # `configuration.yml` below under the `connector:` block — keep them in sync.
+  # ---------------------------------------------------------------------------
+  connector:
+    # Local working directory of the tractusx-connector Helm chart.
+    helmChartDirectory: "./tractusx-connector"
+    # Repositories the backend registers with `helm repo add` before resolving
+    # the connector chart's subchart dependencies (vault, postgresql, dtr, ...).
+    helmRepositories:
+      - name: tractusx
+        url: https://eclipse-tractusx.github.io/charts/dev
+      - name: hashicorp
+        url: https://helm.releases.hashicorp.com
+      - name: bitnami
+        url: https://charts.bitnami.com/bitnami
+    # One ConfigMap per version, each holding that version's upstream default
+    # values.yaml (schema differs between versions, e.g. log4j2 added in 0.11).
+    # Each is mounted under templates.mountDir as values-<version>.yaml and
+    # surfaced to the source via supportedVersions[].valuesTemplate.
+    templates:
+      enabled: true
+      mountDir: /backend/config/connector-templates
+      # Must match the files/tractusx-connector-values-<version>.yaml assets
+      # and the supportedVersions list in the backend configuration.
+      versions:
+        - "0.12.1"
+        - "0.11.2"
+        - "0.10.3"
+
+  # Registry (digital-twin-registry) deployment settings — same template/mount
+  # logic as `connector` above: one ConfigMap per version holds that version's
+  # upstream values.yaml, mounted under templates.mountDir as values-<version>.yaml.
+  registry:
+    templates:
+      enabled: true
+      mountDir: /backend/config/registry-templates
+      # Must match the registry-templates/dtr-values-<version>.yaml assets
+      # and the digitalTwinRegistry.versions list in the backend configuration.
+      versions:
+        - "0.12.0"
+        - "0.11.0"
+
   ingress:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-staging
+      cert-manager.io/cluster-issuer: letsencrypt-dev
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend.staging.arena2036-x.de"
+      - host: &hostname "emc-backend.dev.arena2036-x.de"
         paths:
           - path: /
             pathType: Prefix
@@ -77,21 +116,21 @@ backend:
         name: "ARENA2036-X"
         authority_id: "BPNL00000003CRHK"
         centralidp:
-          url: "https://centralidp.staging.arena2036-x.de/auth/"
+          url: "https://centralidp.dev.arena2036-x.de/auth/"
           realm: "CX-Central"
           client_id: "${CENTRALIDP_CLIENT_ID}"
           client_secret: "${CENTRALIDP_CLIENT_SECRET}"
         ssi_wallet:
-          url: "https://ssi-dim-wallet-stub.staging.arena2036-x.de"
+          url: "https://ssi-dim-wallet-stub.dev.arena2036-x.de"
           client_id: "${SSI_WALLET_CLIENT_ID}"
           client_secret: "${SSI_WALLET_CLIENT_SECRET}"
         portal:
-          url: "https://portal.staging.arena2036-x.de"
+          url: "https://portal.dev.arena2036-x.de"
           client_id: "${PORTAL_CLIENT_ID}"
           client_secret: "${PORTAL_CLIENT_SECRET}"
         discovery:
           semantics:
-            url: "https://semantics.staging.arena2036-x.de"
+            url: "https://semantics.dev.arena2036-x.de"
           discoveryFinder:
             endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
             keys:
@@ -109,19 +148,19 @@ backend:
 
       externalApps:
         sde:
-          url: https://sde.staging.arena2036-x.de
+          url: https://sde.dev.arena2036-x.de
           client_id: "CX-SDE"
           manufacturerId: BPNLA360COMPANY1
-          providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de
-          consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de
-          registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry
+          providerEDC:  https://dataprovider-edc-controlplane.dev.arena2036-x.de
+          consumerEDC: https://dataconsumer-controlplane.dev.arena2036-x.de
+          registryUrl: https://dtr.dev.arena2036-x.de/semantics/registry
 
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
       # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://dataconsumer-controlplane.staging.arena2036-x.de"
+        default_url: "https://dataconsumer-controlplane.dev.arena2036-x.de"
         # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
         didMethod: "did:web"
         helmRepositories:
@@ -143,8 +182,8 @@ backend:
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
         hostname:
-          controlplane: controlplane.staging.arena2036-x.de
-          dataplane: dataplane.staging.arena2036-x.de
+          controlplane: controlplane.dev.arena2036-x.de
+          dataplane: dataplane.dev.arena2036-x.de
         # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
         sts:
           dimEndpoint: "/api/sts"
@@ -441,9 +480,9 @@ backend:
   envFrom: []
   env:
     - name: CLUSTER_SECRET
-      value: "cluster-staging"
+      value: "cluster-dev"
     - name: "VAULT_ADDR"
-      value: "https://vault.staging.arena2036-x.de"
+      value: "https://vault.dev.arena2036-x.de"
     - name: VAULT_TOKEN
       valueFrom:
         secretKeyRef:
@@ -521,39 +560,38 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: "3b608972728f451fac451e11afca7dc29bf1fe1a"
+    tag: "latest"
   imagePullSecrets:
     - name: registry-creds
 
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend.staging.arena2036-x.de
+      value: https://emc-backend.dev.arena2036-x.de
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
-      value: staging.arena2036-x.de
+      value: dev.arena2036-x.de
     - name: VITE_KEYCLOAK_URL
-      value: https://centralidp.staging.arena2036-x.de/auth/
+      value: https://centralidp.dev.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
       value: A36-EMC
     - name: VITE_SDE_URL
-      value: https://sde.staging.arena2036-x.de
+      value: https://sde.dev.arena2036-x.de
     - name: VITE_PORTAL_URL
-      value: https://portal.staging.arena2036-x.de
+      value: https://portal.dev.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend.staging.arena2036-x.de,
+    apiUrl: https://emc-backend.dev.arena2036-x.de,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
-    keycloakUrl: https://centralidp.staging.arena2036-x.de/auth,
+    keycloakUrl: https://centralidp.dev.arena2036-x.de/auth,
     realm: CX-Central,
     clientId: A36-EMC,
-    sdeUrl: https://sde.staging.arena2036-x.de,
-    portalUrl: https://portal.staging.arena2036-x.de
+    sdeUrl: https://sde.dev.arena2036-x.de,
+    portalUrl: https://portal.dev.arena2036-x.de
     };
 
   service:
@@ -563,13 +601,13 @@ frontend:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-staging
+      cert-manager.io/cluster-issuer: letsencrypt-dev
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc.staging.arena2036-x.de"
+      - host: &fehostname "emc.dev.arena2036-x.de"
         paths:
           - path: /
             pathType: Prefix
@@ -616,71 +654,3 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
-# By default we're disabling observability
-grafana:
-  enabled: true
-
-  sidecar:
-    dashboards:
-      enabled: true
-      label: grafana_dashboard
-      labelValue: "1"
-      searchNamespace: ALL
-
-  datasources:
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-        - name: Prometheus
-          uid: prometheus
-          type: prometheus
-          access: proxy
-          url: http://emc-prometheus-server
-          isDefault: true
-
-        - name: Loki
-          uid: loki
-          type: loki
-          access: proxy
-          url: http://emc-loki:3100
-
-prometheus:
-  enabled: true
-
-loki:
-  enabled: true
-
-  deploymentMode: SingleBinary
-
-  loki:
-    auth_enabled: false
-    commonConfig:
-      replication_factor: 1
-    storage:
-      type: filesystem
-    useTestSchema: true
-
-  singleBinary:
-    replicas: 1
-
-  read:
-    replicas: 0
-
-  write:
-    replicas: 0
-
-  backend:
-    replicas: 0
-
-  chunksCache:
-    enabled: false
-
-  resultsCache:
-    enabled: false
-
-opentelemetry-collector:
-  enabled: false
-
-jaeger:
-  enabled: false
