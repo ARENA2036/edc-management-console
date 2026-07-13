@@ -13,7 +13,7 @@ spec:
     targetRevision: release
     path: charts/edc-management-console
     helm:
-      releaseName: emc-prod
+      releaseName: emc
       valueFiles:
         - values-prod.yaml
 
