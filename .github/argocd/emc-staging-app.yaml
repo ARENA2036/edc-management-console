@@ -6,7 +6,7 @@ metadata:
   namespace: argocd
 
 spec:
-  project: default
+  project: edc-management-console
 
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
