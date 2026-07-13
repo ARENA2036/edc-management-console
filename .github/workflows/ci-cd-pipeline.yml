@@ -70,7 +70,7 @@ jobs:
     name: Frontend Dependency Scan
     uses: ./.github/workflows/dependencies-frontend.yaml
     secrets: inherit
-
+  
   build:
     name: Build Images
     needs:
