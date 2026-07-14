@@ -1,0 +1,22 @@
+{{- if .Values.backend.enabled }}
+{{- if .Values.backend.connector.templates.enabled }}
+# One ConfigMap per supported tractusx-connector version, each holding that
+# version's upstream default values.yaml. The backend mounts these read-only and
+# renders a per-connector values file from the template matching connector.version.
+# Source: https://github.com/eclipse-tractusx/tractusx-edc/blob/<version>/charts/tractusx-connector/values.yaml
+{{- range $version := .Values.backend.connector.templates.versions }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.Release.Name }}-tractusx-connector-values-{{ $version | replace "." "-" }}
+  labels:
+    app.kubernetes.io/part-of: {{ $.Release.Name }}
+    app.kubernetes.io/component: connector-template
+    connector.tractusx.org/version: {{ $version | quote }}
+data:
+  values.yaml: |-
+{{ $.Files.Get (printf "connector-templates/tractusx-connector-values-%s.yaml" $version) | indent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}

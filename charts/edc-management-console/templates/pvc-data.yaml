@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
 spec:
-  storageClassName: default
+  storageClassName: premium-perf1-stackit
   accessModes:
     - ReadWriteOnce
   resources:

@@ -1,0 +1,20 @@
+meta {
+  name: HealthCheck - All components
+  type: http
+  seq: 7
+}
+
+get {
+  url: http://localhost:8001/api/connectors/health
+  body: none
+  auth: inherit
+}
+
+headers {
+  X-Api-key: emc-api-key
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

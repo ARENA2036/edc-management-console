@@ -3,15 +3,17 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name:  {{ .Release.Name }}-emc-frontend-config
+  name:  {{ .Release.Name }}-frontend-config
 data:
   config.js: |-
     {{- .Values.frontend.configuration | nindent 4 }}
   .env: |-
-    VITE_API_BASE_URL=https://emc-backend.staging.arena2036-x.de
-    VITE_API_KEY=emc-api-key
-    EDC_HOSTNAME=arena2036-x.de
-    VITE_KEYCLOAK_URL=https://centralidp.staging.arena2036-x.de/auth
+    VITE_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
     VITE_KEYCLOAK_REALM=CX-Central
     VITE_KEYCLOAK_CLIENT_ID=A36-EMC
+    VITE_BACKEND_URL=https://emc-backend.txcd.arena2036-x.de
+    VITE_API_KEY=emc-api-key
+    VITE_EDC_HOSTNAME=txcd.arena2036-x.de
+    VITE_SDE_URL=https://sde.txcd.arena2036-x.de
+    VITE_PORTAL_URL=https://portal.txcd.arena2036-x.de
 {{- end }}

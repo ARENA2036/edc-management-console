@@ -1,0 +1,351 @@
+# Default values for edc-management-console — "claude" environment.
+# This file mirrors values-emc.yaml but adds the connector-deployment config the
+# backend source code consumes at runtime:
+#   * helmRepositories        -> registered via `helm repo add <name> <url>`
+#   * supportedVersions -> the last three stable tractusx-connector releases
+#   * helm_chart_directory    -> local working dir for the connector chart
+#   * valuesTemplatePath      -> mounted upstream default values.yaml (ConfigMap)
+# This is a YAML-formatted file.
+
+# This is to override the chart name.
+name: "edc-management-console"
+nameOverride: ""
+fullnameOverride: "emc"
+
+backend:
+  enabled: true
+  name: "emc-backend"
+  replicaCount: 1
+  image:
+    repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
+    pullPolicy: Always
+    tag: "250625-kube-fix"
+  envFrom:
+    - secretRef:
+        name: registry-creds
+
+  # ---------------------------------------------------------------------------
+  # Connector deployment settings (chart-level toggles for the template/mount).
+  # The runtime values consumed by the backend source live in the embedded
+  # `configuration.yml` below under the `connector:` block — keep them in sync.
+  # ---------------------------------------------------------------------------
+  connector:
+    # Local working directory of the tractusx-connector Helm chart.
+    helmChartDirectory: "./tractusx-connector"
+    # Repositories the backend registers with `helm repo add` before resolving
+    # the connector chart's subchart dependencies (vault, postgresql, dtr, ...).
+    helmRepositories:
+      - name: tractusx
+        url: https://eclipse-tractusx.github.io/charts/dev
+      - name: hashicorp
+        url: https://helm.releases.hashicorp.com
+      - name: bitnami
+        url: https://charts.bitnami.com/bitnami
+    # One ConfigMap per version, each holding that version's upstream default
+    # values.yaml (schema differs between versions, e.g. log4j2 added in 0.11).
+    # Each is mounted under templates.mountDir as values-<version>.yaml and
+    # surfaced to the source via supportedVersions[].valuesTemplate.
+    templates:
+      enabled: true
+      mountDir: /backend/config/connector-templates
+      # Must match the files/tractusx-connector-values-<version>.yaml assets
+      # and the supportedVersions list in the backend configuration.
+      versions:
+        - "0.12.1"
+        - "0.11.2"
+        - "0.10.3"
+
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-int
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - host: &hostname "emc-backend.txcd.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: emc-backend-tls
+        hosts:
+          - *hostname
+
+  imagePullSecrets:
+    - name: registry-creds
+  podAnnotations: {}
+  service:
+    type: ClusterIP
+    port: 8001
+
+  configuration:
+    yml: |-
+      appConfig:
+        name: "ARENA2036 EDC Management Console"
+        client_id: "A36-EMC"
+        version: "1.0.0"
+        port: 5000
+        host: "0.0.0.0"
+
+        authorization:
+          enabled: true
+          apiKey:
+            key: "X-Api-Key"
+            value: "emc-api-key"
+
+        startup:
+          checks: true
+          refresh_interval: 10
+
+      dataspaceConfig:
+        name: "ARENA2036-X"
+        authority_id: "BPNL00000003CRHK"
+        centralidp:
+          url: "https://centralidp.txcd.arena2036-x.de/auth/"
+          realm: "CX-Central"
+          client_id: "${CENTRALIDP_CLIENT_ID}"
+          client_secret: "${CENTRALIDP_CLIENT_SECRET}"
+        ssi_wallet:
+          url: "https://ssi-dim-wallet-stub.centralidp.txcd.arena2036-x.de"
+          client_id: "${SSI_WALLET_CLIENT_ID}"
+          client_secret: "${SSI_WALLET_CLIENT_SECRET}"
+        portal:
+          url: "https://portal.txcd.arena2036-x.de"
+          client_id: "${PORTAL_CLIENT_ID}"
+          client_secret: "${PORTAL_CLIENT_SECRET}"
+        discovery:
+          semantics:
+            url: "https://semantics.txcd.arena2036-x.de"
+          discoveryFinder:
+            endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
+            keys:
+              edc_discovery: "bpn"
+            client_id: "${DISCOVERY_FINDER_CLIENT_ID}"
+            client_secret: "${DISCOVERY_FINDER_CLIENT_SECRET}"
+          bpnDiscovery:
+            endpoint: "/bpndiscovery/api/v1.0/administration/connectors/bpnDiscovery/search"
+            client_id: "${BPN_DISCOVERY_CLIENT_ID}"
+            client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
+        clusterConfig:
+          context: "k8s-ap6-01"
+          namespace: "edc-management-console"
+
+
+      # -----------------------------------------------------------------------
+      # Connector deployment config consumed by the backend source code.
+      # -----------------------------------------------------------------------
+      connector:
+        default_url: "https://emc-edc-1-controlplane.arena2036-x.de"
+        # Local working directory for the tractusx-connector Helm chart.
+        helmChartDirectory: "./tractusx-connector"
+        # Registered at startup via `helm repo add <name> <url>` so the chart's
+        # subchart dependencies can be resolved (helm dependency build/update).
+        helmRepositories:
+          - name: tractusx
+            url: https://eclipse-tractusx.github.io/charts/dev
+          - name: hashicorp
+            url: https://helm.releases.hashicorp.com
+          - name: bitnami
+            url: https://charts.bitnami.com/bitnami
+        # Directory where the per-version upstream value templates are mounted
+        # (one ConfigMap per version). Each supported version below points to its
+        # own template file via `valuesTemplate`.
+        templatesDir: "/backend/config/connector-templates"
+        endpoints:
+          assets: "/v3/assets"
+          policies: "/v3/policydefinitions"
+          contracts: "/v3/contractdefinitions"
+          readiness: "/api/check/readiness"
+          liveness: "/api/check/liveness"
+          catalog: "/management/v3/catalog/request"
+          edr_prefix: "/management/v3/edrs"
+          view_edr: "/request"
+          transfer_edr: "/dataaddress?auto_refresh=true"
+          dsp: "/api/v1/dsp"
+        hostnameSuffix:
+          controlplane: controlplane.arena2036-x.de
+          dataplane: dataplane.arena2036-x.de
+
+      # Last three stable tractusx-connector releases (latest patch per minor).
+      # Source: https://github.com/eclipse-tractusx/tractusx-edc/releases
+      supportedVersions:
+        - version: "0.12.1"
+          valuesTemplate: /backend/config/connector-templates/values-0.12.1.yaml
+        - version: "0.11.2"
+          valuesTemplate: /backend/config/connector-templates/values-0.11.2.yaml
+        - version: "0.10.3"
+          valuesTemplate: /backend/config/connector-templates/values-0.10.3.yaml
+
+      database:
+        url: "${DATABASE_URL}"
+        echo: false
+
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+  podSecurityContext: {}
+  securityContext: {}
+
+  envFrom: []
+  env:
+    - name: CLUSTER_SECRET
+      value: "cluster-int"
+    - name: "VAULT_ADDR"
+      value: "https://vault.staging.arena2036-x.de"
+    - name: VAULT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-token
+          key: token
+
+  ## Additional volumes on the output Deployment definition.
+  volumes:
+    # -- persist the backend configuration
+    - name: emc-backend-config
+      configMap:
+        name: "{{ .Release.Name }}-emc-backend-config"
+    # -- per-version upstream tractusx-connector default values.yaml (render templates)
+    - name: connector-tpl-0-12-1
+      configMap:
+        name: "{{ .Release.Name }}-tractusx-connector-values-0-12-1"
+    - name: connector-tpl-0-11-2
+      configMap:
+        name: "{{ .Release.Name }}-tractusx-connector-values-0-11-2"
+    - name: connector-tpl-0-10-3
+      configMap:
+        name: "{{ .Release.Name }}-tractusx-connector-values-0-10-3"
+    # -- persist the backend data directories
+    - name: pvc-emc-backend
+      persistentVolumeClaim:
+        claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
+    # -- temporary file system mount
+    - name: tmpfs
+      emptyDir: {}
+
+  ## Volume mounts for the backend deployment.
+  volumeMounts:
+    # -- mounted path for the backend configuration added in the config maps
+    - name: emc-backend-config
+      mountPath: /backend/config/configuration.yml
+      subPath: configuration.yml
+    # -- mounted per-version upstream connector value templates
+    - name: connector-tpl-0-12-1
+      mountPath: /backend/config/connector-templates/values-0.12.1.yaml
+      subPath: values.yaml
+    - name: connector-tpl-0-11-2
+      mountPath: /backend/config/connector-templates/values-0.11.2.yaml
+      subPath: values.yaml
+    - name: connector-tpl-0-10-3
+      mountPath: /backend/config/connector-templates/values-0.10.3.yaml
+      subPath: values.yaml
+    # -- contains the location for the process data directory
+    - name: pvc-emc-backend
+      mountPath: /backend/data
+      subPath: data
+    # -- contains the log directory used by the backend
+    - name: tmpfs
+      mountPath: /backend/logs
+      subPath: logs
+
+frontend:
+  enabled: true
+  name: "emc-frontend"
+  replicaCount: 1
+  image:
+    repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
+    pullPolicy: Always
+    tag: "txcd-latest"
+  imagePullSecrets:
+    - name: registry-creds
+
+
+
+  env:
+    - name: VITE_API_BASE_URL
+      value: https://emc-backend.txcd.arena2036-x.de
+    - name: VITE_API_KEY
+      value: emc-api-key
+    - name: EDC_HOSTNAME
+      value: arena2036-x.de
+    - name: VITE_KEYCLOAK_URL
+      value: https://centralidp.txcd.arena2036-x.de/auth/
+    - name: VITE_KEYCLOAK_REALM
+      value: "CX-Central"
+    - name: VITE_KEYCLOAK_CLIENT_ID
+      value: A36-EMC
+
+  configuration: |-
+    window.__RUNTIME_CONFIG__ = {
+    apiUrl: "https://emc-backend.txcd.arena2036-x.de",
+    apiKey: "emc-api-key",
+    edcHost: "arena2036-x.de",
+    keycloakUrl: "https://centralidp.txcd.arena2036-x.de/auth",
+    realm: "CX-Central",
+    clientId: "A36-EMC"
+    };
+
+  service:
+    type: ClusterIP
+    port: 8080
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-int
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/service-upstream: "true"
+    hosts:
+      - host: &fehostname "emc.txcd.arena2036-x.de"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: emc-frontend-tls
+        hosts:
+          - *fehostname
+
+  resources: {}
+  volumes:
+    - name: emc-frontend-config
+      configMap:
+        name: "{{ .Release.Name }}-emc-frontend-config"
+  volumeMounts:
+    - name: emc-frontend-config
+      mountPath: /frontend/.env
+      subPath: .env
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext: {}
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8001
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
