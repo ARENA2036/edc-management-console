@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Optional Docker image tag'
+        description: 'tag'
         required: false
         default: ""
         type: string
