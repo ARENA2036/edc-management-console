@@ -55,6 +55,19 @@ backend:
         - "0.11.2"
         - "0.10.3"
 
+  # Registry (digital-twin-registry) deployment settings — same template/mount
+  # logic as `connector` above: one ConfigMap per version holds that version's
+  # upstream values.yaml, mounted under templates.mountDir as values-<version>.yaml.
+  registry:
+    templates:
+      enabled: true
+      mountDir: /backend/config/registry-templates
+      # Must match the registry-templates/dtr-values-<version>.yaml assets
+      # and the digitalTwinRegistry.versions list in the backend configuration.
+      versions:
+        - "0.12.0"
+        - "0.11.0"
+
   ingress:
     enabled: true
     ingressClassName: "nginx"
@@ -108,7 +121,7 @@ backend:
           client_id: "${CENTRALIDP_CLIENT_ID}"
           client_secret: "${CENTRALIDP_CLIENT_SECRET}"
         ssi_wallet:
-          url: "https://ssi-dim-wallet-stub.centralidp.staging.arena2036-x.de"
+          url: "https://ssi-dim-wallet-stub.staging.arena2036-x.de"
           client_id: "${SSI_WALLET_CLIENT_ID}"
           client_secret: "${SSI_WALLET_CLIENT_SECRET}"
         portal:
@@ -133,26 +146,30 @@ backend:
           namespace: "edc-management-console"
 
 
-      # -----------------------------------------------------------------------
-      # Connector deployment config consumed by the backend source code.
-      # -----------------------------------------------------------------------
+      externalApps:
+        sde:
+          url: https://sde.staging.arena2036-x.de
+          client_id: "CX-SDE"
+          manufacturerId: BPNLA360COMPANY1
+          providerEDC:  https://dataprovider-edc-controlplane.staging.arena2036-x.de
+          consumerEDC: https://dataconsumer-controlplane.staging.arena2036-x.de
+          registryUrl: https://dtr.staging.arena2036-x.de/semantics/registry
+
+
+      # Dataspace/EDC query config + the inputs to the deployment derivation context
+      # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
+      # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://emc-edc-1-controlplane.arena2036-x.de"
-        # Local working directory for the tractusx-connector Helm chart.
-        helmChartDirectory: "./tractusx-connector"
-        # Registered at startup via `helm repo add <name> <url>` so the chart's
-        # subchart dependencies can be resolved (helm dependency build/update).
+        default_url: "https://dataconsumer-controlplane.staging.arena2036-x.de"
+        # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
+        didMethod: "did:web"
         helmRepositories:
-          - name: tractusx
+          - name: tractusx-dev
             url: https://eclipse-tractusx.github.io/charts/dev
           - name: hashicorp
             url: https://helm.releases.hashicorp.com
           - name: bitnami
             url: https://charts.bitnami.com/bitnami
-        # Directory where the per-version upstream value templates are mounted
-        # (one ConfigMap per version). Each supported version below points to its
-        # own template file via `valuesTemplate`.
-        templatesDir: "/backend/config/connector-templates"
         endpoints:
           assets: "/v3/assets"
           policies: "/v3/policydefinitions"
@@ -164,19 +181,288 @@ backend:
           view_edr: "/request"
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
-        hostnameSuffix:
-          controlplane: controlplane.arena2036-x.de
-          dataplane: dataplane.arena2036-x.de
+        hostname:
+          controlplane: controlplane.staging.arena2036-x.de
+          dataplane: dataplane.staging.arena2036-x.de
+        # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
+        sts:
+          dimEndpoint: "/api/sts"
+          oauthTokenEndpoint: "/oauth/token"
+          secretAlias: "edc-wallet-secret"
+        # BPN Directory Service (BDRS) path appended to the SSI wallet url.
+        bdrs:
+          directoryEndpoint: "/api/v1/directory"
 
-      # Last three stable tractusx-connector releases (latest patch per minor).
-      # Source: https://github.com/eclipse-tractusx/tractusx-edc/releases
-      supportedVersions:
-        - version: "0.12.1"
-          valuesTemplate: /backend/config/connector-templates/values-0.12.1.yaml
-        - version: "0.11.2"
-          valuesTemplate: /backend/config/connector-templates/values-0.11.2.yaml
-        - version: "0.10.3"
-          valuesTemplate: /backend/config/connector-templates/values-0.10.3.yaml
+      # Generic, component-agnostic deployment definitions. Each component describes
+      # its chart, supported versions (base values templates), `derive` rules (computed
+      # attributes) and `valueMappings`. Adding a new component is a config change only.
+      #
+      # valueMappings entry:
+      #   path:      dotted target in the values, supports list indices e.g. a.b[0].c
+      #   from:      read the value from a source field, OR
+      #   value:     use this literal, OR
+      #   template:  render this string with {name} (and any source field)
+      #   transform: optional, e.g. "urlencode"
+      #   mode:      "set" (default) or "append" (for list-valued leaves)
+      #   when:      optional flag gate, e.g. "registry" / "submodel"
+      components:
+        # The EDC connector itself. Deployed when present in the request's `components`
+        # array (with type+name). Each field below reads from THAT component's object.
+        connector:
+          releaseName: "{name}"         # the component's own name
+          version: "{version}"          # the component's own version, validated against `versions`
+          chart:
+            name: tractusx-connector
+            repo: tractusx-dev    # name resolved against connector.helmRepositories
+          templatesDir: config/connector-templates
+          versions:
+            - version: "0.12.1"
+              valuesYaml: /values-0.12.1.yaml
+            - version: "0.11.2"
+              valuesYaml: /values-0.11.2.yaml
+            # - version: "0.10.3"
+            #   valuesYaml: /values-0.10.3.yaml
+          # Computed attributes (templated against request fields + dataspace context),
+          # set on the request and referenced below via `from`.
+          derive:
+            iatp_id: "{did_method}:{wallet_host}:{bpn}"
+            trustedIssuers: "{did_method}:{wallet_host}:{authority_id}"
+            sts_dim_url: "{wallet_url}{sts_dim_endpoint}"
+            sts_oauth_tokenUrl: "{wallet_url}{sts_oauth_token_endpoint}"
+            sts_oauth_client_id: "{bpn}"
+            sts_oauth_secretAlias: "{sts_secret_alias}"
+            cp_bdrs_server_url: "{wallet_url}{bdrs_endpoint}"
+            cp_hostname: "{name}-{controlplane_hostname}"
+            dp_hostname: "{name}-{dataplane_hostname}"
+            # Per-plane ingress annotations — each points external-dns at that plane's
+            # OWN host. Authored as maps (the shape Helm ingress annotations expect),
+            # with templated values resolved against the derivation context.
+            controlplane_annotations:
+              external-dns.alpha.kubernetes.io/hostname: "{name}-{controlplane_hostname}"
+            dataplane_annotations:
+              external-dns.alpha.kubernetes.io/hostname: "{name}-{dataplane_hostname}"
+            # Image pull secrets — the tractusx-connector chart uses ONE top-level
+            # `imagePullSecrets` for both the control plane and data plane (it has no
+            # per-plane override), so this single list applies to both.
+            imagePullSecrets:
+              - name: registry-creds
+
+          valueMappings:
+            - path: participant.id
+              from: bpn
+              transform: urlencode
+            - path: iatp.id
+              from: iatp_id
+            - path: iatp.trustedIssuers
+              from: trustedIssuers
+              mode: append
+            - path: iatp.sts.dim.url
+              from: sts_dim_url
+            - path: iatp.sts.oauth.token_url
+              from: sts_oauth_tokenUrl
+            - path: iatp.sts.oauth.client.id
+              from: sts_oauth_client_id
+            - path: iatp.sts.oauth.client.secret_alias
+              from: sts_oauth_secretAlias
+            - path: imagePullSecrets
+              from: imagePullSecrets
+            - path: controlplane.bdrs.server.url
+              from: cp_bdrs_server_url
+            - path: controlplane.ingresses[0].enabled
+              value: true
+            - path: controlplane.ingresses[0].endpoints[0]
+              value: 'protocol'
+            - path: controlplane.ingresses[0].endpoints[1]
+              value: 'management'
+            - path: controlplane.ingresses[0].hostname
+              from: cp_hostname
+            - path: controlplane.ingresses[0].certManager.clusterIssuer
+              value: 'letsencrypt-staging'
+            - path: controlplane.ingresses[0].className
+              value: 'nginx'
+            - path: controlplane.ingresses[0].annotations
+              from: controlplane_annotations
+            - path: controlplane.ingresses[0].tls.enabled
+              value: false
+            - path: controlplane.ingresses[0].tls.secretName
+              template: "{name}-cp-tls"
+            - path: dataplane.ingresses[0].enabled
+              value: false
+            - path: dataplane.ingresses[0].hostname
+              from: dp_hostname
+            - path: dataplane.ingresses[0].certManager.clusterIssuer
+              value: 'letsencrypt-staging'
+            - path: dataplane.ingresses[0].className
+              value: 'nginx'
+            - path: dataplane.ingresses[0].annotations
+              from: dataplane_annotations
+            - path: dataplane.ingresses[0].tls.enabled
+              value: false
+            - path: dataplane.ingresses[0].tls.secretName
+              template: "{name}-dp-tls"
+            - path: dataplane.token.signer.privatekey_alias
+              value: "tokenSignerPrivateKey"
+            - path: dataplane.token.verifier.publickey_alias
+              value: "tokenSignerPublicKey"
+            # The chart's jdbcUrl hardcodes "/edc"; override it so the control plane
+            # connects to the SAME database Bitnami creates from auth.database below.
+            # {name}-postgresql == "{{ .Release.Name }}-postgresql" (releaseName is {name}).
+            - path: postgresql.jdbcUrl
+              template: "jdbc:postgresql://{name}-postgresql:5432/{db_name}"
+            - path: postgresql.auth.database
+              from: db_name
+            - path: postgresql.auth.username
+              from: auth.db_username
+            - path: postgresql.auth.password
+              from: auth.db_password
+
+        # Submodel Server — its own chart + release. Deployed when present in the
+        # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
+        submodelServer:
+          releaseName: "{name}"             # the component's own name
+          version: "{version}"              # the component's own version
+          healthPath: "/actuator/health/liveness"                   # reachability probe path appended to the ingress url
+          chart:
+            # This config would be used for local deployment without Docker
+            # name: simple-data-backend
+            # repo: tractusx-dev
+
+            # Deploy from the LOCAL chart copy in config/ (patched with probe enable
+            # toggles) instead of pulling simple-data-backend from the repo. Having path issues on windows, 
+            # but should be working inside container
+            directory: config/simple-data-backend
+          # Base values come from config/submodelserver-templates (NOT the chart default).
+          templatesDir: config/submodelserver-templates
+          versions:
+            - version: "0.1.0"
+              valuesYaml: /values-0.1.0.yaml
+          derive:
+            # simple-data-backend has NO certManager field — TLS is issued via the
+            # cert-manager annotation. external-dns points at this component's own host.
+            annotations:
+              external-dns.alpha.kubernetes.io/hostname: "{url}"
+              #cert-manager.io/cluster-issuer: "letsencrypt-staging"
+          valueMappings:
+            - path: fullnameOverride
+              template: "{name}"
+            - path: ingress.enabled           # chart default is false
+              value: true
+            - path: ingress.className
+              value: ''
+            - path: ingress.annotations
+              from: annotations
+            - path: ingress.hosts[0].host
+              from: url
+            - path: ingress.hosts[0].paths[0].path
+              value: '/'
+            - path: ingress.hosts[0].paths[0].pathType
+              value: 'Prefix'
+            - path: ingress.tls[0].hosts[0]
+              from: url
+            - path: ingress.tls[0].secretName
+              template: "{name}-submodel-tls"
+            # Liveness/readiness probes — the local chart gates them on `.enabled`.
+            # The image's /actuator/health/* paths 404, so keep them off here.
+            - path: livenessProbe.enabled
+              value: false
+            - path: readinessProbe.enabled
+              value: false
+
+        # Digital Twin Registry — its own chart + release. Deployed when present in the
+        # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
+        digitalTwinRegistry:
+          releaseName: "{name}"             # the component's own name
+          version: "{version}"             # the component's own version
+          healthPath: "/semantics/registry/"   # reachability probe path appended to the ingress url
+          chart:
+            name: digital-twin-registry
+            repo: tractusx-dev
+          # Base values per version come from the mounted registry-templates
+          # ConfigMaps (backend.registry.templates), like connector-templates.
+          templatesDir: config/registry-templates
+          # Last 2 stable releases (latest first). Source: tractusx charts/dev index.
+          versions:
+            - version: "0.12.0"
+              valuesYaml: /values-0.12.0.yaml
+            - version: "0.11.0"
+              valuesYaml: /values-0.11.0.yaml
+          derive:
+            # digital-twin-registry issues TLS via the cert-manager annotation (no
+            # certManager field). external-dns points at this component's own host.
+            annotations:
+              external-dns.alpha.kubernetes.io/hostname: "{url}"
+              #cert-manager.io/cluster-issuer: "letsencrypt-staging"
+              nginx.ingress.kubernetes.io/rewrite-target: /$2
+              nginx.ingress.kubernetes.io/use-regex: "true"
+              nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+              nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
+          valueMappings:
+            - path: fullnameOverride          # top-level (the chart has no registry.fullnameOverride)
+              template: "{name}"
+            - path: enableKeycloak
+              value: false
+            # The chart ALWAYS renders templates/keycloak/init-script-configmap.yaml as
+            # "{keycloak.fullnameOverride}-configmap" (not gated on enableKeycloak). The
+            # chart default fullnameOverride is the fixed "registry-keycloak", so two DTR
+            # releases in one namespace collide on "registry-keycloak-configmap". Make it
+            # release-unique so each DTR owns its own configmap.
+            - path: keycloak.fullnameOverride
+              template: "{name}-keycloak"
+            # Bundled postgres (like the connector). With enablePostgres=true the chart
+            # deploys its own DB and wires the registry to it via postgres-init, so the
+            # registry-secret's external `dataSource` block is skipped entirely.
+            - path: enablePostgres
+              value: true
+            - path: postgresql.auth.username
+              from: auth.db_username          # from the component's auth block
+            - path: postgresql.auth.password
+              from: auth.db_password          # empty -> chart generates a random one
+            - path: postgresql.auth.database
+              from: db_name
+            # The init secret name (chart default "secret-dtr-postgres-init") is shared
+            # by the postgres-init hook, the registry deployment and the postgres
+            # subchart. It's a fixed literal, so two DTR releases collide on it — make
+            # it release-unique (all three consumers read this same value).
+            - path: postgresql.auth.existingSecret
+              template: "{name}-postgres-init"
+            - path: registry.host             # the externally-resolvable ingress host
+              from: url
+            - path: registry.ingress.enabled
+              value: true
+            - path: registry.ingress.urlPrefix
+              value: '/semantics/registry'
+            - path: registry.ingress.className
+              value: 'nginx'
+            - path: registry.ingress.annotations
+              from: annotations
+            - path: registry.ingress.tls.enabled        # tls is a MAP here, not a list
+              value: true
+            - path: registry.ingress.tls.secretName
+              template: "{name}-dtr-tls"
+
+        # IdentityHub — its own chart + release, deployed for every connector
+        # (it is the connector's own DID/credential service, not an optional add-on).
+        # identityhub:
+        #   deployWhen: always
+        #   releaseName: "{name}-idhub"
+        #   chart:
+        #     name: tractusx-identityhub
+        #     repo: tractusx-dev
+        #   # Last 3 stable releases (latest first; note the chart tags carry a 'v').
+        #   # Source: tractusx charts/dev index.
+        #   versions:
+        #     - version: "v0.3.2"
+        #     - version: "v0.3.1"
+        #     - version: "v0.3.0"
+        #   valueMappings:
+        #     - path: fullnameOverride
+        #       template: "{name}-idhub"
+        #     - path: ingress.hosts[0].host
+        #       template: "{name}.int.construct-x.net"
+        #     - path: ingress.tls[0].hosts[0]
+        #       template: "{name}.int.construct-x.net"
+        #     - path: ingress.tls[0].secretName
+        #       template: "{name}-idhub-tls"
 
       database:
         url: "${DATABASE_URL}"
@@ -208,7 +494,7 @@ backend:
     # -- persist the backend configuration
     - name: emc-backend-config
       configMap:
-        name: "{{ .Release.Name }}-emc-backend-config"
+        name: "{{ .Release.Name }}-backend-config"
     # -- per-version upstream tractusx-connector default values.yaml (render templates)
     - name: connector-tpl-0-12-1
       configMap:
@@ -219,6 +505,12 @@ backend:
     - name: connector-tpl-0-10-3
       configMap:
         name: "{{ .Release.Name }}-tractusx-connector-values-0-10-3"
+    - name: dtr-tpl-0-11-0
+      configMap:
+        name: "{{ .Release.Name }}-dtr-values-0-11-0"
+    - name: dtr-tpl-0-12-0
+      configMap:
+        name: "{{ .Release.Name }}-dtr-values-0-12-0"
     # -- persist the backend data directories
     - name: pvc-emc-backend
       persistentVolumeClaim:
@@ -233,7 +525,10 @@ backend:
     - name: emc-backend-config
       mountPath: /backend/config/configuration.yml
       subPath: configuration.yml
-    # -- mounted per-version upstream connector value templates
+    # -- mounted per-version upstream connector value templates.
+    # subPath is the ConfigMap data KEY (always "values.yaml"); the version is
+    # carried by mountPath. Using "values-<version>.yaml" here would not match any
+    # key, so kubelet mounts an empty dir -> "not a directory" container init error.
     - name: connector-tpl-0-12-1
       mountPath: /backend/config/connector-templates/values-0.12.1.yaml
       subPath: values.yaml
@@ -242,6 +537,12 @@ backend:
       subPath: values.yaml
     - name: connector-tpl-0-10-3
       mountPath: /backend/config/connector-templates/values-0.10.3.yaml
+      subPath: values.yaml
+    - name: dtr-tpl-0-11-0
+      mountPath: /backend/config/registry-templates/values-0.11.0.yaml
+      subPath: values.yaml
+    - name: dtr-tpl-0-12-0
+      mountPath: /backend/config/registry-templates/values-0.12.0.yaml
       subPath: values.yaml
     # -- contains the location for the process data directory
     - name: pvc-emc-backend
@@ -263,28 +564,36 @@ frontend:
   imagePullSecrets:
     - name: registry-creds
 
+
+
   env:
-    - name: VITE_API_BASE_URL
+    - name: VITE_BACKEND_URL
       value: https://emc-backend.staging.arena2036-x.de
     - name: VITE_API_KEY
       value: emc-api-key
-    - name: EDC_HOSTNAME
-      value: arena2036-x.de
+    - name: VITE_EDC_HOSTNAME
+      value: staging.arena2036-x.de
     - name: VITE_KEYCLOAK_URL
       value: https://centralidp.staging.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
       value: A36-EMC
+    - name: VITE_SDE_URL
+      value: https://sde.staging.arena2036-x.de
+    - name: VITE_PORTAL_URL
+      value: https://portal.staging.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: "https://emc-backend.staging.arena2036-x.de",
-    apiKey: "emc-api-key",
-    edcHost: "arena2036-x.de",
-    keycloakUrl: "https://centralidp.staging.arena2036-x.de/auth",
-    realm: "CX-Central",
-    clientId: "A36-EMC"
+    apiUrl: https://emc-backend.staging.arena2036-x.de,
+    apiKey: emc-api-key,
+    edcHost: arena2036-x.de,
+    keycloakUrl: https://centralidp.staging.arena2036-x.de/auth,
+    realm: CX-Central,
+    clientId: A36-EMC,
+    sdeUrl: https://sde.staging.arena2036-x.de,
+    portalUrl: https://portal.staging.arena2036-x.de
     };
 
   service:
@@ -313,7 +622,7 @@ frontend:
   volumes:
     - name: emc-frontend-config
       configMap:
-        name: "{{ .Release.Name }}-emc-frontend-config"
+        name: "{{ .Release.Name }}-frontend-config"
   volumeMounts:
     - name: emc-frontend-config
       mountPath: /frontend/.env
