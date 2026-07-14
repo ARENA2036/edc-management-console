@@ -67,7 +67,7 @@ jobs:
       severity: "CRITICAL,HIGH"
 
   trivy-images:
-    name: Trivy Image Scan
+    name: Scan ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
       actions: read

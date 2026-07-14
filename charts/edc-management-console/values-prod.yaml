@@ -482,7 +482,7 @@ backend:
     - name: CLUSTER_SECRET
       value: "cluster-prod"
     - name: "VAULT_ADDR"
-      value: "https://vault.prod.arena2036-x.de"
+      value: "https://vault.staging.arena2036-x.de"
     - name: VAULT_TOKEN
       valueFrom:
         secretKeyRef:
@@ -662,18 +662,14 @@ grafana:
   ingress:
     enabled: true
     ingressClassName: nginx
-
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-
     hosts:
       - grafana.prod.arena2036-x.de
-
     path: /
     pathType: Prefix
-
     tls:
       - secretName: emc-grafana-prod-tls
         hosts:
@@ -684,12 +680,11 @@ grafana:
       enabled: true
       label: grafana_dashboard
       labelValue: "1"
-      searchNamespace: ALL
+      searchNamespace: edc-management-console
 
   datasources:
     datasources.yaml:
       apiVersion: 1
-
       datasources:
         - name: Prometheus
           uid: prometheus
@@ -706,26 +701,39 @@ grafana:
           url: http://emc-loki-gateway
           editable: false
 
+# Prometheus
 prometheus:
   enabled: true
+  # Not required for a small prod environment.
+  alertmanager:
+    enabled: false
+  # Keep this enabled because your dashboard uses kube_* metrics.
+  kube-state-metrics:
+    enabled: true
+  # Creates one pod on every Kubernetes node when enabled.
+  prometheus-node-exporter:
+    enabled: false
+  # Not required unless applications explicitly push metrics.
+  prometheus-pushgateway:
+    enabled: false
 
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+
+# Loki
 loki:
   enabled: true
-
   deploymentMode: SingleBinary
 
   loki:
     auth_enabled: false
-
     commonConfig:
       replication_factor: 1
       path_prefix: /var/loki
-
     storage:
       type: filesystem
-
-      # Required by Loki chart 6.27.0 template helpers.
-      # These names are placeholders for filesystem mode.
       bucketNames:
         chunks: chunks
         ruler: ruler
@@ -744,7 +752,6 @@ loki:
 
   singleBinary:
     replicas: 1
-
     persistence:
       enabled: true
       size: 10Gi
@@ -752,16 +759,13 @@ loki:
 
   read:
     replicas: 0
-
   write:
     replicas: 0
-
   backend:
     replicas: 0
 
   chunksCache:
     enabled: false
-
   resultsCache:
     enabled: false
 
@@ -769,10 +773,14 @@ loki:
     enabled: true
 
   lokiCanary:
-    enabled: true
+    enabled: false
 
+  # Required when lokiCanary is disabled.
+  test:
+    enabled: false
+
+# Disabled components
 opentelemetry-collector:
   enabled: false
-
 jaeger:
   enabled: false

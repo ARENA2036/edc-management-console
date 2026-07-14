@@ -177,57 +177,211 @@ jobs:
     uses: ./.github/workflows/reusable-trivy.yml
     secrets: inherit
 
-  deploy-emc-dev: 
-    name: Deploy EMC to Dev via Argo CD 
-    needs: trivy 
-    runs-on: ubuntu-latest 
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev' 
-    
-    steps: 
-      - name: Checkout repository 
-        uses: actions/checkout@v4 
+  deploy-emc-dev:
+    name: Deploy EMC Developer Preview via Argo CD
+    needs: trivy
+    runs-on: ubuntu-latest
 
-      - name: Install kubectl 
-        run: | 
-          curl -LO -s "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 
-          chmod +x kubectl 
-          sudo mv kubectl /usr/local/bin/ 
-          kubectl version --client 
-            
-      - name: Install yq 
-        run: | 
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 
-          sudo chmod +x /usr/local/bin/yq 
-          yq --version 
-          
-      - name: Install Vault CLI 
+    if: |
+      (
+        github.event_name == 'push' &&
+        (
+          startsWith(github.ref_name, 'feature/') ||
+          startsWith(github.ref_name, 'bugfix/') ||
+          startsWith(github.ref_name, 'hotfix/')
+        )
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.environment == 'dev'
+      )
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install kubectl
+        shell: bash
         run: |
-          curl -sSL https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip -o vault.zip 
-          unzip vault.zip 
-          chmod +x vault 
-          sudo mv vault /usr/local/bin/ 
-          vault --version 
-      
-      - name: Fetch dev kubeconfig from Vault 
-        run: | 
-          mkdir -p "$HOME/.kube" 
-          export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}" 
-          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_DEV }}" 
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+          kubectl version --client
+
+      - name: Install yq
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Install Vault CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -sSL \
+            https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/
+
+          vault --version
+
+      - name: Fetch Dev kubeconfig from Vault
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_DEV }}"
+
           CLUSTER_PATH="dev/infra/cluster-dev"
 
-          vault kv get -field=config "$CLUSTER_PATH" > "$HOME/.kube/config" 
-          chmod 600 "$HOME/.kube/config" 
-          CONTEXT=$(yq e '.current-context' "$HOME/.kube/config") 
-          kubectl --context="$CONTEXT" cluster-info 
-          echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV" 
-      
-      - name: Apply Dev Argo CD application 
-        run: | 
-          kubectl --context="$KUBE_CONTEXT" apply -f .github/argocd/emc-dev-app.yaml 
-      
-      - name: Check Dev Argo CD application 
+          echo "Fetching Dev kubeconfig from Vault path: $CLUSTER_PATH"
+
+          vault kv get \
+            -field=config \
+            "$CLUSTER_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
+
+          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
+            echo "No Kubernetes context found in Dev kubeconfig"
+            exit 1
+          fi
+
+          kubectl --context="$CONTEXT" cluster-info
+
+          echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Generate developer preview names
+        shell: bash
         run: |
-          kubectl --context="$KUBE_CONTEXT" get application emc-dev -n argocd
+          set -euo pipefail
+
+          SAFE_BRANCH="$(echo "${{ github.ref_name }}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's#[^a-z0-9-]#-#g' \
+            | sed 's/--*/-/g' \
+            | sed 's/^-//' \
+            | sed 's/-$//' \
+            | cut -c1-35)"
+
+          if [[ -z "$SAFE_BRANCH" ]]; then
+            echo "Could not generate a valid preview name"
+            exit 1
+          fi
+
+          PREVIEW_NAME="emc-${SAFE_BRANCH}"
+          PREVIEW_NAMESPACE="emc-${SAFE_BRANCH}"
+
+          FRONTEND_HOST="${SAFE_BRANCH}.dev.arena2036-x.de"
+          BACKEND_HOST="${SAFE_BRANCH}-backend.dev.arena2036-x.de"
+
+          echo "PREVIEW_NAME=$PREVIEW_NAME" >> "$GITHUB_ENV"
+          echo "PREVIEW_NAMESPACE=$PREVIEW_NAMESPACE" >> "$GITHUB_ENV"
+          echo "FRONTEND_HOST=$FRONTEND_HOST" >> "$GITHUB_ENV"
+          echo "BACKEND_HOST=$BACKEND_HOST" >> "$GITHUB_ENV"
+
+          echo "Argo CD application: $PREVIEW_NAME"
+          echo "Namespace: $PREVIEW_NAMESPACE"
+          echo "Frontend host: $FRONTEND_HOST"
+          echo "Backend host: $BACKEND_HOST"
+
+      - name: Prepare Dev Argo CD preview file
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TEMPLATE_FILE=".github/argocd/emc-dev-preview-app.yaml"
+          GENERATED_FILE="/tmp/emc-dev-preview-app.yaml"
+
+          if [[ ! -f "$TEMPLATE_FILE" ]]; then
+            echo "Argo CD template file does not exist:"
+            echo "$TEMPLATE_FILE"
+            exit 1
+          fi
+
+          cp "$TEMPLATE_FILE" "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" \
+            "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_PREVIEW_NAMESPACE|${PREVIEW_NAMESPACE}|g" \
+            "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_BRANCH_NAME|${{ github.ref_name }}|g" \
+            "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_IMAGE_TAG|${{ github.sha }}|g" \
+            "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" \
+            "$GENERATED_FILE"
+
+          sed -i \
+            "s|REPLACE_BACKEND_HOST|${BACKEND_HOST}|g" \
+            "$GENERATED_FILE"
+
+          if grep -q "REPLACE_" "$GENERATED_FILE"; then
+            echo "Some placeholders were not replaced:"
+            grep "REPLACE_" "$GENERATED_FILE"
+            exit 1
+          fi
+
+          echo "Generated Argo CD application:"
+          cat "$GENERATED_FILE"
+
+      - name: Apply Dev Argo CD preview application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$KUBE_CONTEXT" \
+            apply \
+            -f /tmp/emc-dev-preview-app.yaml
+
+      - name: Check Dev Argo CD preview application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$KUBE_CONTEXT" \
+            get application "$PREVIEW_NAME" \
+            -n argocd
+
+          echo "Developer preview created"
+          echo "Frontend URL: https://${FRONTEND_HOST}"
+          echo "Backend URL: https://${BACKEND_HOST}"
   
   deploy-emc-staging:
     name: Deploy EMC to Staging via Argo CD
@@ -353,18 +507,18 @@ jobs:
         run: |
           kubectl --context="$KUBE_CONTEXT" get application emc-prod -n argocd
 
-  # chart-release:
-  #   name: Chart Release
-  #   needs: deploy-emc-prod
-  #   if: |
-  #     (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
-  #     (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-  #   uses: ./.github/workflows/chart-release.yaml
-  #   secrets: inherit
-          
   chart-release:
     name: Chart Release
-    needs: deploy-emc-staging
-    if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
+    needs: deploy-emc-prod
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
     uses: ./.github/workflows/chart-release.yaml
     secrets: inherit
+          
+  # chart-release:
+  #   name: Chart Release
+  #   needs: deploy-emc-staging
+  #   if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
+  #   uses: ./.github/workflows/chart-release.yaml
+  #   secrets: inherit

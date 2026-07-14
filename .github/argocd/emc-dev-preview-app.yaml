@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: REPLACE_PREVIEW_NAME
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: emc
+    app.kubernetes.io/component: developer-preview
+    app.kubernetes.io/managed-by: github-actions
+
+spec:
+  project: edc-management-console
+
+  source:
+    repoURL: https://github.com/ARENA2036/edc-management-console.git
+    targetRevision: REPLACE_BRANCH_NAME
+    path: charts/edc-management-console
+
+    helm:
+      releaseName: REPLACE_PREVIEW_NAME
+
+      valueFiles:
+        - values-dev.yaml
+
+      parameters:
+        - name: fullnameOverride
+          value: REPLACE_PREVIEW_NAME
+
+        - name: backend.image.tag
+          value: REPLACE_IMAGE_TAG
+
+        - name: frontend.image.tag
+          value: REPLACE_IMAGE_TAG
+
+        - name: backend.ingress.enabled
+          value: "true"
+
+        - name: backend.ingress.host
+          value: REPLACE_BACKEND_HOST
+
+        - name: frontend.ingress.enabled
+          value: "true"
+
+        - name: frontend.ingress.host
+          value: REPLACE_FRONTEND_HOST
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: REPLACE_PREVIEW_NAMESPACE
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3
