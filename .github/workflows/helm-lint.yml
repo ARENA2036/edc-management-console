@@ -20,134 +20,220 @@
 # SPDX-License-Identifier: Apache-2.0
 ################################################################################
 ---
-name:  Edc Management Console Lint and Test Charts
+name:  EDC Management Console Lint and Test Charts
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches:
+      - main
+      - develop
     paths:
-      - 'charts/**'
+      - "charts/**"
+      - ".github/workflows/**"
 
   pull_request:
-      paths:
-        - charts/**
+    paths:
+      - "charts/**"
+      - ".github/workflows/**"
 
   workflow_call:
+    inputs:
+      node_image:
+        description: kindest/node image for the Kubernetes KinD cluster
+        default: kindest/node:v1.30.0
+        required: false
+        type: string
+      helm_version:
+        description: Helm version to test
+        default: v3.12.1
+        required: false
+        type: string
+
   workflow_dispatch:
     inputs:
       node_image:
-        description: 'kindest/node image for k8s kind cluster'
-        default: 'kindest/node:v1.30.0'
+        description: kindest/node image for the Kubernetes KinD cluster
+        default: kindest/node:v1.30.0
         required: false
         type: string
-      # # Skip upgrade for now until a working chart is released
-      # upgrade_from:
-      #   description: 'chart version to upgrade from'
-      #   # chart version from 3.2 release as default
-      #   default: '0.1.8'
-      #   required: false
-      #   type: string
       helm_version:
-        description: 'helm version to test (default = latest)'
-        default: 'latest'
+        description: Helm version to test
+        default: v3.12.1
         required: false
         type: string
+
+permissions:
+  contents: read
+
+env:
+  CHART_PATH: charts/edc-management-console
+  BACKEND_IMAGE: emc-backend:testing
+  FRONTEND_IMAGE: emc-frontend:testing
 
 jobs:
   lint-test:
-      runs-on: ubuntu-latest
-      steps:
-          - name: Checkout
-            uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-            with:
-              fetch-depth: 0
+    name: Lint and install Helm chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
-          - name: Kubernetes KinD Cluster
-            uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2.0.4
-            with:
-              # upgrade version, default (v0.17.0) uses node image v1.21.1 and doesn't work with more recent node image versions
-              version: v0.20.0
-              # default value for event_name != workflow_dispatch
-              node_image: ${{ github.event.inputs.node_image || 'kindest/node:v1.30.0' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
-          - name: Build emc backend image
-            uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-            with:
-              context: backend
-              push: false
-              tags: emc-backend:Testing-15-04-2026
+      - name: Set up Helm
+        uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0
+        with:
+          version: ${{ inputs.helm_version || 'v3.12.1' }}
 
-          - name: Build emc frontend image
-            uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-            with:
-              context: frontend
-              push: false
-              tags: emc-frontend:Testing-15-04-2026
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.9"
 
-          # Load images into Kind
-          - name: Load backend image into Kind
-            run: kind load docker-image emc-backend:Testing-15-04-2026
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
 
-          - name: Load frontend image into Kind
-            run: kind load docker-image emc-frontend:Testing-15-04-2026
+      - name: Display tool versions
+        run: |
+          set -euo pipefail
+          helm version
+          ct version
+          python --version
 
-          - name: Set up Helm
-            uses: azure/setup-helm@b7246b12e77f7134dc2d460a3d5bad15bbe29390 # v4.1.0                      
-            with:
-              version: v3.12.1
+      - name: Set target branch
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
 
-        # Setup python as a prerequisite for chart linting 
-          - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-            with:
-              python-version: 3.9
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            target_branch="${{ github.event.pull_request.base.ref }}"
+          else
+            target_branch="${{ github.event.repository.default_branch }}"
+          fi
 
-          - name: Set up chart-testing
-            uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
+          if [[ -z "${target_branch}" ]]; then
+            target_branch="main"
+          fi
 
-          - name: Set target branch
-            id: set-target-branch
-            run: |
-              if [ -n "${{ github.event.pull_request.base.ref }}" ]; then
-                echo "target-branch=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
-              else
-                echo "target-branch=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
-              fi
+          echo "branch=${target_branch}" >> "${GITHUB_OUTPUT}"
+          echo "Using target branch: ${target_branch}"
 
-          - name: Run chart-testing (list-changed)
-            id: list-changed
-            run: |
-              changed=$(ct list-changed --target-branch ${{ steps.set-target-branch.outputs.target-branch }})
-              if [[ -n "$changed" ]]; then
-                echo "changed=true" >> $GITHUB_OUTPUT
-              fi
+      - name: Update Helm dependencies
+        run: |
+          set -euo pipefail
+          helm dependency update "${CHART_PATH}"
 
-          - name: Run chart-testing (lint)
-            run: ct lint --validate-maintainers=false --target-branch ${{ steps.set-target-branch.outputs.target-branch }}
-            
-          - name: Run chart-testing (install)
-            run: |
-              ct install \
-                --charts charts/edc-management-console \
-                --helm-extra-set-args "\
-                  --set backend.image.registry= \
-                  --set backend.image.repository=emc-backend \
-                  --set backend.image.tag=Testing-15-04-2026 \
-                  --set backend.image.pullPolicy=Never \
-                  --set frontend.image.registry= \
-                  --set frontend.image.repository=emc-frontend \
-                  --set frontend.image.tag=Testing-15-04-2026 \
-                  --set frontend.image.pullPolicy=Never \
-                  --set-json backend.imagePullSecrets=[] \
-                  --set-json frontend.imagePullSecrets=[] \
-                "
-          # # Skip upgrade for now until a working chart is released
-          # # Upgrade the released chart version with the locally available chart
-          # # default value for event_name != workflow_dispatch
-          # - name: Run helm upgrade
-          #   run: |
-          #     helm repo add bitnami https://charts.bitnami.com/bitnami
-          #     helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-          #     helm repo update
-          #     helm dependency update charts/edc-management-console
-          #     helm upgrade --install edc charts/edc-management-console
-          #   if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
+      # These two steps expose the actual Helm template error.
+      - name: Run Helm lint with debug output
+        run: |
+          set -euo pipefail
+          helm lint "${CHART_PATH}" \
+            --with-subcharts \
+            --debug
+
+      - name: Render Helm templates with debug output
+        run: |
+          set -euo pipefail
+          helm template edc-management-console "${CHART_PATH}" \
+            --namespace edc-management-console \
+            --debug \
+            > /tmp/edc-management-console-rendered.yaml
+
+          test -s /tmp/edc-management-console-rendered.yaml
+          echo "Rendered manifests successfully."
+
+      - name: List changed charts
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          changed_charts="$(
+            ct list-changed \
+              --target-branch "${{ steps.target.outputs.branch }}"
+          )"
+
+          if [[ -n "${changed_charts}" ]]; then
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo "charts<<EOF"
+              echo "${changed_charts}"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+
+            echo "Changed charts:"
+            echo "${changed_charts}"
+          else
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+            echo "No changed charts detected."
+          fi
+
+      - name: Run chart-testing lint
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+
+          ct lint \
+            --validate-maintainers=false \
+            --target-branch "${{ steps.target.outputs.branch }}" \
+            --debug
+
+      - name: Create Kubernetes KinD cluster
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2.0.4
+        with:
+          version: v0.20.0
+          node_image: ${{ inputs.node_image || 'kindest/node:v1.30.0' }}
+
+      - name: Build EMC backend image
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: ${{ env.BACKEND_IMAGE }}
+
+      - name: Build EMC frontend image
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        with:
+          context: frontend
+          push: false
+          load: true
+          tags: ${{ env.FRONTEND_IMAGE }}
+
+      - name: Load backend image into KinD
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          kind load docker-image "${BACKEND_IMAGE}"
+
+      - name: Load frontend image into KinD
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          kind load docker-image "${FRONTEND_IMAGE}"
+
+      - name: Run chart-testing install
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+
+          ct install \
+            --charts "${CHART_PATH}" \
+            --debug \
+            --helm-extra-set-args \
+              "--set backend.image.registry= \
+              --set backend.image.repository=emc-backend \
+              --set backend.image.tag=testing \
+              --set backend.image.pullPolicy=Never \
+              --set frontend.image.registry= \
+              --set frontend.image.repository=emc-frontend \
+              --set frontend.image.tag=testing \
+              --set frontend.image.pullPolicy=Never \
+              --set-json backend.imagePullSecrets=[] \
+              --set-json frontend.imagePullSecrets=[]"
