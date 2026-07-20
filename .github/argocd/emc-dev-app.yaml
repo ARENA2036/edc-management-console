@@ -10,7 +10,7 @@ metadata:
   annotations:
     environment.emc/type: shared-development
 spec:
-  project: edc-management-console
+  project: default
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
     # Temporary testing branch.
@@ -24,10 +24,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: edc-management-console
-    syncPolicy:
+  syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - Replace=true
+  revisionHistoryLimit: 3
