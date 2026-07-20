@@ -378,7 +378,7 @@ jobs:
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
 
           # This Vault path must contain the AP6 Dev cluster kubeconfig.
-          CLUSTER_PATH="dev/infra/cluster-dev"
+          CLUSTER_PATH="staging/infra/cluster-int"
 
           vault kv get \
             -field=config \
@@ -552,7 +552,7 @@ jobs:
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
 
-          CLUSTER_PATH="dev/infra/cluster-dev"
+          CLUSTER_PATH="staging/infra/cluster-int"
 
           vault kv get \
             -field=config \
@@ -729,7 +729,7 @@ jobs:
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
 
-          CLUSTER_PATH="prod/infra/cluster-prod"
+          CLUSTER_PATH="staging/infra/cluster-prod"
 
           vault kv get \
             -field=config \
