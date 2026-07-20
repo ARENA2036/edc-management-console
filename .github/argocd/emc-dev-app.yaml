@@ -23,7 +23,7 @@ spec:
     # Change this to "develop" after CI/CD testing is complete.
     targetRevision: ci-cd-branch
 
-    path: charts/edc-management-console
+    path: charts/edc-management-console-cd
 
     helm:
       releaseName: emc
