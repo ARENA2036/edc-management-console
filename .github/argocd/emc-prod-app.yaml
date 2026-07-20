@@ -1,39 +1,31 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
-
 metadata:
   name: emc-prod
   namespace: argocd
-
   labels:
     app.kubernetes.io/name: emc
     app.kubernetes.io/component: production
     app.kubernetes.io/managed-by: github-actions
-
   annotations:
     environment.emc/type: production
-
 spec:
   project: edc-management-console
-
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
     targetRevision: REPLACE_RELEASE_BRANCH
     path: charts/edc-management-console
-
     helm:
       releaseName: emc
-
       valueFiles:
         - values-prod.yaml
-
   destination:
     server: https://kubernetes.default.svc
-    namespace: emc-prod
-
-  syncPolicy:
+    namespace: edc-management-console
+    syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - PruneLast=true
-
-  revisionHistoryLimit: 3
+      - Replace=true
