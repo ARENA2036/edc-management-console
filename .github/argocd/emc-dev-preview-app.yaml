@@ -10,6 +10,9 @@ metadata:
     app.kubernetes.io/component: developer-preview
     app.kubernetes.io/managed-by: github-actions
 
+  annotations:
+    preview.emc/branch: REPLACE_BRANCH_NAME
+
 spec:
   project: edc-management-console
 
@@ -25,26 +28,52 @@ spec:
         - values-dev.yaml
 
       parameters:
+        # Unique resource names for every preview environment
         - name: fullnameOverride
           value: REPLACE_PREVIEW_NAME
+          forceString: true
 
+        # Preview-specific backend image
         - name: backend.image.tag
           value: REPLACE_IMAGE_TAG
+          forceString: true
 
+        # Preview-specific frontend image
         - name: frontend.image.tag
           value: REPLACE_IMAGE_TAG
+          forceString: true
 
+        # Backend ingress
         - name: backend.ingress.enabled
           value: "true"
 
-        - name: backend.ingress.host
+        - name: backend.ingress.hosts[0].host
           value: REPLACE_BACKEND_HOST
+          forceString: true
 
+        - name: backend.ingress.tls[0].hosts[0]
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-backend-tls
+          forceString: true
+
+        # Frontend ingress
         - name: frontend.ingress.enabled
           value: "true"
 
-        - name: frontend.ingress.host
+        - name: frontend.ingress.hosts[0].host
           value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].hosts[0]
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-frontend-tls
+          forceString: true
 
   destination:
     server: https://kubernetes.default.svc

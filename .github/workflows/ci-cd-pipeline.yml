@@ -3,29 +3,43 @@ name: EMC CI-CD Pipeline
 on:
   push:
     branches:
-      - develop
-      - 'release/**'
       - 'feature/**'
       - 'bugfix/**'
       - 'hotfix/**'
       - ci-cd-branch
+      - develop
+      - 'release/**'
+
   pull_request:
     branches:
       - develop
       - 'release/**'
-      - ci-cd-branch
 
   workflow_dispatch:
     inputs:
       environment:
-        description: "Select deployment environment"
+        description: "Deployment target"
         required: true
-        default: "staging"
+        default: dev
         type: choice
         options:
           - dev
-          - staging
           - prod
+
+      image_tag:
+        description: "Optional tag for both backend and frontend. Empty = current Git SHA"
+        required: false
+        type: string
+
+      backend_image_repository:
+        description: "Optional backend image repository override"
+        required: false
+        type: string
+
+      frontend_image_repository:
+        description: "Optional frontend image repository override"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -70,218 +84,99 @@ jobs:
     name: Frontend Dependency Scan
     uses: ./.github/workflows/dependencies-frontend.yaml
     secrets: inherit
-  
+
   build:
     name: Build Images
     needs:
-      # - verify
-      # - helm-lint
-      # - kics
+      - verify
+      - helm-lint
+      - kics
       - trufflehog
       - codeql
-      # - backend-dependencies
-      # - frontend-dependencies
+      - backend-dependencies
+      - frontend-dependencies
     uses: ./.github/workflows/emc-build.yaml
     secrets: inherit
 
-  update-image-tag:
-    name: Update Helm Image Tag
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-          yq --version
-
-      # uncomment this when everything work fine
-      # - name: Select Helm values file
-      #   run: |
-      #     if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "dev" ]]; then
-      #       echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
-
-      #     elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "staging" ]]; then
-      #       echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-
-      #     elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "prod" ]]; then
-      #       echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
-
-      #     elif [[ "${{ github.ref_name }}" == "develop" ]]; then
-      #       echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-
-      #     elif [[ "${{ github.ref_name }}" == release/* ]]; then
-      #       echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
-
-      #     else
-      #       echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
-      #     fi
-  
-        # For testing only then delete this after testing
-      - name: Select Helm values file
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "dev" ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-dev.yaml" >> "$GITHUB_ENV"
-
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "staging" ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.environment }}" == "prod" ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
-
-          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-
-          elif [[ "${{ github.ref_name }}" == "ci-cd-branch" ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-
-          elif [[ "${{ github.ref_name }}" == release/* ]]; then
-            echo "VALUES_FILE=charts/edc-management-console/values-prod.yaml" >> "$GITHUB_ENV"
-
-          else
-            echo "VALUES_FILE=charts/edc-management-console/values-staging.yaml" >> "$GITHUB_ENV"
-          fi
-
-      - name: Update image tags
-        run: |
-          echo "Updating image tags in $VALUES_FILE"
-
-          yq -i '.backend.image.tag = "${{ github.sha }}"' "$VALUES_FILE"
-          yq -i '.frontend.image.tag = "${{ github.sha }}"' "$VALUES_FILE"
-
-          cat "$VALUES_FILE"
-
-      - name: Commit updated Helm values
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          # Use git add -f because charts directory is ignored by .gitignore.
-          git add -f "$VALUES_FILE"
-          git commit -m "Update image tag to ${{ github.sha }}" || echo "No changes to commit"
-          git push
-
   trivy:
     name: Trivy Image Scan
-    needs: update-image-tag
+    needs: build
     uses: ./.github/workflows/reusable-trivy.yml
     secrets: inherit
 
-  deploy-emc-dev:
-    name: Deploy EMC Developer Preview via Argo CD
+  # ------------------------------------------------------------
+  # Automatic isolated preview environments
+  # ------------------------------------------------------------
+  deploy-preview:
+    name: Deploy Isolated Developer Preview
     needs: trivy
     runs-on: ubuntu-latest
-
     if: |
+      github.event_name == 'push' &&
       (
-        github.event_name == 'push' &&
-        (
-          startsWith(github.ref_name, 'feature/') ||
-          startsWith(github.ref_name, 'bugfix/') ||
-          startsWith(github.ref_name, 'hotfix/')
-        )
-      ) ||
-      (
-        github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.environment == 'dev'
+        startsWith(github.ref_name, 'feature/') ||
+        startsWith(github.ref_name, 'bugfix/') ||
+        startsWith(github.ref_name, 'hotfix/')
       )
 
     steps:
-      - name: Checkout repository
+      - name: Checkout branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Install kubectl
+      - name: Install tools
         shell: bash
         run: |
           set -euo pipefail
 
           KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
-
           curl -LO -s \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
-          kubectl version --client
-
-      - name: Install yq
-        shell: bash
-        run: |
-          set -euo pipefail
-
           sudo wget -qO /usr/local/bin/yq \
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-
           sudo chmod +x /usr/local/bin/yq
-          yq --version
-
-      - name: Install Vault CLI
-        shell: bash
-        run: |
-          set -euo pipefail
 
           curl -sSL \
             https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip \
             -o vault.zip
-
           unzip -q vault.zip
           chmod +x vault
           sudo mv vault /usr/local/bin/
 
-          vault --version
-
-      - name: Fetch Dev kubeconfig from Vault
+      - name: Connect to Dev cluster
         shell: bash
         run: |
           set -euo pipefail
-
           mkdir -p "$HOME/.kube"
 
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_DEV }}"
 
-          CLUSTER_PATH="dev/infra/cluster-dev"
-
-          echo "Fetching Dev kubeconfig from Vault path: $CLUSTER_PATH"
-
           vault kv get \
             -field=config \
-            "$CLUSTER_PATH" \
+            "dev/infra/cluster-dev" \
             > "$HOME/.kube/config"
 
           chmod 600 "$HOME/.kube/config"
 
           CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
-
-          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
-            echo "No Kubernetes context found in Dev kubeconfig"
-            exit 1
-          fi
+          test -n "$CONTEXT"
+          test "$CONTEXT" != "null"
 
           kubectl --context="$CONTEXT" cluster-info
-
           echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
 
-      - name: Generate developer preview names
+      - name: Generate preview identifiers
         shell: bash
         run: |
           set -euo pipefail
 
-          SAFE_BRANCH="$(echo "${{ github.ref_name }}" \
+          BRANCH_SLUG="$(printf '%s' "${{ github.ref_name }}" \
             | tr '[:upper:]' '[:lower:]' \
             | sed 's#[^a-z0-9-]#-#g' \
             | sed 's/--*/-/g' \
@@ -289,227 +184,336 @@ jobs:
             | sed 's/-$//' \
             | cut -c1-35)"
 
-          if [[ -z "$SAFE_BRANCH" ]]; then
-            echo "Could not generate a valid preview name"
-            exit 1
-          fi
+          BRANCH_HASH="$(printf '%s' "${{ github.ref_name }}" | sha256sum | cut -c1-7)"
+          SAFE_BRANCH="${BRANCH_SLUG}-${BRANCH_HASH}"
 
-          PREVIEW_NAME="emc-${SAFE_BRANCH}"
-          PREVIEW_NAMESPACE="emc-${SAFE_BRANCH}"
+          {
+            echo "PREVIEW_NAME=emc-${SAFE_BRANCH}"
+            echo "PREVIEW_NAMESPACE=emc-${SAFE_BRANCH}"
+            echo "FRONTEND_HOST=${SAFE_BRANCH}.dev.arena2036-x.de"
+            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.dev.arena2036-x.de"
+          } >> "$GITHUB_ENV"
 
-          FRONTEND_HOST="${SAFE_BRANCH}.dev.arena2036-x.de"
-          BACKEND_HOST="${SAFE_BRANCH}-backend.dev.arena2036-x.de"
-
-          echo "PREVIEW_NAME=$PREVIEW_NAME" >> "$GITHUB_ENV"
-          echo "PREVIEW_NAMESPACE=$PREVIEW_NAMESPACE" >> "$GITHUB_ENV"
-          echo "FRONTEND_HOST=$FRONTEND_HOST" >> "$GITHUB_ENV"
-          echo "BACKEND_HOST=$BACKEND_HOST" >> "$GITHUB_ENV"
-
-          echo "Argo CD application: $PREVIEW_NAME"
-          echo "Namespace: $PREVIEW_NAMESPACE"
-          echo "Frontend host: $FRONTEND_HOST"
-          echo "Backend host: $BACKEND_HOST"
-
-      - name: Prepare Dev Argo CD preview file
+      - name: Generate preview Argo CD Application
         shell: bash
         run: |
           set -euo pipefail
 
-          TEMPLATE_FILE=".github/argocd/emc-dev-preview-app.yaml"
-          GENERATED_FILE="/tmp/emc-dev-preview-app.yaml"
+          TEMPLATE=".github/argocd/emc-dev-preview-app.yaml"
+          GENERATED="/tmp/emc-dev-preview-app.yaml"
 
-          if [[ ! -f "$TEMPLATE_FILE" ]]; then
-            echo "Argo CD template file does not exist:"
-            echo "$TEMPLATE_FILE"
+          cp "$TEMPLATE" "$GENERATED"
+
+          sed -i "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_PREVIEW_NAMESPACE|${PREVIEW_NAMESPACE}|g" "$GENERATED"
+          sed -i "s|REPLACE_BRANCH_NAME|${{ github.ref_name }}|g" "$GENERATED"
+          sed -i "s|REPLACE_IMAGE_TAG|${{ github.sha }}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_HOST|${BACKEND_HOST}|g" "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders found"
+            grep 'REPLACE_' "$GENERATED"
             exit 1
           fi
 
-          cp "$TEMPLATE_FILE" "$GENERATED_FILE"
+          kubectl apply --dry-run=client -f "$GENERATED" >/dev/null
 
-          sed -i \
-            "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" \
-            "$GENERATED_FILE"
-
-          sed -i \
-            "s|REPLACE_PREVIEW_NAMESPACE|${PREVIEW_NAMESPACE}|g" \
-            "$GENERATED_FILE"
-
-          sed -i \
-            "s|REPLACE_BRANCH_NAME|${{ github.ref_name }}|g" \
-            "$GENERATED_FILE"
-
-          sed -i \
-            "s|REPLACE_IMAGE_TAG|${{ github.sha }}|g" \
-            "$GENERATED_FILE"
-
-          sed -i \
-            "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" \
-            "$GENERATED_FILE"
-
-          sed -i \
-            "s|REPLACE_BACKEND_HOST|${BACKEND_HOST}|g" \
-            "$GENERATED_FILE"
-
-          if grep -q "REPLACE_" "$GENERATED_FILE"; then
-            echo "Some placeholders were not replaced:"
-            grep "REPLACE_" "$GENERATED_FILE"
-            exit 1
-          fi
-
-          echo "Generated Argo CD application:"
-          cat "$GENERATED_FILE"
-
-      - name: Apply Dev Argo CD preview application
+      - name: Apply preview Application
         shell: bash
         run: |
           set -euo pipefail
+          kubectl --context="$KUBE_CONTEXT" \
+            apply -f /tmp/emc-dev-preview-app.yaml
 
-          kubectl \
-            --context="$KUBE_CONTEXT" \
-            apply \
-            -f /tmp/emc-dev-preview-app.yaml
+          kubectl --context="$KUBE_CONTEXT" \
+            get application "$PREVIEW_NAME" -n argocd
 
-      - name: Check Dev Argo CD preview application
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo "Frontend: https://${FRONTEND_HOST}"
+          echo "Backend: https://${BACKEND_HOST}"
 
-          kubectl \
-            --context="$KUBE_CONTEXT" \
-            get application "$PREVIEW_NAME" \
-            -n argocd
-
-          echo "Developer preview created"
-          echo "Frontend URL: https://${FRONTEND_HOST}"
-          echo "Backend URL: https://${BACKEND_HOST}"
-  
-  deploy-emc-staging:
-    name: Deploy EMC to Staging via Argo CD
+  # ------------------------------------------------------------
+  # Manual shared development deployment from develop only
+  # ------------------------------------------------------------
+  deploy-shared-dev:
+    name: Deploy Dev
     needs: trivy
     runs-on: ubuntu-latest
-    if: | 
-      (github.event_name == 'push' && github.ref_name == 'ci-cd-branch') || 
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
-
-    # env:
-    #   TARGET_CONTEXT: staging
+    # for testing then remove it after testing
+    if: |
+      (
+        github.event_name == 'push' &&
+        github.ref_name == 'ci-cd-branch'
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.environment == 'dev' &&
+        github.ref_name == 'develop'
+      )
+# After testing is finished, change the condition back to manual-only:
+    # if: |
+    #   github.event_name == 'workflow_dispatch' &&
+    #   github.event.inputs.environment == 'dev' &&
+    #   github.ref_name == 'develop'
+      
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout develop
         uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
 
-      - name: Install kubectl
+      - name: Install tools
+        shell: bash
         run: |
-          echo "Installing kubectl..."
-          curl -LO -s "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
-          kubectl version --client
 
-      - name: Install yq
-        run: |
           sudo wget -qO /usr/local/bin/yq \
-          https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
-          yq --version
 
-      - name: Install Vault CLI
-        run: |
-          curl -sSL https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip -o vault.zip
-          unzip vault.zip
+          curl -sSL \
+            https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip \
+            -o vault.zip
+          unzip -q vault.zip
           chmod +x vault
           sudo mv vault /usr/local/bin/
-          vault --version
 
-      - name: Fetch kubeconfig from Vault and connect to cluster
+      - name: Resolve requested images
+        shell: bash
         run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          if [[ -z "$IMAGE_TAG" ]]; then
+            IMAGE_TAG="${{ github.sha }}"
+          fi
+
+          echo "DEPLOY_IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Update values-dev.yaml
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VALUES_FILE="charts/edc-management-console/values-dev.yaml"
+
+          yq -i '.backend.image.tag = strenv(DEPLOY_IMAGE_TAG)' "$VALUES_FILE"
+          yq -i '.frontend.image.tag = strenv(DEPLOY_IMAGE_TAG)' "$VALUES_FILE"
+
+          if [[ -n "${{ github.event.inputs.backend_image_repository }}" ]]; then
+            BACKEND_REPOSITORY="${{ github.event.inputs.backend_image_repository }}" \
+              yq -i '.backend.image.repository = strenv(BACKEND_REPOSITORY)' "$VALUES_FILE"
+          fi
+
+          if [[ -n "${{ github.event.inputs.frontend_image_repository }}" ]]; then
+            FRONTEND_REPOSITORY="${{ github.event.inputs.frontend_image_repository }}" \
+              yq -i '.frontend.image.repository = strenv(FRONTEND_REPOSITORY)' "$VALUES_FILE"
+          fi
+
+          cat "$VALUES_FILE"
+
+      - name: Commit shared Dev values
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -f charts/edc-management-console/values-dev.yaml
+          git commit \
+            -m "chore(dev): deploy image ${DEPLOY_IMAGE_TAG} [skip ci]" \
+            || echo "No Dev values change"
+
+          git push origin HEAD:develop
+
+      - name: Connect to Dev cluster
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p "$HOME/.kube"
 
-          export VAULT_ADDR="${{ secrets.VAULT_ADDR_STAGING }}"
-          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_STAGING }}"
-          CLUSTER_PATH="staging/infra/cluster-staging"
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_DEV }}"
 
-          echo "Fetching kubeconfig from Vault path: $CLUSTER_PATH"
+          vault kv get \
+            -field=config \
+            "dev/infra/cluster-dev" \
+            > "$HOME/.kube/config"
 
-          vault kv get -field=config "$CLUSTER_PATH" > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
-
-          CONTEXT=$(yq e '.current-context' "$HOME/.kube/config")
-
-          echo "Using context: $CONTEXT"
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
 
           kubectl --context="$CONTEXT" cluster-info
+          echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
 
-          echo "KUBE_CONTEXT=$CONTEXT" >> $GITHUB_ENV
-
-      - name: Apply Argo CD application
+      - name: Apply shared Dev Application
+        shell: bash
         run: |
-          kubectl --context="$KUBE_CONTEXT" apply -f .github/argocd/emc-staging-app.yaml
+          set -euo pipefail
 
-      - name: Check Argo CD application
-        run: |
-          kubectl --context="$KUBE_CONTEXT" get application emc-staging -n argocd
+          kubectl --context="$KUBE_CONTEXT" \
+            apply -f .github/argocd/emc-dev-app.yaml
 
-  deploy-emc-prod:
-    name: Deploy EMC to Prod via Argo CD
+          kubectl --context="$KUBE_CONTEXT" \
+            get application emc-dev -n argocd
+
+  # ------------------------------------------------------------
+  # Manual Production deployment from release/** only
+  # ------------------------------------------------------------
+  deploy-production:
+    name: Deploy Production
     needs: trivy
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'prod' &&
+      startsWith(github.ref_name, 'release/')
+
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout selected release branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
-      - name: Install kubectl
+      - name: Install tools
+        shell: bash
         run: |
-          curl -LO -s "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
-          kubectl version --client
 
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
-          yq --version
 
-      - name: Install Vault CLI
-        run: |
-          curl -sSL https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip -o vault.zip
-          unzip vault.zip
+          curl -sSL \
+            https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip \
+            -o vault.zip
+          unzip -q vault.zip
           chmod +x vault
           sudo mv vault /usr/local/bin/
-          vault --version
 
-      - name: Fetch prod kubeconfig from Vault
+      - name: Resolve requested images
+        shell: bash
         run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          if [[ -z "$IMAGE_TAG" ]]; then
+            IMAGE_TAG="${{ github.sha }}"
+          fi
+
+          echo "DEPLOY_IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Update values-prod.yaml
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VALUES_FILE="charts/edc-management-console/values-prod.yaml"
+
+          yq -i '.backend.image.tag = strenv(DEPLOY_IMAGE_TAG)' "$VALUES_FILE"
+          yq -i '.frontend.image.tag = strenv(DEPLOY_IMAGE_TAG)' "$VALUES_FILE"
+
+          if [[ -n "${{ github.event.inputs.backend_image_repository }}" ]]; then
+            BACKEND_REPOSITORY="${{ github.event.inputs.backend_image_repository }}" \
+              yq -i '.backend.image.repository = strenv(BACKEND_REPOSITORY)' "$VALUES_FILE"
+          fi
+
+          if [[ -n "${{ github.event.inputs.frontend_image_repository }}" ]]; then
+            FRONTEND_REPOSITORY="${{ github.event.inputs.frontend_image_repository }}" \
+              yq -i '.frontend.image.repository = strenv(FRONTEND_REPOSITORY)' "$VALUES_FILE"
+          fi
+
+          cat "$VALUES_FILE"
+
+      - name: Commit Production values
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -f charts/edc-management-console/values-prod.yaml
+          git commit \
+            -m "chore(prod): deploy image ${DEPLOY_IMAGE_TAG} [skip ci]" \
+            || echo "No Production values change"
+
+          git push origin "HEAD:${{ github.ref_name }}"
+
+      - name: Prepare Production Argo CD Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TEMPLATE=".github/argocd/emc-prod-app.yaml"
+          GENERATED="/tmp/emc-prod-app.yaml"
+
+          cp "$TEMPLATE" "$GENERATED"
+          sed -i \
+            "s|REPLACE_RELEASE_BRANCH|${{ github.ref_name }}|g" \
+            "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders found"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+      - name: Connect to Production cluster
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p "$HOME/.kube"
 
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
-          CLUSTER_PATH="staging/infra/cluster-prod"
 
-          vault kv get -field=config "$CLUSTER_PATH" > "$HOME/.kube/config"
+          vault kv get \
+            -field=config \
+            "prod/infra/cluster-prod" \
+            > "$HOME/.kube/config"
+
           chmod 600 "$HOME/.kube/config"
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
 
-          CONTEXT=$(yq e '.current-context' "$HOME/.kube/config")
           kubectl --context="$CONTEXT" cluster-info
-
           echo "KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
 
-      - name: Apply Prod Argo CD application
+      - name: Apply Production Application
+        shell: bash
         run: |
-          kubectl --context="$KUBE_CONTEXT" apply -f .github/argocd/emc-prod-app.yaml
+          set -euo pipefail
 
-      - name: Check Prod Argo CD application
-        run: |
-          kubectl --context="$KUBE_CONTEXT" get application emc-prod -n argocd
+          kubectl --context="$KUBE_CONTEXT" \
+            apply -f /tmp/emc-prod-app.yaml
+
+          kubectl --context="$KUBE_CONTEXT" \
+            get application emc-prod -n argocd
 
   chart-release:
     name: Chart Release
-    needs: deploy-emc-prod
+    needs: deploy-production
     if: |
       (github.event_name == 'push' && startsWith(github.ref_name, 'release/')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')

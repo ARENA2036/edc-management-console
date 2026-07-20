@@ -72,12 +72,12 @@ backend:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-dev
+      cert-manager.io/cluster-issuer: letsencrypt-int
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend.dev.arena2036-x.de"
+      - host: &hostname "emc-backend.dev.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
@@ -97,7 +97,7 @@ backend:
     yml: |-
       appConfig:
         name: "ARENA2036 EDC Management Console"
-        client_id: "A36-EMC"
+        client_id: "EMC"
         version: "1.0.0"
         port: 5000
         host: "0.0.0.0"
@@ -148,19 +148,19 @@ backend:
 
       externalApps:
         sde:
-          url: https://sde.dev.arena2036-x.de
-          client_id: "CX-SDE"
-          manufacturerId: BPNLA360COMPANY1
-          providerEDC:  https://dataprovider-edc-controlplane.dev.arena2036-x.de
-          consumerEDC: https://dataconsumer-controlplane.dev.arena2036-x.de
-          registryUrl: https://dtr.dev.arena2036-x.de/semantics/registry
+          url: https://sde-1.services.construct-x.net
+          client_id: "SDE-1"
+          manufacturerId: BPNL000000000065
+          providerEDC:  https://connector-1-controlplane.services.construct-x.net
+          consumerEDC: https://connector-2-controlplane.services.construct-x.net
+          registryUrl: https://connector-1-dtr.services.construct-x.net/semantics/registry
 
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
       # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://dataconsumer-controlplane.dev.arena2036-x.de"
+        default_url: "https://connector-1-controlplane.services.construct-x.net"
         # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
         didMethod: "did:web"
         helmRepositories:
@@ -182,8 +182,8 @@ backend:
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
         hostname:
-          controlplane: controlplane.dev.arena2036-x.de
-          dataplane: dataplane.dev.arena2036-x.de
+          controlplane: controlplane.dev.arena2036.app
+          dataplane: dataplane.dev.arena2036.app
         # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
         sts:
           dimEndpoint: "/api/sts"
@@ -283,11 +283,11 @@ backend:
             - path: controlplane.ingresses[0].annotations
               from: controlplane_annotations
             - path: controlplane.ingresses[0].tls.enabled
-              value: false
+              value: true
             - path: controlplane.ingresses[0].tls.secretName
               template: "{name}-cp-tls"
             - path: dataplane.ingresses[0].enabled
-              value: false
+              value: true
             - path: dataplane.ingresses[0].hostname
               from: dp_hostname
             - path: dataplane.ingresses[0].certManager.clusterIssuer
@@ -297,7 +297,7 @@ backend:
             - path: dataplane.ingresses[0].annotations
               from: dataplane_annotations
             - path: dataplane.ingresses[0].tls.enabled
-              value: false
+              value: true
             - path: dataplane.ingresses[0].tls.secretName
               template: "{name}-dp-tls"
             - path: dataplane.token.signer.privatekey_alias
@@ -348,7 +348,7 @@ backend:
             - path: ingress.enabled           # chart default is false
               value: true
             - path: ingress.className
-              value: ''
+              value: 'nginx'
             - path: ingress.annotations
               from: annotations
             - path: ingress.hosts[0].host
@@ -480,9 +480,9 @@ backend:
   envFrom: []
   env:
     - name: CLUSTER_SECRET
-      value: "cluster-dev"
+      value: "cluster-int"
     - name: "VAULT_ADDR"
-      value: "https://vault.dev.arena2036-x.de"
+      value: "https://vault.staging.arena2036-x.de"
     - name: VAULT_TOKEN
       valueFrom:
         secretKeyRef:
@@ -516,7 +516,7 @@ backend:
       persistentVolumeClaim:
         claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
     # -- temporary file system mount
-    - name: tmpfs
+    - name: tmpfs-1
       emptyDir: {}
 
   ## Volume mounts for the backend deployment.
@@ -549,7 +549,7 @@ backend:
       mountPath: /backend/data
       subPath: data
     # -- contains the log directory used by the backend
-    - name: tmpfs
+    - name: tmpfs-1
       mountPath: /backend/logs
       subPath: logs
 
@@ -566,31 +566,31 @@ frontend:
 
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend.dev.arena2036-x.de
+      value: https://emc-backend.dev.arena2036.app
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
-      value: dev.arena2036-x.de
+      value: dev.arena2036.app
     - name: VITE_KEYCLOAK_URL
       value: https://centralidp.dev.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
-      value: A36-EMC
+      value: EMC
     - name: VITE_SDE_URL
-      value: https://sde.dev.arena2036-x.de
+      value: https://sde-1.services.construct-x.net
     - name: VITE_PORTAL_URL
       value: https://portal.dev.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend.dev.arena2036-x.de,
+    apiUrl: https://emc-backend.dev.arena2036.app,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.dev.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: A36-EMC,
-    sdeUrl: https://sde.dev.arena2036-x.de,
+    clientId: EMC,
+    sdeUrl: https://sde-1.services.construct-x.net,
     portalUrl: https://portal.dev.arena2036-x.de
     };
 
@@ -601,13 +601,13 @@ frontend:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-dev
+      cert-manager.io/cluster-issuer: letsencrypt-int
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc.dev.arena2036-x.de"
+      - host: &fehostname "emc-1.dev.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
@@ -635,7 +635,7 @@ serviceAccount:
   create: true
   automount: true
   annotations: {}
-  name: ""
+  name: "emc"
 
 podAnnotations: {}
 podLabels: {}
@@ -654,3 +654,115 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# By default we're disabling observability
+grafana:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-int
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - grafana.dev.arena2036-x.de
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: emc-grafana-dev-tls
+        hosts:
+          - grafana.dev.arena2036-x.de
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: edc-management-console
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://emc-prometheus-server
+          isDefault: true
+          editable: false
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://emc-loki-gateway
+          editable: false
+# Prometheus
+prometheus:
+  enabled: true
+  # Not required for a small staging environment.
+  alertmanager:
+    enabled: false
+  # Keep this enabled because your dashboard uses kube_* metrics.
+  kube-state-metrics:
+    enabled: true
+  # Creates one pod on every Kubernetes node when enabled.
+  prometheus-node-exporter:
+    enabled: false
+  # Not required unless applications explicitly push metrics.
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+# Loki
+loki:
+  enabled: true
+  deploymentMode: SingleBinary
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+      path_prefix: /var/loki
+    storage:
+      type: filesystem
+      bucketNames:
+        chunks: chunks
+        ruler: ruler
+        admin: admin
+    useTestSchema: true
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+      retention_period: 168h
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+  gateway:
+    enabled: true
+  lokiCanary:
+    enabled: false
+  # Required when lokiCanary is disabled.
+  test:
+    enabled: false
+# Disabled components
+opentelemetry-collector:
+  enabled: false
+jaeger:
+  enabled: false
