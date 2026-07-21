@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: emc-dev
+  name: emc
   namespace: argocd
   labels:
     app.kubernetes.io/name: emc
@@ -10,7 +10,7 @@ metadata:
   annotations:
     environment.emc/type: shared-development
 spec:
-  project: default
+  project: edc-management-console
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
     # Temporary testing branch.
@@ -18,7 +18,7 @@ spec:
     targetRevision: ci-cd-branch
     path: charts/edc-management-console
     helm:
-      releaseName: emc
+      releaseName: emc-test
       valueFiles:
         - values-dev.yaml
   destination:
