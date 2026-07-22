@@ -531,6 +531,29 @@ async def get_config(user=Depends(keycloak_openid.get_current_user)):
         "data": settings
     }
 
+def _is_unresolved_config_value(value):
+    if not isinstance(value, str):
+        return False
+
+    stripped = value.strip()
+    return (
+        stripped.startswith("${")
+        and stripped.endswith("}")
+        or stripped.startswith("__")
+        and stripped.endswith("__")
+    )
+
+
+def _configured_value(value, fallback=""):
+    if value is None:
+        return fallback
+
+    if _is_unresolved_config_value(value):
+        return fallback
+
+    return value
+
+
 @app.get("/api/dataspace", tags=["Dataspace"])
 async def get_dataspace_settings(request: Request):
     """
@@ -541,49 +564,75 @@ async def get_dataspace_settings(request: Request):
     """
     try:
         dataspace_config = app_configuration.get("dataspaceConfig", {})
-        edc_config = app_configuration.get("connector", {})
+        edc_config = app_configuration.get("edc", {})
+        central_idp_config = dataspace_config.get("centralidp", {})
+        discovery_config = dataspace_config.get("discovery", {})
+        sde_config = app_configuration.get("sde", {})
+        cluster_config = app_configuration.get("clusterConfig", {})
 
-        dataspace_name = dataspace_config.get("name", "Your Dataspace")
-        bpn = dataspace_config.get("authority_id", "BPNL000000000000")
+        dataspace_name = _configured_value(
+            dataspace_config.get("name"),
+            "Your Dataspace",
+        )
+        bpn = _configured_value(dataspace_config.get("authority_id"))
 
         dataspace_settings = {
             "name": dataspace_name,
             "bpn": bpn,
-            "realm": dataspace_config.get("name", "CX-Central"),
-            "username": dataspace_config.get("preferred_username", "user"),
+            "realm": _configured_value(
+                central_idp_config.get("realm"),
+                "CX-Central",
+            ),
+            "username": _configured_value(
+                dataspace_config.get("preferred_username"),
+                "user",
+            ),
             "centralidp": {
-                "url": dataspace_config.get("centralidp", {}).get("url", ""),
-                "realm": dataspace_config.get("centralidp", {}).get("realm", "")
+                "url": _configured_value(central_idp_config.get("url")),
+                "realm": _configured_value(central_idp_config.get("realm"))
             },
             "ssi_wallet": {
-                "url": dataspace_config.get("ssi_wallet", {}).get("url", ""),
+                "url": _configured_value(
+                    dataspace_config.get("ssi_wallet", {}).get("url"),
+                ),
             },
             "portal": {
-                "url": dataspace_config.get("portal", {}).get("url", "")
+                "url": _configured_value(
+                    dataspace_config.get("portal", {}).get("url"),
+                ),
             },
             "sde": {
-                "url": app_configuration.get("sde", {}).get("url", ""),
-                "client_id": app_configuration.get("sde", {}).get("client_id", ""),
-                "manufacturerId": app_configuration.get("sde", {}).get("manufacturerId", ""),
-                "providerEDC": app_configuration.get("sde", {}).get("providerEDC", ""),
-                "consumerEDC": app_configuration.get("sde", {}).get("consumerEDC", ""),
-                "registryUrl": app_configuration.get("sde", {}).get("registryUrl", ""),
+                "url": _configured_value(sde_config.get("url")),
+                "client_id": _configured_value(sde_config.get("client_id")),
+                "manufacturerId": _configured_value(sde_config.get("manufacturerId")),
+                "providerEDC": _configured_value(sde_config.get("providerEDC")),
+                "consumerEDC": _configured_value(sde_config.get("consumerEDC")),
+                "registryUrl": _configured_value(sde_config.get("registryUrl")),
             },
             "discovery": {
-               "semantics_url": dataspace_config.get("discovery", {}).get("semantics", {}).get("url", ""),
-                "discovery_finder": dataspace_config.get("discovery", {}).get("discoveryFinder", {}).get("endpoint", ""),
-                "bpn_discovery": dataspace_config.get("discovery", {}).get("bpnDiscovery", {}).get("endpoint", "")
+                "semantics_url": _configured_value(
+                    discovery_config.get("semantics", {}).get("url"),
+                ),
+                "discovery_finder": _configured_value(
+                    discovery_config.get("discoveryFinder", {}).get("endpoint"),
+                ),
+                "bpn_discovery": _configured_value(
+                    discovery_config.get("bpnDiscovery", {}).get("endpoint"),
+                ),
             },
             "edc": {
-                "default_url": edc_config.get("default_url", ""),
-                "cluster_context": dataspace_config.get("clusterConfig", {}).get("context", "")
+                "default_url": _configured_value(edc_config.get("default_url")),
+                "cluster_context": _configured_value(cluster_config.get("context")),
             },
             "readonly": True
         }
         logger.info("%s", dataspace_settings)
 
         return {
-            "user": dataspace_config.get("preferred_username", "user"),
+            "user": _configured_value(
+                dataspace_config.get("preferred_username"),
+                "user",
+            ),
             "data": dataspace_settings
         }
     except Exception as e:

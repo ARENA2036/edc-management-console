@@ -17,7 +17,10 @@ function isUsableValue(value: string | undefined) {
     return false;
   }
 
-  return !value.startsWith('__');
+  return !(
+    value.startsWith('__') ||
+    (value.startsWith('${') && value.endsWith('}'))
+  );
 }
 
 export function getRuntimeConfigValue(

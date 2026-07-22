@@ -66,6 +66,8 @@ const translations = {
     componentTypeTwin: 'Digital Twin Registry',
     componentTypeCatalog: 'Data Catalog',
     componentNameLabel: 'Component name',
+    componentNamePlaceholderSubmodel: 'Submodel Service EU-1',
+    componentNamePlaceholderTwin: 'Digital Twin Registry EU-1',
     "submodelNamePlaceholder": "Submodel Server Name",
     "dtrNamePlaceholder": "Digital Twin Registry Name",
     "submodelEndpointPlaceholder": "submodel.example.com",
@@ -75,6 +77,34 @@ const translations = {
     linkedConnectorLabel: 'Link to EDC connector',
     linkedConnectorPlaceholder: 'Select a connector',
     componentHelp: 'Components are attached to an existing EDC connector so users understand the relationship.',
+    componentGuidanceChoose:
+      'Choose the service type based on its job: Submodel Service for asset data or Digital Twin Registry for registration functions.',
+    componentGuidanceConfig:
+      'For the setup you usually need an existing connector plus the name or service URL from your project or operations documentation.',
+    componentGuidanceWhere:
+      'These values often come from the service owner, Helm or Kubernetes values, API documentation or your platform wiki.',
+    componentGuidanceRestriction:
+      'Services can be deployed independently or linked to an existing connector if you choose one below.',
+    componentTypeSubmodelDescription: 'Submodel Service',
+    componentTypeTwinDescription: 'Digital Twin Registry',
+    initialLinkedConnectorHint:
+      'This component is pre-linked to "{name}" so you can continue faster. You can still change it if needed.',
+    serviceModeLabel: 'Service mode',
+    serviceModeNewTitle: 'Deploy new',
+    serviceModeNewDescription:
+      'Register the service as a new component in the dashboard.',
+    serviceModeExistingTitle: 'Connect existing',
+    serviceModeExistingDescription:
+      'Use an already running DTR or submodel service.',
+    existingServiceUrlLabel: 'Existing service URL',
+    existingServiceUrlPlaceholderSubmodel: 'https://submodel.example.com',
+    existingServiceUrlPlaceholderTwin: 'https://registry.example.com',
+    credentialsApiKeyLabel: 'Credentials / API Key',
+    optionalAccessValuePlaceholder: 'Optional access value',
+    validationRequired: 'Please enter {field}.',
+    validationInvalidUrl:
+      'Enter a valid URL starting with http:// or https://.',
+    connectorTypeDefault: 'EDC Connector',
     noConnectorsForComponents: 'Create at least one EDC connector before adding components or services.',
     connectorsSectionSubtitle: 'Your Eclipse Dataspace Connectors',
     componentsSectionSubtitle: 'Submodel services, digital twin registries and related services',
@@ -189,6 +219,8 @@ const translations = {
     componentTypeTwin: 'Digital Twin Registry',
     componentTypeCatalog: 'Data Catalog',
     componentNameLabel: 'Komponentenname',
+    componentNamePlaceholderSubmodel: 'Submodel Service EU-1',
+    componentNamePlaceholderTwin: 'Digital Twin Registry EU-1',
     "submodelNamePlaceholder": "Submodel Server Name",
     "dtrNamePlaceholder": "Digital Twin Registry Name",
     "submodelEndpointPlaceholder": "submodel.example.com",
@@ -199,6 +231,34 @@ const translations = {
     linkedConnectorPlaceholder: 'Connector auswählen',
     componentHelp:
       'Komponenten werden mit einem bestehenden EDC Connector verknüpft, damit die Beziehung im Dashboard klar bleibt.',
+    componentGuidanceChoose:
+      'Wählen Sie den Service-Typ nach seiner Aufgabe: Submodel Service für Asset-Daten oder Digital Twin Registry für Registrierungsfunktionen.',
+    componentGuidanceConfig:
+      'Für die Verknüpfung benötigen Sie normalerweise den passenden Connector sowie den Namen oder die URL des Zielservices aus Ihrer Betriebs- oder Projekt-Dokumentation.',
+    componentGuidanceWhere:
+      'Diese Informationen kommen häufig vom Service-Verantwortlichen, aus Helm-/Kubernetes-Werten, API-Dokumentation oder aus Ihrem Plattform-Wiki.',
+    componentGuidanceRestriction:
+      'Services können eigenständig deployt oder mit einem vorhandenen Connector verknüpft werden, wenn Sie einen unten auswählen.',
+    componentTypeSubmodelDescription: 'Submodel Service',
+    componentTypeTwinDescription: 'Digital Twin Registry',
+    initialLinkedConnectorHint:
+      'Diese Komponente wird standardmäßig mit "{name}" verknüpft. Sie können die Auswahl bei Bedarf anpassen.',
+    serviceModeLabel: 'Service-Modus',
+    serviceModeNewTitle: 'Neu deployen',
+    serviceModeNewDescription:
+      'Der Service wird als neue Komponente im Dashboard erfasst.',
+    serviceModeExistingTitle: 'Bestehenden Service verbinden',
+    serviceModeExistingDescription:
+      'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service.',
+    existingServiceUrlLabel: 'Bestehende Service-URL',
+    existingServiceUrlPlaceholderSubmodel: 'https://submodel.example.com',
+    existingServiceUrlPlaceholderTwin: 'https://registry.example.com',
+    credentialsApiKeyLabel: 'Credentials / API Key',
+    optionalAccessValuePlaceholder: 'Optionaler Zugriffswert',
+    validationRequired: 'Bitte geben Sie {field} ein.',
+    validationInvalidUrl:
+      'Geben Sie eine gültige URL beginnend mit http:// oder https:// ein.',
+    connectorTypeDefault: 'EDC Connector',
     noConnectorsForComponents:
       'Erstellen Sie zuerst mindestens einen EDC Connector, bevor Sie Komponenten oder Services hinzufügen.',
     connectorsSectionSubtitle: 'Ihre Eclipse-Dataspace-Connectors',

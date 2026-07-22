@@ -24,6 +24,17 @@ const componentTypes = [
   },
 ] as const;
 
+type ComponentField = 'name' | 'existingEndpoint';
+
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function getConnectorType(connector: DashboardConnector) {
   const config = connector.config;
   if (config && typeof config.connectorType === 'string') {
@@ -140,12 +151,24 @@ export default function ComponentWizard({
   const [existingEndpoint, setExistingEndpoint] = useState('');
   const [existingCredentials, setExistingCredentials] = useState('');
   const [deploying, setDeploying] = useState(false);
+  const [touched, setTouched] = useState<Partial<Record<ComponentField, boolean>>>({});
+  const [submittedStep2, setSubmittedStep2] = useState(false);
 
   const [deploymentStep, setDeploymentStep] = useState<
     "installing" | "health" | "ready"
   >("installing");
 
   const eligibleConnectors = connectors;
+  const localizeConnectorType = (type: string) =>
+    type === 'EDC Connector' ? t('connectorTypeDefault') : type;
+  const componentNamePlaceholder =
+    componentType.type === 'digitalTwinRegistry'
+      ? t('componentNamePlaceholderTwin')
+      : t('componentNamePlaceholderSubmodel');
+  const existingServicePlaceholder =
+    componentType.type === 'digitalTwinRegistry'
+      ? t('existingServiceUrlPlaceholderTwin')
+      : t('existingServiceUrlPlaceholderSubmodel');
 
   useEffect(() => {
     if (!open) {
@@ -154,6 +177,11 @@ export default function ComponentWizard({
 
     if (initialLinkedConnector) {
       setLinkedConnector(initialLinkedConnector);
+      return;
+    }
+
+    if (eligibleConnectors.length > 0 && !linkedConnector) {
+      setLinkedConnector(eligibleConnectors[0].name);
     }
   }, [eligibleConnectors, initialLinkedConnector, linkedConnector, open]);
 
@@ -161,10 +189,12 @@ export default function ComponentWizard({
     setStep(1);
     setComponentType(componentTypes[0]);
     setName('');
-    setLinkedConnector(initialLinkedConnector ?? '');
+    setLinkedConnector(initialLinkedConnector ?? eligibleConnectors[0]?.name ?? '');
     setConnectionMode('new');
     setExistingEndpoint('');
     setExistingCredentials('');
+    setTouched({});
+    setSubmittedStep2(false);
   };
 
   const closeDialog = () => {
@@ -172,15 +202,53 @@ export default function ComponentWizard({
     resetState();
   };
 
+  const step2Errors: Partial<Record<ComponentField, string>> = {};
+  if (!name.trim()) {
+    step2Errors.name = t('validationRequired', {
+      field: t('componentNameLabel'),
+    });
+  }
+  if (connectionMode === 'existing') {
+    if (!existingEndpoint.trim()) {
+      step2Errors.existingEndpoint = t('validationRequired', {
+        field: t('existingServiceUrlLabel'),
+      });
+    } else if (!isValidHttpUrl(existingEndpoint.trim())) {
+      step2Errors.existingEndpoint = t('validationInvalidUrl');
+    }
+  }
+
+  const markTouched = (field: ComponentField) => {
+    setTouched((current) => ({
+      ...current,
+      [field]: true,
+    }));
+  };
+
+  const showStep2Error = (field: ComponentField) =>
+    Boolean(step2Errors[field]) && (touched[field] || submittedStep2);
+
+  const inputClass = (hasError: boolean) =>
+    `w-full rounded-xl border bg-white px-4 py-3 text-gray-900 outline-none transition-colors dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+      hasError
+        ? 'border-red-400 focus:border-red-500 dark:border-red-500/70'
+        : 'border-gray-200 focus:border-blue-400'
+    }`;
+
   const canContinue =
     step === 1
       ? Boolean(componentType)
-       : Boolean(
+      : Boolean(
         name.trim() &&
-        (connectionMode === 'new' || existingEndpoint.trim()),
+          (connectionMode === 'new' || isValidHttpUrl(existingEndpoint.trim())),
       );
 
   const handleDeploy = async () => {
+    setSubmittedStep2(true);
+    if (Object.keys(step2Errors).length > 0) {
+      return;
+    }
+
     setDeploying(true);
     setDeploymentStep("installing");
 
@@ -234,25 +302,17 @@ export default function ComponentWizard({
   const componentGuidance =
     language === 'de'
       ? {
-        choose:
-          'Wählen Sie den Service-Typ nach seiner Aufgabe: Submodel Service für Asset-Daten oder Digital Twin Registry für Registrierungsfunktionen.',
-        config:
-          'Für die Verknüpfung benötigen Sie normalerweise den passenden Connector sowie den Namen oder die URL des Zielservices aus Ihrer Betriebs- oder Projekt-Dokumentation.',
-        where:
-          'Diese Informationen kommen häufig vom Service-Verantwortlichen, aus Helm-/Kubernetes-Werten, API-Dokumentation oder aus Ihrem Plattform-Wiki.',
-        restriction:
-          'Services können eigenständig deployt oder mit einem vorhandenen Connector verknüpft werden, wenn Sie einen unten auswählen.',
-      }
+          choose: t('componentGuidanceChoose'),
+          config: t('componentGuidanceConfig'),
+          where: t('componentGuidanceWhere'),
+          restriction: t('componentGuidanceRestriction'),
+        }
       : {
-        choose:
-          'Choose the service type based on its job: Submodel Service for asset data or Digital Twin Registry for registration functions.',
-        config:
-          'For the setup you usually need an existing connector plus the name or service URL from your project or operations documentation.',
-        where:
-          'These values often come from the service owner, Helm or Kubernetes values, API documentation or your platform wiki.',
-        restriction:
-          'Services can be deployed independently or linked to an existing connector if you choose one below.',
-      };
+          choose: t('componentGuidanceChoose'),
+          config: t('componentGuidanceConfig'),
+          where: t('componentGuidanceWhere'),
+          restriction: t('componentGuidanceRestriction'),
+        };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -328,7 +388,11 @@ export default function ComponentWizard({
                             </div>
                             <div>
                               <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
-                              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{title}</p>
+                              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                                {component.type === "submodelServer"
+                                  ? t('componentTypeSubmodelDescription')
+                                  : t('componentTypeTwinDescription')}
+                              </p>
                             </div>
                           </div>
                         </button>
@@ -355,23 +419,22 @@ export default function ComponentWizard({
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {
-                        componentType.type === "digitalTwinRegistry"
-                          ? t("dtrNamePlaceholder")
-                          : t("submodelNamePlaceholder")
-                      }
+                      {t('componentNameLabel')}
                     </label>
                     <input
                       type="text"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder={
-                        componentType.type === "digitalTwinRegistry"
-                          ? t("dtrNamePlaceholder")
-                          : t("submodelNamePlaceholder")
-                      }
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      onBlur={() => markTouched('name')}
+                      placeholder={componentNamePlaceholder}
+                      aria-invalid={showStep2Error('name')}
+                      className={inputClass(showStep2Error('name'))}
                     />
+                    {showStep2Error('name') && (
+                      <p className="mt-2 text-xs text-red-600 dark:text-red-300">
+                        {step2Errors.name}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -380,9 +443,7 @@ export default function ComponentWizard({
                     </label>
                     {initialLinkedConnector && (
                       <p className="mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                        {language === 'de'
-                          ? `Diese Komponente wird standardmäßig mit "${initialLinkedConnector}" verknüpft. Sie können die Auswahl bei Bedarf anpassen.`
-                          : `This component is pre-linked to "${initialLinkedConnector}" so you can continue faster. You can still change it if needed.`}
+                        {t('initialLinkedConnectorHint', { name: initialLinkedConnector })}
                       </p>
                     )}
                     <div className="relative">
@@ -394,7 +455,7 @@ export default function ComponentWizard({
                         <option value="">{language === 'de' ? 'Ohne Connector' : 'Standalone / no connector'}</option>
                         {eligibleConnectors.map((connector) => (
                           <option key={connector.id} value={connector.name}>
-                            {connector.name} ({getConnectorType(connector)})
+                            {connector.name} ({localizeConnectorType(getConnectorType(connector))})
                           </option>
                         ))}
                       </select>
@@ -406,42 +467,74 @@ export default function ComponentWizard({
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {language === 'de' ? 'Service-Modus' : 'Service mode'}
+                      {t('serviceModeLabel')}
                     </label>
-                    
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setConnectionMode('new')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                          connectionMode === 'new'
+                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
+                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
+                          {t('serviceModeNewTitle')}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                          {t('serviceModeNewDescription')}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConnectionMode('existing')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                          connectionMode === 'existing'
+                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
+                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
+                          {t('serviceModeExistingTitle')}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                          {t('serviceModeExistingDescription')}
+                        </p>
+                      </button>
+                    </div>
                   </div>
 
                   {connectionMode === 'existing' && (
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Bestehende Service-URL' : 'Existing service URL'}
+                          {t('existingServiceUrlLabel')}
                         </label>
                         <input
                           type="url"
                           value={existingEndpoint}
                           onChange={(event) => setExistingEndpoint(event.target.value)}
-                          placeholder={
-                            componentType.type === "digitalTwinRegistry"
-                              ? 'https://registry.example.com'
-                              : 'https://submodel.example.com'
-                          }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                          onBlur={() => markTouched('existingEndpoint')}
+                          placeholder={existingServicePlaceholder}
+                          aria-invalid={showStep2Error('existingEndpoint')}
+                          className={inputClass(showStep2Error('existingEndpoint'))}
                         />
+                        {showStep2Error('existingEndpoint') && (
+                          <p className="mt-2 text-xs text-red-600 dark:text-red-300">
+                            {step2Errors.existingEndpoint}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Credentials / API Key' : 'Credentials / API Key'}
+                          {t('credentialsApiKeyLabel')}
                         </label>
                         <input
                           type="text"
                           value={existingCredentials}
                           onChange={(event) => setExistingCredentials(event.target.value)}
-                          placeholder={
-                            language === 'de'
-                              ? 'Optionaler Zugriffswert'
-                              : 'Optional access value'
-                          }
+                          placeholder={t('optionalAccessValuePlaceholder')}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                         />
                       </div>
