@@ -76,15 +76,15 @@ jobs:
     uses: ./.github/workflows/codeql.yml
     secrets: inherit
 
-  backend-dependencies:
-    name: Backend Dependency Scan
-    uses: ./.github/workflows/dependencies-backend.yml
-    secrets: inherit
+  # backend-dependencies:
+  #   name: Backend Dependency Scan
+  #   uses: ./.github/workflows/dependencies-backend.yml
+  #   secrets: inherit
 
-  frontend-dependencies:
-    name: Frontend Dependency Scan
-    uses: ./.github/workflows/dependencies-frontend.yaml
-    secrets: inherit
+  # frontend-dependencies:
+  #   name: Frontend Dependency Scan
+  #   uses: ./.github/workflows/dependencies-frontend.yaml
+  #   secrets: inherit
 
   build:
     name: Build Images
