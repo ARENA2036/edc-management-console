@@ -30,10 +30,13 @@ spec:
         - values-dev.yaml
 
       parameters:
+        # Unique resource names for this preview
         - name: fullnameOverride
           value: REPLACE_PREVIEW_NAME
           forceString: true
 
+        # Image tags: manual tag when supplied by CI/CD,
+        # otherwise current Git SHA
         - name: backend.image.tag
           value: REPLACE_IMAGE_TAG
           forceString: true
@@ -42,6 +45,7 @@ spec:
           value: REPLACE_IMAGE_TAG
           forceString: true
 
+        # Backend ingress
         - name: backend.ingress.enabled
           value: "true"
 
@@ -57,6 +61,7 @@ spec:
           value: REPLACE_PREVIEW_NAME-backend-tls
           forceString: true
 
+        # Frontend ingress
         - name: frontend.ingress.enabled
           value: "true"
 
@@ -71,6 +76,10 @@ spec:
         - name: frontend.ingress.tls[0].secretName
           value: REPLACE_PREVIEW_NAME-frontend-tls
           forceString: true
+
+        # Grafana
+        - name: grafana.enabled
+          value: "true"
 
         - name: grafana.ingress.enabled
           value: "true"
@@ -87,13 +96,32 @@ spec:
           value: REPLACE_PREVIEW_NAME-grafana-tls
           forceString: true
 
+        - name: grafana.sidecar.dashboards.enabled
+          value: "true"
+
         - name: grafana.sidecar.dashboards.searchNamespace
-          value: REPLACE_PREVIEW_NAMESPACE
+          value: REPLACE_NAMESPACE
           forceString: true
+
+        # Preview-specific Grafana data sources
+        - name: grafana.datasources.datasources\.yaml.datasources[0].url
+          value: http://REPLACE_PREVIEW_NAME-prometheus-server
+          forceString: true
+
+        - name: grafana.datasources.datasources\.yaml.datasources[1].url
+          value: http://REPLACE_PREVIEW_NAME-loki-gateway
+          forceString: true
+
+        # Keep observability enabled for testing
+        - name: prometheus.enabled
+          value: "true"
+
+        - name: loki.enabled
+          value: "true"
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: REPLACE_PREVIEW_NAMESPACE
+    namespace: REPLACE_NAMESPACE
 
   syncPolicy:
     automated:
@@ -103,5 +131,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - Replace=true
+      - PruneLast=true
 
   revisionHistoryLimit: 3
