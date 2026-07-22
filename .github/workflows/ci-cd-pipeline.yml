@@ -1,3 +1,4 @@
+
 name: EMC CI-CD Pipeline
 
 on:
@@ -125,7 +126,6 @@ jobs:
       (
         github.event_name == 'push' &&
         (
-          github.ref_name == 'ci-cd-branch' ||
           github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
@@ -316,6 +316,7 @@ jobs:
         github.event_name == 'workflow_dispatch' &&
         github.event.inputs.environment == 'dev' &&
         (
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -447,8 +448,11 @@ jobs:
 
           cp "$TEMPLATE" "$GENERATED"
 
-          sed -i "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" "$GENERATED"
+          # IMPORTANT:
+          # Replace namespace before preview name because
+          # REPLACE_PREVIEW_NAMESPACE contains REPLACE_PREVIEW_NAME.
           sed -i "s|REPLACE_PREVIEW_NAMESPACE|${PREVIEW_NAMESPACE}|g" "$GENERATED"
+          sed -i "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" "$GENERATED"
           sed -i "s|REPLACE_BRANCH_NAME|${{ github.ref_name }}|g" "$GENERATED"
           sed -i "s|REPLACE_IMAGE_TAG|${PREVIEW_IMAGE_TAG}|g" "$GENERATED"
           sed -i "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" "$GENERATED"
