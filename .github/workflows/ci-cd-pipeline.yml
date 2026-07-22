@@ -126,6 +126,7 @@ jobs:
         github.event_name == 'push' &&
         (
           github.ref_name == 'ci-cd-branch' ||
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -297,7 +298,7 @@ jobs:
   # The preview template also receives the selected image tag.
   # ------------------------------------------------------------
   deploy-preview:
-    name: Deploy Isolated Developer Preview to AP6 Dev
+    name: TEST - Deploy Isolated Developer Preview to AP6 Dev
     needs: trivy
     runs-on: ubuntu-latest
 
@@ -305,6 +306,7 @@ jobs:
       (
         github.event_name == 'push' &&
         (
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -435,7 +437,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          TEMPLATE=".github/argocd/emc-dev-preview-app.yaml"
+          TEMPLATE=".github/argocd/emc-dev-preview-test-app.yaml"
           GENERATED="/tmp/emc-dev-preview-app.yaml"
 
           if [[ ! -f "$TEMPLATE" ]]; then
@@ -462,6 +464,16 @@ jobs:
 
           echo "Generated preview Argo CD Application:"
           cat "$GENERATED"
+
+      - name: Check Argo CD project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$KUBE_CONTEXT" \
+            get appproject edc-management-console \
+            -n argocd
 
       - name: Apply preview Application
         shell: bash
@@ -583,7 +595,7 @@ jobs:
 
           kubectl \
             --context="$KUBE_CONTEXT" \
-            get application emc-dev \
+            get application emc \
             -n argocd
 
   # ------------------------------------------------------------

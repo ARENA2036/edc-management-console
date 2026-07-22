@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: REPLACE_PREVIEW_NAME
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: emc
+    app.kubernetes.io/component: developer-preview
+    app.kubernetes.io/managed-by: github-actions
+    app.kubernetes.io/environment: testing
+
+  annotations:
+    preview.emc/branch: REPLACE_BRANCH_NAME
+    preview.emc/purpose: ci-cd-branch-testing
+
+spec:
+  project: edc-management-console
+
+  source:
+    repoURL: https://github.com/ARENA2036/edc-management-console.git
+    targetRevision: REPLACE_BRANCH_NAME
+    path: charts/edc-management-console
+
+    helm:
+      releaseName: REPLACE_PREVIEW_NAME
+
+      valueFiles:
+        - values-dev.yaml
+
+      parameters:
+        - name: fullnameOverride
+          value: REPLACE_PREVIEW_NAME
+          forceString: true
+
+        - name: backend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
+        - name: frontend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
+        - name: backend.ingress.enabled
+          value: "true"
+
+        - name: backend.ingress.hosts[0].host
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingress.tls[0].hosts[0]
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-backend-tls
+          forceString: true
+
+        - name: frontend.ingress.enabled
+          value: "true"
+
+        - name: frontend.ingress.hosts[0].host
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].hosts[0]
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-frontend-tls
+          forceString: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: REPLACE_PREVIEW_NAMESPACE
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
+
+  revisionHistoryLimit: 3

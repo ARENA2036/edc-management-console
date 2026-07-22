@@ -77,7 +77,7 @@ backend:
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend-cd.dev.arena2036.app"
+      - host: &hostname "emc-backend-cd.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
@@ -182,8 +182,8 @@ backend:
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
         hostname:
-          controlplane: controlplane.dev.arena2036.app
-          dataplane: dataplane.dev.arena2036.app
+          controlplane: controlplane.txcd.arena2036.app
+          dataplane: dataplane.txcd.arena2036.app
         # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
         sts:
           dimEndpoint: "/api/sts"
@@ -566,11 +566,11 @@ frontend:
 
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend-cd.dev.arena2036.app
+      value: https://emc-backend-cd.txcd.arena2036.app
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
-      value: dev.arena2036.app
+      value: txcd.arena2036.app
     - name: VITE_KEYCLOAK_URL
       value: https://centralidp.txcd.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
@@ -584,7 +584,7 @@ frontend:
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend-cd.dev.arena2036.app,
+    apiUrl: https://emc-backend-cd.txcd.arena2036.app,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
@@ -607,7 +607,7 @@ frontend:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc-cd.dev.arena2036.app"
+      - host: &fehostname "emc-cd.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
