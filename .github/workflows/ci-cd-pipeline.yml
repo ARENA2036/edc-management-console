@@ -510,16 +510,12 @@ jobs:
     needs: trivy
     runs-on: ubuntu-latest
 
-    if: |
-      (
-        github.event_name == 'push' &&
-        github.ref_name == 'ci-cd-branch'
-      ) ||
-      (
-        github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.environment == 'dev' &&
-        github.ref_name == 'ci-cd-branch'
-      )
+    # TEMPORARY TESTING:
+    # Disable shared Dev deployment so ci-cd-branch creates only
+    # the isolated developer preview Application.
+    #
+    # Re-enable the original condition after preview testing.
+    if: ${{ false }}
 
     steps:
       - name: Checkout ci-cd-branch
