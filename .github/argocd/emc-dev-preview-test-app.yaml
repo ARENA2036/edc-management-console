@@ -72,6 +72,25 @@ spec:
           value: REPLACE_PREVIEW_NAME-frontend-tls
           forceString: true
 
+        - name: grafana.ingress.enabled
+          value: "true"
+
+        - name: grafana.ingress.hosts[0]
+          value: REPLACE_GRAFANA_HOST
+          forceString: true
+
+        - name: grafana.ingress.tls[0].hosts[0]
+          value: REPLACE_GRAFANA_HOST
+          forceString: true
+
+        - name: grafana.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-grafana-tls
+          forceString: true
+
+        - name: grafana.sidecar.dashboards.searchNamespace
+          value: REPLACE_PREVIEW_NAMESPACE
+          forceString: true
+
   destination:
     server: https://kubernetes.default.svc
     namespace: REPLACE_PREVIEW_NAMESPACE

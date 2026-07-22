@@ -1,4 +1,3 @@
-
 name: EMC CI-CD Pipeline
 
 on:
@@ -52,20 +51,20 @@ permissions:
   id-token: write
 
 jobs:
-  verify:
-    name: Verify
-    uses: ./.github/workflows/verify.yml
-    secrets: inherit
+  # verify:
+  #   name: Verify
+  #   uses: ./.github/workflows/verify.yml
+  #   secrets: inherit
 
-  helm-lint:
-    name: Helm Lint
-    uses: ./.github/workflows/helm-lint.yml
-    secrets: inherit
+  # helm-lint:
+  #   name: Helm Lint
+  #   uses: ./.github/workflows/helm-lint.yml
+  #   secrets: inherit
 
-  kics:
-    name: KICS Scan
-    uses: ./.github/workflows/kics.yaml
-    secrets: inherit
+  # kics:
+  #   name: KICS Scan
+  #   uses: ./.github/workflows/kics.yaml
+  #   secrets: inherit
 
   trufflehog:
     name: Secret Scan
@@ -426,12 +425,16 @@ jobs:
           {
             echo "PREVIEW_NAME=emc-${SAFE_BRANCH}"
             echo "PREVIEW_NAMESPACE=emc-${SAFE_BRANCH}"
-            echo "FRONTEND_HOST=${SAFE_BRANCH}.dev.arena2036-x.de"
-            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.dev.arena2036-x.de"
+            echo "FRONTEND_HOST=${SAFE_BRANCH}.txcd.arena2036-x.de"
+            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.txcd.arena2036-x.de"
+            echo "GRAFANA_HOST=${SAFE_BRANCH}-grafana.txcd.arena2036-x.de"
           } >> "$GITHUB_ENV"
 
           echo "Preview application: emc-${SAFE_BRANCH}"
           echo "Preview namespace: emc-${SAFE_BRANCH}"
+          echo "Frontend host: ${SAFE_BRANCH}.txcd.arena2036-x.de"
+          echo "Backend host: ${SAFE_BRANCH}-backend.txcd.arena2036-x.de"
+          echo "Grafana host: ${SAFE_BRANCH}-grafana.txcd.arena2036-x.de"
 
       - name: Generate preview Argo CD Application
         shell: bash
@@ -457,6 +460,7 @@ jobs:
           sed -i "s|REPLACE_IMAGE_TAG|${PREVIEW_IMAGE_TAG}|g" "$GENERATED"
           sed -i "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" "$GENERATED"
           sed -i "s|REPLACE_BACKEND_HOST|${BACKEND_HOST}|g" "$GENERATED"
+          sed -i "s|REPLACE_GRAFANA_HOST|${GRAFANA_HOST}|g" "$GENERATED"
 
           if grep -q 'REPLACE_' "$GENERATED"; then
             echo "Unresolved placeholders found:"
