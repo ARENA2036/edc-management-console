@@ -12,7 +12,7 @@ on:
       - 'bugfix/**'
       - 'hotfix/**'
       - ci-cd-branch
-      
+
   workflow_dispatch:
     inputs:
       environment:
@@ -135,6 +135,7 @@ jobs:
       (
         github.event_name == 'push' &&
         (
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -147,6 +148,7 @@ jobs:
             github.event.inputs.environment == 'dev' &&
             (
               github.ref_name == 'develop' ||
+              github.ref_name == 'ci-cd-branch' ||
               startsWith(github.ref_name, 'feature/') ||
               startsWith(github.ref_name, 'bugfix/') ||
               startsWith(github.ref_name, 'hotfix/')
@@ -303,6 +305,7 @@ jobs:
       (
         github.event_name == 'push' &&
         (
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -312,6 +315,7 @@ jobs:
         github.event_name == 'workflow_dispatch' &&
         github.event.inputs.environment == 'dev' &&
         (
+          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
