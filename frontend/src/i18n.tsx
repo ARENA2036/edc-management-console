@@ -212,7 +212,7 @@ const translations = {
       'You are deploying only the EDC connector here. DTR or Submodel Services can be added afterwards as components or connected as existing services.',
     deploymentAutoConfigTitle: 'BPNL and endpoints are filled automatically.',
     deploymentAutoConfigDescription:
-      'The wizard reads the BPNL from the backend and derives the EDC API endpoint and data plane URL automatically, so users only need to enter a connector name.',
+      'The wizard reads the BPNL and EDC endpoint values directly from the backend dataspace configuration, so users only need to enter a connector name.',
     deployAndAddComponent: 'Deploy & add component',
     componentGuidanceChoose:
       'Choose the service type based on its job: Submodel Service for asset data or Digital Twin Registry for registration functions.',
@@ -653,7 +653,7 @@ const translations = {
       'Sie deployen hier nur den EDC Connector. DTR oder Submodel Services können Sie danach gezielt als Komponente hinzufügen oder mit bestehenden Services verbinden.',
     deploymentAutoConfigTitle: 'BPNL und Endpoints werden automatisch gesetzt.',
     deploymentAutoConfigDescription:
-      'Der Wizard liest die BPNL aus dem Backend und leitet API-Endpoint sowie Data-Plane-URL automatisch ab. Der Nutzer muss deshalb nur noch einen Connector-Namen angeben.',
+      'Der Wizard liest die BPNL und die EDC-Endpunkte direkt aus der Dataspace-Konfiguration des Backends. Der Nutzer muss deshalb nur noch einen Connector-Namen angeben.',
     deployAndAddComponent: 'Deployen & Komponente hinzufügen',
     componentGuidanceChoose:
       'Wählen Sie den Service-Typ nach seiner Aufgabe: Submodel Service für Asset-Daten oder Digital Twin Registry für Registrierungsfunktionen.',

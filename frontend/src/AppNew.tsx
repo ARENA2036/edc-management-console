@@ -62,6 +62,8 @@ interface DataspaceSettingsPayload {
   };
   edc?: {
     default_url?: string;
+    controlplane_url?: string;
+    dataplane_url?: string;
     cluster_context?: string;
   };
 }
@@ -624,7 +626,10 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         onDeploy={handleDeployConnector}
         onDeployAndAddComponent={handleDeployConnectorAndAddComponent}
         prefilledBpn={dataspaceBpn || sessionBpn}
-        defaultApiEndpoint={dataspaceDetails?.edc?.default_url}
+        defaultApiEndpoint={
+          dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
+        }
+        defaultDataPlaneUrl={dataspaceDetails?.edc?.dataplane_url}
       />
 
       <ComponentWizard

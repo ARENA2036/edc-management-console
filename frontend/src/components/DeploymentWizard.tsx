@@ -2,7 +2,6 @@ import { Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
-import { getRuntimeConfigValue } from '../runtime-config';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
@@ -12,21 +11,13 @@ interface Props {
   onDeployAndAddComponent?: (connector: DashboardConnector) => Promise<void> | void;
   prefilledBpn?: string;
   defaultApiEndpoint?: string;
+  defaultDataPlaneUrl?: string;
 }
 
 const connectorVersions = ['0.9.0', '0.10.0', '0.10.2', '0.11.0'] as const;
 
 type DeploymentField = 'name';
 const connectorNamePattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
-
-function isValidHttpUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
 
 export default function DeploymentWizard({
   open,
@@ -35,6 +26,7 @@ export default function DeploymentWizard({
   onDeployAndAddComponent,
   prefilledBpn,
   defaultApiEndpoint,
+  defaultDataPlaneUrl,
 }: Props) {
   const { t } = useI18n();
   useLockBodyScroll(open);
@@ -85,54 +77,17 @@ export default function DeploymentWizard({
         : 'border-gray-200 focus:border-orange-400'
     }`;
 
-  const buildAutoEndpoint = (
-    connectorName: string,
-    plane: 'controlplane' | 'dataplane',
-  ) => {
-    const normalizedName = normalizeConnectorName(connectorName).trim();
-    if (!normalizedName) {
-      return '';
-    }
-
-    const runtimeHost = getRuntimeConfigValue(
-      import.meta.env.VITE_EDC_HOST,
-      window.__RUNTIME_CONFIG__?.edcHost,
-      '',
-    );
-
-    if (isValidHttpUrl(defaultApiEndpoint ?? '')) {
-      try {
-        const templateUrl = new URL(defaultApiEndpoint as string);
-        const hostSegments = templateUrl.hostname.split('.');
-        hostSegments[0] = `${normalizedName}-${plane}`;
-        templateUrl.hostname = hostSegments.join('.');
-        templateUrl.pathname = '';
-        templateUrl.search = '';
-        templateUrl.hash = '';
-        return templateUrl.toString();
-      } catch {
-        // Fall through to runtime host fallback.
-      }
-    }
-
-    if (runtimeHost) {
-      return `https://${normalizedName}-${plane}.${runtimeHost}`;
-    }
-
-    return `https://${normalizedName}-${plane}.example.com`;
-  };
-
   const resolvedBpn = useMemo(
     () => prefilledBpn?.toUpperCase().trim() ?? '',
     [prefilledBpn],
   );
   const resolvedApiEndpoint = useMemo(
-    () => buildAutoEndpoint(name, 'controlplane'),
-    [defaultApiEndpoint, name],
+    () => defaultApiEndpoint?.trim() ?? '',
+    [defaultApiEndpoint],
   );
   const resolvedDataPlaneUrl = useMemo(
-    () => buildAutoEndpoint(name, 'dataplane'),
-    [defaultApiEndpoint, name],
+    () => defaultDataPlaneUrl?.trim() ?? '',
+    [defaultDataPlaneUrl],
   );
 
   const buildConnector = (): DashboardConnector => ({
@@ -218,7 +173,10 @@ export default function DeploymentWizard({
               <input
                 type="text"
                 value={name}
-                onChange={(event) => setName(event.target.value.trimStart())}
+                onChange={(event) => {
+                  setName(event.target.value.trimStart());
+                  markTouched('name');
+                }}
                 onBlur={() => markTouched('name')}
                 placeholder={t('connectorNamePlaceholder')}
                 aria-invalid={showError('name')}

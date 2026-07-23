@@ -22,12 +22,14 @@
 import argparse
 import asyncio
 import logging.config
+import os
 import yaml
 import urllib3
 import uvicorn
 import uuid
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
 from auth.keycloak_config import keycloak_openid
 
@@ -54,6 +56,11 @@ urllib3.disable_warnings()
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
 # ------------------------------------------------------------
+# Environment Setup
+# ------------------------------------------------------------
+load_dotenv(".env")
+
+# ------------------------------------------------------------
 # Logging Setup
 # ------------------------------------------------------------
 #logging.basicConfig(level=logging.INFO)
@@ -61,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 with open('./config/logging.yml', 'rt') as f:
     # Read the yaml configuration
-    log_config = yaml.safe_load(f.read())
+    log_config = yaml.safe_load(os.path.expandvars(f.read()))
     # Set logging filename with datetime
     date = op.get_filedate()
     op.make_dir("logs/" + date)
@@ -73,13 +80,13 @@ logger = logging.getLogger(__name__)
 # Load the configuration for the application
 with open('./config/configuration.yml', 'rt') as f:
     # Read the yaml configuration
-    app_configuration = yaml.safe_load(f.read())
+    app_configuration = yaml.safe_load(os.path.expandvars(f.read()))
 
 # ------------------------------------------------------------
 # Load Config
 # ------------------------------------------------------------
 with open("config/settings.yaml", "r") as f:
-    settings = yaml.safe_load(f)
+    settings = yaml.safe_load(os.path.expandvars(f.read()))
 
 # ------------------------------------------------------------
 # FastAPI Setup
@@ -553,7 +560,17 @@ def _configured_value(value, fallback=""):
 
     return value
 
+def _configured_url(value):
+    resolved = _configured_value(value)
+    if not resolved:
+        return ""
 
+    if isinstance(resolved, str) and (
+        resolved.startswith("http://") or resolved.startswith("https://")
+    ):
+        return resolved
+
+    return f"https://{resolved}"
 @app.get("/api/dataspace", tags=["Dataspace"])
 async def get_dataspace_settings(request: Request):
     """
@@ -622,6 +639,12 @@ async def get_dataspace_settings(request: Request):
             },
             "edc": {
                 "default_url": _configured_value(edc_config.get("default_url")),
+                "controlplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("cp")
+                ) or _configured_value(edc_config.get("default_url")),
+                "dataplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("dp")
+                ),
                 "cluster_context": _configured_value(cluster_config.get("context")),
             },
             "readonly": True
