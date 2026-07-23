@@ -54,10 +54,8 @@ spec:
     syncOptions:
       # Create the namespace automatically if it does not exist.
       - CreateNamespace=true
-
       # Replace resources when required during synchronization.
       - Replace=true
-
       # Perform pruning after the new resources are synchronized.
       - PruneLast=true
 

@@ -27,15 +27,36 @@ spec:
       valueFiles:
         - values-dev.yaml
 
+      # Preview-specific structured overrides.
+      # values-dev.yaml stays unchanged.
+      valuesObject:
+        grafana:
+          datasources:
+            datasources.yaml:
+              apiVersion: 1
+              datasources:
+                - name: Prometheus
+                  uid: prometheus
+                  type: prometheus
+                  access: proxy
+                  url: http://REPLACE_PREVIEW_NAME-prometheus-server
+                  isDefault: true
+                  editable: false
+
+                - name: Loki
+                  uid: loki
+                  type: loki
+                  access: proxy
+                  url: http://REPLACE_PREVIEW_NAME-loki-gateway
+                  editable: false
+
       parameters:
-        # Unique resource names for every developer preview
+        # Unique resource names
         - name: fullnameOverride
           value: REPLACE_PREVIEW_NAME
           forceString: true
 
         # Docker image tags
-        # CI/CD uses manual image_tag when provided.
-        # Otherwise it uses the current Git SHA.
         - name: backend.image.tag
           value: REPLACE_IMAGE_TAG
           forceString: true
@@ -76,7 +97,7 @@ spec:
           value: REPLACE_PREVIEW_NAME-frontend-tls
           forceString: true
 
-        # Grafana ingress
+        # Grafana
         - name: grafana.enabled
           value: "true"
 
@@ -95,7 +116,6 @@ spec:
           value: REPLACE_PREVIEW_NAME-grafana-tls
           forceString: true
 
-        # Grafana dashboard sidecar watches this preview namespace
         - name: grafana.sidecar.dashboards.enabled
           value: "true"
 
@@ -103,8 +123,7 @@ spec:
           value: REPLACE_NAMESPACE
           forceString: true
 
-        # Keep observability enabled.
-        # Prometheus/Loki datasource URLs remain unchanged in values-dev.yaml.
+        # Observability
         - name: prometheus.enabled
           value: "true"
 
