@@ -11,7 +11,8 @@ on:
       - 'feature/**'
       - 'bugfix/**'
       - 'hotfix/**'
-
+      - ci-cd-branch
+      
   workflow_dispatch:
     inputs:
       environment:
