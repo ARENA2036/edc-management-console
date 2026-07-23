@@ -1,19 +1,16 @@
 name: EMC CI-CD Pipeline
 
+# Trigger behavior:
+# - feature/**, bugfix/**, hotfix/**: automatic on push
+# - develop: manual workflow_dispatch only (environment=dev)
+# - release/**: manual workflow_dispatch only (environment=prod)
+
 on:
   push:
     branches:
       - 'feature/**'
       - 'bugfix/**'
       - 'hotfix/**'
-      - develop
-      - 'release/**'
-      - ci-cd-branch
-
-  pull_request:
-    branches:
-      - develop
-      - 'release/**'
 
   workflow_dispatch:
     inputs:
@@ -28,7 +25,7 @@ on:
           - prod
 
       image_tag:
-        description: "Optional tag for both backend and frontend. Empty = current Git SHA"
+        description: "Optional image tag. Empty = current Git SHA"
         required: false
         type: string
 
@@ -118,8 +115,9 @@ jobs:
   #   - manual dev run: use image_tag if provided, otherwise Git SHA
   #   - update and commit values-dev.yaml in that branch
   #
-  # ci-cd-branch (testing replacement for develop)
-  #   - push: use current Git SHA automatically
+  # develop
+  #   - manual dev run only
+  #   - use image_tag if provided, otherwise Git SHA
   #   - update and commit values-dev.yaml
   #
   # release/*
@@ -136,7 +134,6 @@ jobs:
       (
         github.event_name == 'push' &&
         (
-          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -148,7 +145,7 @@ jobs:
           (
             github.event.inputs.environment == 'dev' &&
             (
-              github.ref_name == 'ci-cd-branch' ||
+              github.ref_name == 'develop' ||
               startsWith(github.ref_name, 'feature/') ||
               startsWith(github.ref_name, 'bugfix/') ||
               startsWith(github.ref_name, 'hotfix/')
@@ -201,7 +198,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.ref_name }}" == "ci-cd-branch" ||
+          if [[ "${{ github.ref_name }}" == "develop" ||
                 "${{ github.ref_name }}" == feature/* ||
                 "${{ github.ref_name }}" == bugfix/* ||
                 "${{ github.ref_name }}" == hotfix/* ]]; then
@@ -297,7 +294,7 @@ jobs:
   # The preview template also receives the selected image tag.
   # ------------------------------------------------------------
   deploy-preview:
-    name: TEST - Deploy Isolated Developer Preview to AP6 Dev
+    name: Deploy Isolated Developer Preview to AP6 Dev
     needs: update-image-tag
     runs-on: ubuntu-latest
 
@@ -305,7 +302,6 @@ jobs:
       (
         github.event_name == 'push' &&
         (
-          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -315,7 +311,6 @@ jobs:
         github.event_name == 'workflow_dispatch' &&
         github.event.inputs.environment == 'dev' &&
         (
-          github.ref_name == 'ci-cd-branch' ||
           startsWith(github.ref_name, 'feature/') ||
           startsWith(github.ref_name, 'bugfix/') ||
           startsWith(github.ref_name, 'hotfix/')
@@ -380,7 +375,7 @@ jobs:
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
 
           # This Vault path must contain the AP6 Dev cluster kubeconfig.
-          CLUSTER_PATH="staging/infra/cluster-int"
+          CLUSTER_PATH="dev/infra/cluster-dev"
 
           vault kv get \
             -field=config \
@@ -425,23 +420,23 @@ jobs:
           {
             echo "PREVIEW_NAME=emc-${SAFE_BRANCH}"
             echo "PREVIEW_NAMESPACE=emc-${SAFE_BRANCH}"
-            echo "FRONTEND_HOST=${SAFE_BRANCH}.txcd.arena2036-x.de"
-            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.txcd.arena2036-x.de"
-            echo "GRAFANA_HOST=${SAFE_BRANCH}-grafana.txcd.arena2036-x.de"
+            echo "FRONTEND_HOST=${SAFE_BRANCH}.dev.arena2036-x.de"
+            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.dev.arena2036-x.de"
+            echo "GRAFANA_HOST=${SAFE_BRANCH}-grafana.dev.arena2036-x.de"
           } >> "$GITHUB_ENV"
 
           echo "Preview application: emc-${SAFE_BRANCH}"
           echo "Preview namespace: emc-${SAFE_BRANCH}"
-          echo "Frontend host: ${SAFE_BRANCH}.txcd.arena2036-x.de"
-          echo "Backend host: ${SAFE_BRANCH}-backend.txcd.arena2036-x.de"
-          echo "Grafana host: ${SAFE_BRANCH}-grafana.txcd.arena2036-x.de"
+          echo "Frontend host: ${SAFE_BRANCH}.dev.arena2036-x.de"
+          echo "Backend host: ${SAFE_BRANCH}-backend.dev.arena2036-x.de"
+          echo "Grafana host: ${SAFE_BRANCH}-grafana.dev.arena2036-x.de"
 
       - name: Generate preview Argo CD Application
         shell: bash
         run: |
           set -euo pipefail
 
-          TEMPLATE=".github/argocd/emc-dev-preview-test-app.yaml"
+          TEMPLATE=".github/argocd/emc-dev-preview-app.yaml"
           GENERATED="/tmp/emc-dev-preview-app.yaml"
 
           if [[ ! -f "$TEMPLATE" ]]; then
@@ -451,7 +446,6 @@ jobs:
 
           cp "$TEMPLATE" "$GENERATED"
 
-          # Replace all developer-preview placeholders.
           sed -i "s|REPLACE_NAMESPACE|${PREVIEW_NAMESPACE}|g" "$GENERATED"
           sed -i "s|REPLACE_PREVIEW_NAME|${PREVIEW_NAME}|g" "$GENERATED"
           sed -i "s|REPLACE_BRANCH_NAME|${{ github.ref_name }}|g" "$GENERATED"
@@ -470,16 +464,6 @@ jobs:
 
           echo "Generated preview Argo CD Application:"
           cat "$GENERATED"
-
-      - name: Check Argo CD project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          kubectl \
-            --context="$KUBE_CONTEXT" \
-            get appproject edc-management-console \
-            -n argocd
 
       - name: Apply preview Application
         shell: bash
@@ -503,32 +487,33 @@ jobs:
   # ------------------------------------------------------------
   # Shared Dev deployment on AP6
   #
-  # ci-cd-branch (testing replacement for develop) push:
-  #   -> build
-  #   -> update values-dev.yaml with Git SHA
-  #   -> Trivy
-  #   -> deploy shared Dev
+  # Manual only:
+  #   run workflow from develop
+  #   select environment=dev
+  #   optional image_tag can be provided
+  #   empty image_tag = current Git SHA
   #
-  # Manual develop + dev:
-  #   -> optional image_tag can be provided
+  # Flow:
+  #   -> build
+  #   -> Trivy
+  #   -> update values-dev.yaml
+  #   -> deploy shared Dev
   # ------------------------------------------------------------
   deploy-shared-dev:
-    name: Deploy Shared Dev to AP6 Cluster
+    name: Deploy EMC Application to AP6 Cluster
     needs: update-image-tag
     runs-on: ubuntu-latest
 
-    # TEMPORARY TESTING:
-    # Disable shared Dev deployment so ci-cd-branch creates only
-    # the isolated developer preview Application.
-    #
-    # Re-enable the original condition after preview testing.
-    if: ${{ false }}
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'dev' &&
+      github.ref_name == 'develop'
 
     steps:
-      - name: Checkout ci-cd-branch
+      - name: Checkout develop
         uses: actions/checkout@v4
         with:
-          ref: ci-cd-branch
+          ref: develop
           fetch-depth: 0
 
       - name: Install tools
@@ -557,6 +542,48 @@ jobs:
           chmod +x vault
           sudo mv vault /usr/local/bin/
 
+      - name: Resolve Shared Dev image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+
+          if [[ -z "$IMAGE_TAG" ]]; then
+            IMAGE_TAG="${{ github.sha }}"
+          fi
+
+          echo "DEPLOY_IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Shared Dev image tag: $IMAGE_TAG"
+
+      - name: Prepare Shared Dev Argo CD Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TEMPLATE=".github/argocd/emc-dev-app.yaml"
+          GENERATED="/tmp/emc-dev-app.yaml"
+
+          if [[ ! -f "$TEMPLATE" ]]; then
+            echo "Shared Dev Argo CD template not found: $TEMPLATE"
+            exit 1
+          fi
+
+          cp "$TEMPLATE" "$GENERATED"
+
+          sed -i "s|REPLACE_IMAGE_TAG|${DEPLOY_IMAGE_TAG}|g" "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders found:"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+          kubectl apply --dry-run=client -f "$GENERATED" >/dev/null
+
+          echo "Generated Shared Dev Argo CD Application:"
+          cat "$GENERATED"
+
       - name: Connect to AP6 Dev cluster
         shell: bash
         run: |
@@ -567,7 +594,7 @@ jobs:
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_DEV }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN }}"
 
-          CLUSTER_PATH="staging/infra/cluster-int"
+          CLUSTER_PATH="dev/infra/cluster-dev"
 
           vault kv get \
             -field=config \
@@ -594,7 +621,7 @@ jobs:
           kubectl \
             --context="$KUBE_CONTEXT" \
             apply \
-            -f .github/argocd/emc-dev-app.yaml
+            -f /tmp/emc-dev-app.yaml
 
           kubectl \
             --context="$KUBE_CONTEXT" \
@@ -762,7 +789,7 @@ jobs:
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
 
-          CLUSTER_PATH="staging/infra/cluster-prod"
+          CLUSTER_PATH="prod/infra/cluster-prod"
 
           vault kv get \
             -field=config \
@@ -807,11 +834,3 @@ jobs:
 
     uses: ./.github/workflows/chart-release.yaml
     secrets: inherit
-
-  # Previous staging-based chart release retained for future use.
-  # chart-release:
-  #   name: Chart Release
-  #   needs: deploy-emc-staging
-  #   if: github.event_name == 'push' && github.ref_name == 'ci-cd-branch'
-  #   uses: ./.github/workflows/chart-release.yaml
-  #   secrets: inherit

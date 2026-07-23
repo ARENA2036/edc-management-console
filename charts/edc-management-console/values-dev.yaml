@@ -14,7 +14,7 @@ fullnameOverride: "emc"
 
 backend:
   enabled: true
-  name: "emc-backend-cd"
+  name: "emc-backend"
   replicaCount: 1
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
@@ -77,12 +77,12 @@ backend:
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend-cd.txcd.arena2036.app"
+      - host: &hostname "emc-backend.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: emc-backend-cd-tls
+      - secretName: emc-backend-tls
         hosts:
           - *hostname
 
@@ -97,7 +97,7 @@ backend:
     yml: |-
       appConfig:
         name: "ARENA2036 EDC Management Console"
-        client_id: "EMC-CD"
+        client_id: "EMC"
         version: "1.0.0"
         port: 5000
         host: "0.0.0.0"
@@ -148,19 +148,19 @@ backend:
 
       externalApps:
         sde:
-          url: https://sde-cd.services.construct-x.net
-          client_id: "sde-cd"
+          url: https://sde.txcd.arena2036.app
+          client_id: "sde"
           manufacturerId: BPNL00000000052O
-          providerEDC:  https://connector-2-controlplane.services.construct-x.net
-          consumerEDC: https://connector-2-controlplane.services.construct-x.net
-          registryUrl: https://connector-2-dtr.services.construct-x.net/semantics/registry
+          providerEDC:  https://connector-2-controlplane.txcd.arena2036.app
+          consumerEDC: https://connector-2-controlplane.txcd.arena2036.app
+          registryUrl: https://connector-2-dtr.txcd.arena2036.app/semantics/registry
 
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
       # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://connector-2-controlplane.services.construct-x.net"
+        default_url: "https://connector-2-controlplane.txcd.arena2036.app"
         # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
         didMethod: "did:web"
         helmRepositories:
@@ -492,7 +492,7 @@ backend:
   ## Additional volumes on the output Deployment definition.
   volumes:
     # -- persist the backend configuration
-    - name: emc-backend-cd-config
+    - name: emc-backend-config
       configMap:
         name: "{{ .Release.Name }}-backend-config"
     # -- per-version upstream tractusx-connector default values.yaml (render templates)
@@ -512,7 +512,7 @@ backend:
       configMap:
         name: "{{ .Release.Name }}-dtr-values-0-12-0"
     # -- persist the backend data directories
-    - name: pvc-emc-backend-cd
+    - name: pvc-emc-backend
       persistentVolumeClaim:
         claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
     # -- temporary file system mount
@@ -522,7 +522,7 @@ backend:
   ## Volume mounts for the backend deployment.
   volumeMounts:
     # -- mounted path for the backend configuration added in the config maps
-    - name: emc-backend-cd-config
+    - name: emc-backend-config
       mountPath: /backend/config/configuration.yml
       subPath: configuration.yml
     # -- mounted per-version upstream connector value templates.
@@ -545,7 +545,7 @@ backend:
       mountPath: /backend/config/registry-templates/values-0.12.0.yaml
       subPath: values.yaml
     # -- contains the location for the process data directory
-    - name: pvc-emc-backend-cd
+    - name: pvc-emc-backend
       mountPath: /backend/data
       subPath: data
     # -- contains the log directory used by the backend
@@ -555,7 +555,7 @@ backend:
 
 frontend:
   enabled: true
-  name: "emc-frontend-cd"
+  name: "emc-frontend"
   replicaCount: 1
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
@@ -566,7 +566,7 @@ frontend:
 
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend-cd.txcd.arena2036.app
+      value: https://emc-backend.txcd.arena2036.app
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
@@ -576,21 +576,21 @@ frontend:
     - name: VITE_KEYCLOAK_REALM
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
-      value: EMC-CD
+      value: EMC
     - name: VITE_SDE_URL
-      value: https://sde-cd.services.construct-x.net
+      value: https://sde.txcd.arena2036.app
     - name: VITE_PORTAL_URL
       value: https://portal.txcd.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend-cd.txcd.arena2036.app,
+    apiUrl: https://emc-backend.txcd.arena2036.app,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: EMC-CD,
-    sdeUrl: https://sde-cd.services.construct-x.net,
+    clientId: EMC,
+    sdeUrl: https://sde.txcd.arena2036.app,
     portalUrl: https://portal.txcd.arena2036-x.de
     };
 
@@ -607,22 +607,22 @@ frontend:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc-cd.txcd.arena2036.app"
+      - host: &fehostname "emc.txcd.arena2036.app"
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: emc-frontend-cd-tls
+      - secretName: emc-frontend-tls
         hosts:
           - *fehostname
 
   resources: {}
   volumes:
-    - name: emc-frontend-cd-config
+    - name: emc-frontend-config
       configMap:
         name: "{{ .Release.Name }}-frontend-config"
   volumeMounts:
-    - name: emc-frontend-cd-config
+    - name: emc-frontend-config
       mountPath: /frontend/.env
       subPath: .env
   autoscaling:
@@ -635,7 +635,7 @@ serviceAccount:
   create: true
   automount: true
   annotations: {}
-  name: "emc-cd"
+  name: "emc"
 
 podAnnotations: {}
 podLabels: {}
