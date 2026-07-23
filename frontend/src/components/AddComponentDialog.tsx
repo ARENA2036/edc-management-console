@@ -1,5 +1,6 @@
 import { Boxes, Network, X } from 'lucide-react';
 import { useI18n } from '../i18n';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   open: boolean;
@@ -15,13 +16,15 @@ export default function AddComponentDialog({
   onSelectComponent,
 }: Props) {
   const { t } = useI18n();
+  useLockBodyScroll(open);
 
   if (!open) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
       <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <div>
@@ -89,6 +92,7 @@ export default function AddComponentDialog({
             {t('addSelectionTip')}
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

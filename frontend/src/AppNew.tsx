@@ -331,16 +331,7 @@ function mergeConnectors(
       source: 'api' as const,
     };
   });
-
-  const apiNames = new Set(apiConnectors.map((connector) => connector.name));
-  const localOnly = cachedConnectors
-    .filter((connector) => !apiNames.has(connector.name))
-    .map((connector) => ({
-      ...connector,
-      source: 'local' as const,
-    }));
-
-  return [...merged, ...localOnly];
+  return merged;
 }
 
 function Dashboard({ sessionBpn }: { sessionBpn: string }) {
@@ -397,10 +388,14 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   }, [sessionBpn, t]);
 
   const persistConnector = async (connector: DashboardConnector) => {
-    const updatedConnectors = mergeConnectors([], [
-      ...readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []),
+    const currentConnectors = readLocalStorage<DashboardConnector[]>(
+      CONNECTORS_STORAGE_KEY,
+      [],
+    );
+    const updatedConnectors = [
+      ...currentConnectors.filter((current) => current.name !== connector.name),
       connector,
-    ]);
+    ];
     saveLocalStorage(CONNECTORS_STORAGE_KEY, updatedConnectors);
     setConnectors(updatedConnectors);
 
@@ -455,6 +450,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     if (connector.source !== 'local') {
       try {
         await connectorApi.delete(connector.name);
+        await loadConnectors();
       } catch (error) {
         console.error('Failed to delete connector:', error);
       }
@@ -1416,7 +1412,7 @@ function AppShell() {
   return (
     <>
       <BrowserRouter>
-        <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950">
+        <div className="flex h-[100dvh] overflow-hidden bg-gray-50 dark:bg-slate-950">
           <Sidebar
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}

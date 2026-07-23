@@ -47,7 +47,8 @@ const translations = {
     deployNow: 'Deploy now',
     connectorNameLabel: 'Connector name',
     connectorNamePlaceholder: 'test-connector',
-    connectorNameHelp: 'Use a short recognizable name so your team can identify the connector quickly.',
+    connectorNameHelp:
+      'Use lowercase letters, numbers and hyphens so your team can identify the connector quickly.',
     connectorTypeLabel: 'Connector type',
     connectorTypeConsumer: 'Consumer',
     connectorTypeProvider: 'Provider',
@@ -101,7 +102,7 @@ const translations = {
     helpContact: 'Contact support',
     sidebarMonitor: 'Monitor',
     sidebarApp: 'App',
-    datasourceSettings: 'Datasource Settings',
+    datasourceSettings: 'Dataspace Settings',
     languageEnglish: 'EN',
     languageGerman: 'DE',
     helpButton: 'Open help',
@@ -151,19 +152,19 @@ const translations = {
     sdeNavContent:
       'Opens the connected SDE application when users want to continue from the console into an exchange workflow.',
     sdeNavFooter:
-      'If this does not open, check the SDE URL in Datasource Settings first.',
+      'If this does not open, check the SDE URL in Dataspace Settings first.',
     portalNavLabel: 'Portal',
     portalNavTitle: 'Portal entry',
     portalNavContent:
       'Reserved navigation entry for a portal or broader business-facing application around the dataspace.',
     portalNavFooter:
       'This can later point to a real portal without changing the navigation pattern.',
-    dataspaceOsNavLabel: 'Dataspace OS',
-    dataspaceOsNavTitle: 'Dataspace OS',
+    dataspaceOsNavLabel: 'Industry Core Hub',
+    dataspaceOsNavTitle: 'Industry Core Hub',
     dataspaceOsNavContent:
-      'Placeholder entry for operations or platform-oriented workflows related to the dataspace environment.',
+      'Entry point for Industry Core Hub and related platform workflows in the dataspace environment.',
     dataspaceOsNavFooter:
-      'Useful when teams need access to several companion applications from one console.',
+      'Useful when teams need access to companion platform applications from one console.',
     guideReopenTitle: 'Reopen the guide',
     guideReopenContent:
       'Opens the onboarding guide again so users can get step-by-step help whenever they need it.',
@@ -179,14 +180,14 @@ const translations = {
     contactSupportTitle: 'Contact support',
     contactSupportContent:
       'Starts an email support request when the user needs direct help from the responsible team.',
-    settingsTooltipTitle: 'Datasource Settings',
+    settingsTooltipTitle: 'Dataspace Settings',
     settingsTooltipContent:
       'This page shows synchronized dataspace and platform information that often serves as a reference for URLs, environments and system values.',
     settingsTooltipFooter: 'View only',
     portalPlaceholderDescription:
       'This application entry is ready for a portal integration and can later be connected to a real portal URL or embedded portal experience.',
     dataspaceOsPlaceholderDescription:
-      'This application entry is reserved for future dataspace operations and platform-oriented workflows.',
+      'This application entry opens Industry Core Hub and related platform-oriented workflows.',
     sdeRedirectTitle: 'Redirecting to SDE Application...',
     sdeRedirectDescription:
       'You will be redirected to the Simple Data Exchanger application.',
@@ -240,6 +241,8 @@ const translations = {
     validationRequired: 'Please enter {field}.',
     validationInvalidBpn:
       'Use the format BPNL followed by 12 letters or numbers.',
+    validationInvalidConnectorName:
+      'Use only lowercase letters, numbers and hyphens. The name must start and end with a letter or number.',
     validationInvalidUrl:
       'Enter a valid URL starting with http:// or https://.',
     connectorTypeDefault: 'EDC Connector',
@@ -272,7 +275,7 @@ const translations = {
     statsDataSpaceContent:
       'This card shows the loaded dataspace name and often the main identifier for the environment you are working in.',
     statsDataSpaceFooter:
-      'If values are missing here, check Datasource Settings or the central platform configuration.',
+      'If values are missing here, check Dataspace Settings or the central platform configuration.',
     statsHealthTitle: 'Read system health',
     statsHealthContent:
       'Users can quickly see whether the console and its connected capabilities appear generally healthy.',
@@ -401,7 +404,7 @@ const translations = {
       'Overview of all EDC connectors with status, version, endpoint and quick actions.',
     onboardingOverviewNavigationTitle: 'Navigation (Left)',
     onboardingOverviewNavigationBody:
-      'Quick access to Dashboard, Monitor, App and Datasource Settings.',
+      'Quick access to Dashboard, Monitor, App and Dataspace Settings.',
     onboardingStep1Title: 'Add EDC Connector',
     onboardingStep1Body:
       'Click the orange "Add+" button to create a new connector.',
@@ -479,7 +482,7 @@ const translations = {
     connectorNameLabel: 'Connector-Name',
     connectorNamePlaceholder: 'test-connector',
     connectorNameHelp:
-      'Verwenden Sie einen kurzen, eindeutigen Namen, damit Ihr Team den Connector schnell erkennt.',
+      'Verwenden Sie Kleinbuchstaben, Zahlen und Bindestriche, damit Ihr Team den Connector schnell erkennt.',
     connectorTypeLabel: 'Connectortyp',
     connectorTypeConsumer: 'Consumer',
     connectorTypeProvider: 'Provider',
@@ -540,7 +543,7 @@ const translations = {
     helpContact: 'Support kontaktieren',
     sidebarMonitor: 'Monitor',
     sidebarApp: 'App',
-    datasourceSettings: 'Datasource-Einstellungen',
+    datasourceSettings: 'Dataspace-Einstellungen',
     languageEnglish: 'EN',
     languageGerman: 'DE',
     helpButton: 'Hilfe öffnen',
@@ -590,19 +593,19 @@ const translations = {
     sdeNavContent:
       'Öffnet die angebundene SDE-Anwendung. Nutzen Sie diesen Eintrag, wenn Sie nach der Einrichtung in den eigentlichen Datenaustausch wechseln möchten.',
     sdeNavFooter:
-      'Falls nichts geöffnet wird, prüfen Sie zuerst die SDE-URL in den Datasource-Einstellungen.',
+      'Falls nichts geöffnet wird, prüfen Sie zuerst die SDE-URL in den Dataspace-Einstellungen.',
     portalNavLabel: 'Portal',
     portalNavTitle: 'Portal-Einstieg',
     portalNavContent:
       'Reservierter Einstiegspunkt für ein Portal oder eine fachliche Oberfläche rund um Ihren Dataspace.',
     portalNavFooter:
       'Die Struktur ist bereits da und kann später mit einer echten Portal-Integration verbunden werden.',
-    dataspaceOsNavLabel: 'Dataspace OS',
-    dataspaceOsNavTitle: 'Dataspace OS',
+    dataspaceOsNavLabel: 'Industry Core Hub',
+    dataspaceOsNavTitle: 'Industry Core Hub',
     dataspaceOsNavContent:
-      'Platzhalter für eine betriebsnahe oder plattformbezogene Anwendung im Dataspace-Kontext.',
+      'Einstiegspunkt für den Industry Core Hub und verwandte plattformbezogene Workflows im Dataspace-Kontext.',
     dataspaceOsNavFooter:
-      'Nützlich, wenn Teams mehrere Werkzeuge aus derselben Navigation heraus erreichen sollen.',
+      'Nützlich, wenn Teams begleitende Plattform-Anwendungen aus derselben Navigation heraus erreichen sollen.',
     guideReopenTitle: 'Guide erneut öffnen',
     guideReopenContent:
       'Öffnet den Einführungs-Guide erneut, damit Nutzer jederzeit Schritt-für-Schritt-Hilfe bekommen können.',
@@ -618,14 +621,14 @@ const translations = {
     contactSupportTitle: 'Support kontaktieren',
     contactSupportContent:
       'Erstellt eine Support-Anfrage per E-Mail, wenn direkte Hilfe vom Team benötigt wird.',
-    settingsTooltipTitle: 'Datasource-Einstellungen',
+    settingsTooltipTitle: 'Dataspace-Einstellungen',
     settingsTooltipContent:
       'Hier finden Sie synchronisierte Dataspace- und Plattforminformationen, die oft als Referenz für URLs, Umgebungen und Systemwerte dienen.',
     settingsTooltipFooter: 'Nur anzeigen',
     portalPlaceholderDescription:
       'Dieser Anwendungseintrag ist für eine Portal-Integration vorbereitet und kann später mit einer echten Portal-URL oder einer eingebetteten Portalerfahrung verbunden werden.',
     dataspaceOsPlaceholderDescription:
-      'Dieser Anwendungseintrag ist für zukünftige Dataspace-Operationen und plattformbezogene Workflows reserviert.',
+      'Dieser Anwendungseintrag öffnet den Industry Core Hub und verwandte plattformbezogene Workflows.',
     sdeRedirectTitle: 'Weiterleitung zur SDE-Anwendung...',
     sdeRedirectDescription:
       'Sie werden zur Simple-Data-Exchanger-Anwendung weitergeleitet.',
@@ -679,6 +682,8 @@ const translations = {
     validationRequired: 'Bitte geben Sie {field} ein.',
     validationInvalidBpn:
       'Verwenden Sie das Format BPNL gefolgt von 12 Buchstaben oder Ziffern.',
+    validationInvalidConnectorName:
+      'Verwenden Sie nur Kleinbuchstaben, Zahlen und Bindestriche. Der Name muss mit einem Buchstaben oder einer Zahl beginnen und enden.',
     validationInvalidUrl:
       'Geben Sie eine gültige URL beginnend mit http:// oder https:// ein.',
     connectorTypeDefault: 'EDC Connector',
@@ -845,7 +850,7 @@ const translations = {
       'Übersicht aller EDC Connectoren mit Status, Version, Endpoint und direkten Aktionen.',
     onboardingOverviewNavigationTitle: 'Navigation (links)',
     onboardingOverviewNavigationBody:
-      'Schneller Zugriff auf Dashboard, Monitor, App und Datasource-Einstellungen.',
+      'Schneller Zugriff auf Dashboard, Monitor, App und Dataspace-Einstellungen.',
     onboardingStep1Title: 'EDC Connector hinzufügen',
     onboardingStep1Body:
       'Klicken Sie auf die orangefarbene Schaltfläche "Add+", um einen neuen Connector anzulegen.',

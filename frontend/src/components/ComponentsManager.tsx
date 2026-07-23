@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 function ComponentStatusBadge({ status }: { status: string }) {
   if (status === 'Active' || status === 'active' || status === 'healthy') {
@@ -46,6 +47,7 @@ function ComponentDetailsModal({
   onClose: () => void;
 }) {
   const { t, language } = useI18n();
+  useLockBodyScroll(true);
 
   const deployedAt = new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
     dateStyle: 'medium',
@@ -84,8 +86,12 @@ function ComponentDetailsModal({
           </div>
           {component.connectionMode && (
             <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">Mode</p>
-              <p>{component.connectionMode === 'existing' ? 'Existing service' : 'New deployment'}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{t('componentModeLabel')}</p>
+              <p>
+                {component.connectionMode === 'existing'
+                  ? t('componentModeExisting')
+                  : t('componentModeNew')}
+              </p>
             </div>
           )}
           {component.endpoint && (
@@ -99,7 +105,7 @@ function ComponentDetailsModal({
             <p>{component.status}</p>
           </div>
           <div>
-            <p className="font-medium text-gray-900 dark:text-slate-100">Deployed</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{t('deployedLabel')}</p>
             <p>{deployedAt}</p>
           </div>
         </div>
@@ -117,7 +123,8 @@ function DeleteComponentModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
+  useLockBodyScroll(true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -137,11 +144,7 @@ function DeleteComponentModal({
         <div className="px-6 py-5 text-sm leading-6 text-gray-600 dark:text-slate-300">
           <div className="space-y-3">
             <p>{t('deleteComponentMessage', { name: component.name })}</p>
-            <p>
-              {language === 'de'
-                ? 'Die Komponente wird aus der Dashboard-Übersicht entfernt. Falls sie bereits technisch angebunden wurde, prüfen Sie bitte anschließend die zugehörige Zielumgebung oder Service-Konfiguration.'
-                : 'The component will be removed from the dashboard overview. If it was already connected technically, please review the related target environment or service configuration afterwards.'}
-            </p>
+            <p>{t('deleteComponentFollowup')}</p>
           </div>
         </div>
         <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-slate-800">
@@ -164,7 +167,7 @@ function DeleteComponentModal({
 }
 
 export default function ComponentsManager({ components, onDelete }: Props) {
-  const { language, t } = useI18n();
+  const { t } = useI18n();
   const [selectedComponent, setSelectedComponent] = useState<ManagedComponent | null>(null);
   const [componentToDelete, setComponentToDelete] = useState<ManagedComponent | null>(null);
 
@@ -243,11 +246,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <Tooltip
-                          content={
-                            language === 'de'
-                              ? 'Löscht diese Komponente nach Bestätigung aus der Dashboard-Übersicht.'
-                              : 'Deletes this component from the dashboard overview after confirmation.'
-                          }
+                          content={t('deleteComponentTooltip')}
                         >
                           <button
                             onClick={() => setComponentToDelete(component)}

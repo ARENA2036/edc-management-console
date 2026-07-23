@@ -2,6 +2,7 @@ import { CheckCircle2, ChevronDown, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   open: boolean;
@@ -63,6 +64,7 @@ export default function ComponentWizard({
   initialSelectedTypes,
 }: Props) {
   const { t } = useI18n();
+  useLockBodyScroll(open);
   const defaultSelectedTypes = useMemo<ComponentType[]>(
     () =>
       initialSelectedTypes?.length
@@ -243,8 +245,9 @@ export default function ComponentWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
+      <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
@@ -263,7 +266,7 @@ export default function ComponentWizard({
           </button>
         </div>
 
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
           {step === 1 && (
             <>
               <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
@@ -546,6 +549,7 @@ export default function ComponentWizard({
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

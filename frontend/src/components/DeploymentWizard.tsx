@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import { getRuntimeConfigValue } from '../runtime-config';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ interface Props {
 const connectorVersions = ['0.9.0', '0.10.0', '0.10.2', '0.11.0'] as const;
 
 type DeploymentField = 'name';
+const connectorNamePattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 function isValidHttpUrl(value: string) {
   try {
@@ -35,6 +37,7 @@ export default function DeploymentWizard({
   defaultApiEndpoint,
 }: Props) {
   const { t } = useI18n();
+  useLockBodyScroll(open);
   const [name, setName] = useState('');
   const [version, setVersion] =
     useState<(typeof connectorVersions)[number]>('0.11.0');
@@ -42,7 +45,7 @@ export default function DeploymentWizard({
   const [submitted, setSubmitted] = useState(false);
 
   const normalizeConnectorName = (value: string) =>
-    value.toLowerCase().trimStart();
+    value.toLowerCase().trim();
 
   const resetState = () => {
     setName('');
@@ -61,6 +64,8 @@ export default function DeploymentWizard({
     stepErrors.name = t('validationRequired', {
       field: t('connectorNameLabel'),
     });
+  } else if (!connectorNamePattern.test(name.trim())) {
+    stepErrors.name = t('validationInvalidConnectorName');
   }
 
   const markTouched = (field: DeploymentField) => {
@@ -172,8 +177,9 @@ export default function DeploymentWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
+      <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
@@ -192,7 +198,7 @@ export default function DeploymentWizard({
           </button>
         </div>
 
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
           <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
             {t('connectorNameHelp')}
           </div>
@@ -209,15 +215,15 @@ export default function DeploymentWizard({
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
               {t('connectorNameLabel')}
             </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => setName(normalizeConnectorName(event.target.value))}
-              onBlur={() => markTouched('name')}
-              placeholder={t('connectorNamePlaceholder')}
-              aria-invalid={showError('name')}
-              className={inputClass(showError('name'))}
-            />
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value.trimStart())}
+                onBlur={() => markTouched('name')}
+                placeholder={t('connectorNamePlaceholder')}
+                aria-invalid={showError('name')}
+                className={inputClass(showError('name'))}
+              />
             {showError('name') && (
               <p className="mt-2 text-xs text-red-600 dark:text-red-300">
                 {stepErrors.name}
@@ -301,6 +307,7 @@ export default function DeploymentWizard({
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
