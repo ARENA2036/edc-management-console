@@ -202,6 +202,7 @@ jobs:
           set -euo pipefail
 
           if [[ "${{ github.ref_name }}" == "develop" ||
+                "${{ github.ref_name }}" == "ci-cd-branch" ||
                 "${{ github.ref_name }}" == feature/* ||
                 "${{ github.ref_name }}" == bugfix/* ||
                 "${{ github.ref_name }}" == hotfix/* ]]; then
