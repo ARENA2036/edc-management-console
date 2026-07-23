@@ -95,7 +95,7 @@ spec:
           value: REPLACE_PREVIEW_NAME-grafana-tls
           forceString: true
 
-        # Grafana dashboard sidecar must watch the developer preview namespace
+        # Grafana dashboard sidecar watches this preview namespace
         - name: grafana.sidecar.dashboards.enabled
           value: "true"
 
@@ -103,16 +103,8 @@ spec:
           value: REPLACE_NAMESPACE
           forceString: true
 
-        # Grafana datasources for the preview release
-        - name: grafana.datasources.datasources\\.yaml.datasources[0].url
-          value: http://REPLACE_PREVIEW_NAME-prometheus-server
-          forceString: true
-
-        - name: grafana.datasources.datasources\\.yaml.datasources[1].url
-          value: http://REPLACE_PREVIEW_NAME-loki-gateway
-          forceString: true
-
-        # Ensure observability components are enabled
+        # Keep observability enabled.
+        # Prometheus/Loki datasource URLs remain unchanged in values-dev.yaml.
         - name: prometheus.enabled
           value: "true"
 

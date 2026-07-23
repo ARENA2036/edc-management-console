@@ -127,7 +127,7 @@ jobs:
   #   - update and commit values-prod.yaml
   # ------------------------------------------------------------
   update-image-tag:
-    name: Update Helm Image Tag
+    name: Update Helm Image Tags for Deployment
     needs: trivy
     runs-on: ubuntu-latest
 
@@ -298,7 +298,7 @@ jobs:
   # The preview template also receives the selected image tag.
   # ------------------------------------------------------------
   deploy-preview:
-    name: Deploy Isolated Developer Preview to AP6 Dev
+    name: Deploy Developer Preview via Argo CD to AP6 Cluster
     needs: update-image-tag
     runs-on: ubuntu-latest
 
@@ -506,7 +506,7 @@ jobs:
   #   -> deploy shared Dev
   # ------------------------------------------------------------
   deploy-shared-dev:
-    name: Deploy EMC Application to AP6 Cluster
+    name: Deploy Shared Development via Argo CD to AP6
     needs: update-image-tag
     runs-on: ubuntu-latest
 
@@ -700,7 +700,7 @@ jobs:
   # Manual Production deployment from release/** only
   # ------------------------------------------------------------
   deploy-production:
-    name: Deploy Production
+    name: Deploy Production via Argo CD
     needs: update-image-tag
     runs-on: ubuntu-latest
 
