@@ -426,16 +426,16 @@ jobs:
           {
             echo "PREVIEW_NAME=emc-${SAFE_BRANCH}"
             echo "PREVIEW_NAMESPACE=emc-${SAFE_BRANCH}"
-            echo "FRONTEND_HOST=${SAFE_BRANCH}.dev.arena2036-x.de"
-            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.dev.arena2036-x.de"
-            echo "GRAFANA_HOST=${SAFE_BRANCH}-grafana.dev.arena2036-x.de"
+            echo "FRONTEND_HOST=${SAFE_BRANCH}.txcd.arena2036.app"
+            echo "BACKEND_HOST=${SAFE_BRANCH}-backend.txcd.arena2036.app"
+            echo "GRAFANA_HOST=${SAFE_BRANCH}-grafana.txcd.arena2036.app"
           } >> "$GITHUB_ENV"
 
           echo "Preview application: emc-${SAFE_BRANCH}"
           echo "Preview namespace: emc-${SAFE_BRANCH}"
-          echo "Frontend host: ${SAFE_BRANCH}.dev.arena2036-x.de"
-          echo "Backend host: ${SAFE_BRANCH}-backend.dev.arena2036-x.de"
-          echo "Grafana host: ${SAFE_BRANCH}-grafana.dev.arena2036-x.de"
+          echo "Frontend host: ${SAFE_BRANCH}.txcd.arena2036.app"
+          echo "Backend host: ${SAFE_BRANCH}-backend.txcd.arena2036.app"
+          echo "Grafana host: ${SAFE_BRANCH}-grafana.txcd.arena2036.app"
 
       - name: Generate preview Argo CD Application
         shell: bash
