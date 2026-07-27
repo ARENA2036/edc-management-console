@@ -36,7 +36,7 @@ class DatabaseManager:
     def get_connector_by_id(self, connector_id: int) -> Optional[ConnectorDB]:
         session = self.get_session()
         try:
-            return session.query(Connector).filter(Connector.id == connector_id).first()
+            return session.query(ConnectorDB).filter(ConnectorDB.id == connector_id).first()
         finally:
             session.close()
 

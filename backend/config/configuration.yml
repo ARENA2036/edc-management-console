@@ -260,6 +260,8 @@ components:
         value: '/'
       - path: ingress.hosts[0].paths[0].pathType
         value: 'Prefix'
+      - path: ingress.tlsEnabled     
+        value: true
       - path: ingress.tls[0].hosts[0]
         from: url
       - path: ingress.tls[0].secretName
@@ -293,6 +295,7 @@ components:
         nginx.ingress.kubernetes.io/rewrite-target: /$2
         nginx.ingress.kubernetes.io/use-regex: "true"
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/ssl-redirect: "false"
         nginx.ingress.kubernetes.io/x-forwarded-prefix: /semantics/registry
     valueMappings:
       - path: fullnameOverride          # top-level (the chart has no registry.fullnameOverride)
@@ -337,6 +340,12 @@ components:
         value: true
       - path: registry.ingress.tls.secretName
         template: "{name}-dtr-tls"
+      - path: registry.ingress.rules[0].host
+        from: url
+      - path: registry.ingress.rules[0].http.paths[0].path
+        value: '/semantics/registry(/|$)(.*)'
+      - path: registry.ingress.rules[0].http.paths[0].pathType
+        value: ImplementationSpecific
 
   # IdentityHub — its own chart + release, deployed for every connector
   # (it is the connector's own DID/credential service, not an optional add-on).

@@ -158,7 +158,7 @@ export function getDefaultComponentDraft(
   return {
     enabled: existing?.enabled ?? false,
     name: trimOrEmpty(existing?.name) || defaultName,
-    version: trimOrEmpty(existing?.version) || (isDtr ? '0.12.0' : '0.11.0'),
+    version: trimOrEmpty(existing?.version) || (isDtr ? '0.12.0' : '0.1.0'),
     url: trimOrEmpty(existing?.url) || defaultUrl,
     dbName: trimOrEmpty(existing?.dbName) || `${defaultName}-db`,
     username: trimOrEmpty(existing?.username) || defaultUsername,

@@ -104,9 +104,7 @@ function prepareDraftForInput(draft: ComponentDraft, hasExistingComponent: boole
 
   return {
     ...draft,
-    name: '',
     url: '',
-    dbName: '',
   };
 }
 
@@ -244,13 +242,28 @@ export default function DeploymentWizard({
     name.trim().length > 0 &&
     /^BPNL[A-Z0-9]{12}$/.test(bpn.trim().toUpperCase());
 
+  const submodelNameConflict =
+    submodelDraft.enabled &&
+    submodelDraft.name.trim().length > 0 &&
+    submodelDraft.name.trim() === name.trim();
+
+  const dtrNameConflict =
+    dtrDraft.enabled &&
+    dtrDraft.name.trim().length > 0 &&
+    (dtrDraft.name.trim() === name.trim() ||
+      (submodelDraft.enabled && dtrDraft.name.trim() === submodelDraft.name.trim()));
+
   const canProceedStep2 =
     !submodelDraft.enabled ||
-    (submodelDraft.name.trim().length > 0 && submodelDraft.url.trim().length > 0);
+    (submodelDraft.name.trim().length > 0 &&
+      submodelDraft.url.trim().length > 0 &&
+      !submodelNameConflict);
 
   const canProceedStep3 =
     !dtrDraft.enabled ||
-    (dtrDraft.name.trim().length > 0 && dtrDraft.url.trim().length > 0);
+    (dtrDraft.name.trim().length > 0 &&
+      dtrDraft.url.trim().length > 0 &&
+      !dtrNameConflict);
 
   const canContinue =
     (step === 1 && canProceedStep1) ||
@@ -447,6 +460,13 @@ export default function DeploymentWizard({
                           }}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
+                        {submodelNameConflict && (
+                          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                            {language === 'de'
+                              ? 'Der Name muss sich vom EDC-Namen unterscheiden.'
+                              : 'Name must be different from the EDC connector name.'}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
@@ -532,6 +552,13 @@ export default function DeploymentWizard({
                           }}
                           className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
+                        {dtrNameConflict && (
+                          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                            {language === 'de'
+                              ? 'Der Name muss sich vom EDC- und Submodel-Server-Namen unterscheiden.'
+                              : 'Name must be different from the EDC connector and submodel server names.'}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">

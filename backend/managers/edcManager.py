@@ -1,3 +1,4 @@
+import os
 import requests
 import logging
 from typing import Dict, Optional
@@ -8,6 +9,8 @@ from utilities.common import (render_values, render_template, render_structure,
                               condition_met, as_context)
 
 logger = logging.getLogger(__name__)
+
+URL_SCHEME = os.getenv("EMC_URL_SCHEME", "https")
 
 
 class EdcManager:
@@ -86,7 +89,7 @@ class EdcManager:
 
     @staticmethod
     def _with_scheme(url: str) -> str:
-        return url if url.startswith(("http://", "https://")) else "https://" + url
+        return url if url.startswith(("http://", "https://")) else f"{URL_SCHEME}://" + url
 
     def component_health(self, record) -> Dict:
         """Health of a single deployed component (a persisted ConnectorDB row).
@@ -103,7 +106,7 @@ class EdcManager:
         result = {"name": record.name, "type": ctype, "healthy": False, "url": None, "details": {}}
 
         if ctype == "connector" and record.cp_hostname:
-            health = self.check_health("https://" + record.cp_hostname)
+            health = self.check_health(f"{URL_SCHEME}://" + record.cp_hostname)
             result["url"] = health["url"]
             result["healthy"] = health["healthy"]
             result["details"] = {"liveness": health["liveness"], "readiness": health["readiness"]}
