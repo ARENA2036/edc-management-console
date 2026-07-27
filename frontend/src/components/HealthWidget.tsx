@@ -2,8 +2,14 @@ import { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
 import { healthApi, connectorApi } from '../api/client';
 
+interface HealthStatus {
+  healthy: boolean;
+  liveness?: string;
+  readiness?: string;
+}
+
 export default function HealthWidget() {
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   const checkHealth = async () => {

@@ -3,27 +3,50 @@ import { useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
+import {
+  buildResourceNamePreview,
+  buildGeneratedHostname,
+  isValidResourceName,
+  MAX_CONNECTORS,
+  MAX_RESOURCE_NAME_LENGTH,
+  MIN_RESOURCE_NAME_LENGTH,
+  normalizeResourceName,
+} from '../utils/nameRules';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeploy: (connector: DashboardConnector) => Promise<void> | void;
   onDeployAndAddComponent?: (connector: DashboardConnector) => Promise<void> | void;
+  connectorCount: number;
   prefilledBpn?: string;
   defaultApiEndpoint?: string;
   defaultDataPlaneUrl?: string;
 }
 
-const connectorVersions = ['0.9.0', '0.10.0', '0.10.2', '0.11.0'] as const;
-
 type DeploymentField = 'name';
-const connectorNamePattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const defaultConnectorVersion = '0.11.0';
+
+function getHostnameSuffix(value?: string) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const host = new URL(value).hostname;
+    const firstDashIndex = host.indexOf('-');
+    return firstDashIndex >= 0 ? host.slice(firstDashIndex + 1) : host;
+  } catch {
+    return '';
+  }
+}
 
 export default function DeploymentWizard({
   open,
   onOpenChange,
   onDeploy,
   onDeployAndAddComponent,
+  connectorCount,
   prefilledBpn,
   defaultApiEndpoint,
   defaultDataPlaneUrl,
@@ -31,17 +54,11 @@ export default function DeploymentWizard({
   const { t } = useI18n();
   useLockBodyScroll(open);
   const [name, setName] = useState('');
-  const [version, setVersion] =
-    useState<(typeof connectorVersions)[number]>('0.11.0');
   const [touched, setTouched] = useState<Partial<Record<DeploymentField, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
 
-  const normalizeConnectorName = (value: string) =>
-    value.toLowerCase().trim();
-
   const resetState = () => {
     setName('');
-    setVersion('0.11.0');
     setTouched({});
     setSubmitted(false);
   };
@@ -56,8 +73,11 @@ export default function DeploymentWizard({
     stepErrors.name = t('validationRequired', {
       field: t('connectorNameLabel'),
     });
-  } else if (!connectorNamePattern.test(name.trim())) {
-    stepErrors.name = t('validationInvalidConnectorName');
+  } else if (!isValidResourceName(name)) {
+    stepErrors.name = t('validationInvalidResourceName', {
+      min: String(MIN_RESOURCE_NAME_LENGTH),
+      max: String(MAX_RESOURCE_NAME_LENGTH),
+    });
   }
 
   const markTouched = (field: DeploymentField) => {
@@ -89,27 +109,54 @@ export default function DeploymentWizard({
     () => defaultDataPlaneUrl?.trim() ?? '',
     [defaultDataPlaneUrl],
   );
+  const controlplaneHostnameSuffix = useMemo(
+    () => getHostnameSuffix(defaultApiEndpoint),
+    [defaultApiEndpoint],
+  );
+  const dataplaneHostnameSuffix = useMemo(
+    () => getHostnameSuffix(defaultDataPlaneUrl),
+    [defaultDataPlaneUrl],
+  );
+  const normalizedConnectorName = useMemo(
+    () => normalizeResourceName(name),
+    [name],
+  );
+  const generatedHostname = useMemo(
+    () =>
+      buildGeneratedHostname(normalizedConnectorName, controlplaneHostnameSuffix)
+      || buildResourceNamePreview(name),
+    [controlplaneHostnameSuffix, name, normalizedConnectorName],
+  );
+  const generatedDataplaneHostname = useMemo(
+    () => buildGeneratedHostname(normalizedConnectorName, dataplaneHostnameSuffix),
+    [dataplaneHostnameSuffix, normalizedConnectorName],
+  );
+  const connectorLimitReached = connectorCount >= MAX_CONNECTORS;
 
   const buildConnector = (): DashboardConnector => ({
     id: Date.now(),
-    name: normalizeConnectorName(name).trim(),
+    name: normalizedConnectorName,
     url: resolvedApiEndpoint,
     bpn: resolvedBpn,
-    version,
+    version: defaultConnectorVersion,
     status: 'healthy',
     created_at: new Date().toISOString(),
-    urls: [resolvedApiEndpoint, resolvedDataPlaneUrl].filter(Boolean),
+    urls: [
+      resolvedApiEndpoint,
+      resolvedDataPlaneUrl,
+    ].filter(Boolean),
     created_by: 'dashboard',
     db_username: '',
     db_password: '',
-    cp_hostname: resolvedApiEndpoint,
-    dp_hostname: resolvedDataPlaneUrl,
+    cp_hostname: generatedHostname,
+    dp_hostname: generatedDataplaneHostname,
     config: {
       connectorType: t('connectorTypeDefault'),
       endpoint: resolvedApiEndpoint,
+      hostname: generatedHostname,
       dataPlaneUrl: resolvedDataPlaneUrl,
       bpn: resolvedBpn,
-      version,
+      version: defaultConnectorVersion,
     },
     source: 'local',
   });
@@ -118,7 +165,7 @@ export default function DeploymentWizard({
     callback: (connector: DashboardConnector) => Promise<void> | void,
   ) => {
     setSubmitted(true);
-    if (Object.keys(stepErrors).length > 0) {
+    if (connectorLimitReached || Object.keys(stepErrors).length > 0) {
       return;
     }
 
@@ -154,10 +201,10 @@ export default function DeploymentWizard({
         </div>
 
         <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
-          <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
+          <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
             {t('connectorNameHelp')}
           </div>
-          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('deploymentPreparationWelcome')}</p>
             <p className="mt-2">{t('deploymentPreparationCredentials')}</p>
           </div>
@@ -165,6 +212,11 @@ export default function DeploymentWizard({
             <p className="font-medium">{t('deploymentAutoConfigTitle')}</p>
             <p className="mt-2">{t('deploymentAutoConfigDescription')}</p>
           </div>
+          {connectorLimitReached && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+              {t('connectorLimitReached', { max: String(MAX_CONNECTORS) })}
+            </div>
+          )}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
@@ -179,6 +231,7 @@ export default function DeploymentWizard({
                 }}
                 onBlur={() => markTouched('name')}
                 placeholder={t('connectorNamePlaceholder')}
+                maxLength={MAX_RESOURCE_NAME_LENGTH}
                 aria-invalid={showError('name')}
                 className={inputClass(showError('name'))}
               />
@@ -191,48 +244,18 @@ export default function DeploymentWizard({
 
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-              {t('versionLabel')}
+              {t('hostnameLabel')}
             </label>
-            <select
-              value={version}
-              onChange={(event) =>
-                setVersion(event.target.value as (typeof connectorVersions)[number])
-              }
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-            >
-              {connectorVersions.map((connectorVersion) => (
-                <option key={connectorVersion} value={connectorVersion}>
-                  {connectorVersion}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400">
-                {t('bpnLabel')}
-              </p>
-              <p className="mt-2 text-sm text-gray-900 dark:text-slate-100">
-                {resolvedBpn || t('noValue')}
-              </p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400">
-                {t('apiEndpointLabel')}
-              </p>
-              <p className="mt-2 break-all text-sm text-gray-900 dark:text-slate-100">
-                {resolvedApiEndpoint || t('noValue')}
-              </p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400">
-                {t('dataPlaneLabel')}
-              </p>
-              <p className="mt-2 break-all text-sm text-gray-900 dark:text-slate-100">
-                {resolvedDataPlaneUrl || t('noValue')}
-              </p>
-            </div>
+            <input
+              type="text"
+              value={generatedHostname}
+              readOnly
+              placeholder={t('hostnamePlaceholder')}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+            />
+            <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+              {t('hostnameHelp')}
+            </p>
           </div>
         </div>
 
@@ -248,7 +271,8 @@ export default function DeploymentWizard({
               {onDeployAndAddComponent && (
                 <button
                   onClick={() => void deployConnector(onDeployAndAddComponent)}
-                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100 dark:hover:bg-orange-500/20"
+                  disabled={connectorLimitReached}
+                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100 dark:hover:bg-orange-500/20 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Plus size={16} />
@@ -258,7 +282,8 @@ export default function DeploymentWizard({
               )}
               <button
                 onClick={() => void deployConnector(onDeploy)}
-                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
+                disabled={connectorLimitReached}
+                className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
                 {t('deployNow')}
               </button>

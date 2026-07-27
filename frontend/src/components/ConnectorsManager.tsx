@@ -1,5 +1,5 @@
-import { FileText, MoreHorizontal, PencilLine, Trash2, Zap } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
@@ -11,7 +11,8 @@ interface Props {
   connectors: DashboardConnector[];
   components: ManagedComponent[];
   onDelete: (connector: DashboardConnector) => Promise<void> | void;
-  onEditConnector: (connector: DashboardConnector) => void;
+  onAddComponent: (connector: DashboardConnector) => void;
+  onEditConnector?: (connector: DashboardConnector) => void;
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -68,24 +69,29 @@ export default function ConnectorsManager({
   connectors,
   components,
   onDelete,
+  onAddComponent,
   onEditConnector,
 }: Props) {
   const { language, t } = useI18n();
   const [selectedConnector, setSelectedConnector] = useState<DashboardConnector | null>(null);
   const [yamlConnector, setYamlConnector] = useState<DashboardConnector | null>(null);
   const [deleteConnector, setDeleteConnector] = useState<DashboardConnector | null>(null);
+  const localizeConnectorType = useCallback(
+    (type: string) => (type === 'EDC Connector' ? t('connectorTypeDefault') : type),
+    [t],
+  );
 
   const rows = useMemo(
     () =>
       connectors.map((connector) => ({
         ...connector,
-        connectorType: getConnectorType(connector),
+        connectorType: localizeConnectorType(getConnectorType(connector)),
         endpoint: getConnectorEndpoint(connector),
         linkedComponentsCount: components.filter(
           (component) => component.linkedConnector === connector.name,
         ).length,
       })),
-    [components, connectors],
+    [components, connectors, localizeConnectorType],
   );
 
   const deleteConnectorLinkedCount = deleteConnector
@@ -163,6 +169,14 @@ export default function ConnectorsManager({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
+                        <Tooltip content={t('connectorAddComponentTooltip')}>
+                          <button
+                            onClick={() => onAddComponent(connector)}
+                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </Tooltip>
                         <Tooltip content={t('tableManage')}>
                           <button
                             onClick={() => setYamlConnector(connector)}
@@ -171,29 +185,29 @@ export default function ConnectorsManager({
                             <FileText size={16} />
                           </button>
                         </Tooltip>
-                        <Tooltip
-                          content={
-                            language === 'de'
-                              ? 'EDC und verknüpfte Komponenten ändern'
-                              : 'Edit the EDC and its linked components'
-                          }
-                        >
-                          <button
-                            onClick={() => onEditConnector(connector)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
+                        {onEditConnector ? (
+                          <Tooltip
+                            content={
+                              language === 'de'
+                                ? 'EDC und verknüpfte Komponenten ändern'
+                                : 'Edit the EDC and its linked components'
+                            }
                           >
-                            <PencilLine size={16} />
-                          </button>
-                        </Tooltip>
+                            <button
+                              onClick={() => onEditConnector(connector)}
+                              className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
+                            >
+                              <PencilLine size={16} />
+                            </button>
+                          </Tooltip>
+                        ) : null}
                         <Tooltip
                           content={
                             connector.linkedComponentsCount > 0
-                              ? language === 'de'
-                                ? `Löscht den Connector. ${connector.linkedComponentsCount} verknüpfte Komponente(n) werden anschließend ebenfalls aus der Dashboard-Übersicht entfernt.`
-                                : `Deletes the connector. ${connector.linkedComponentsCount} linked component(s) will also be removed from the dashboard overview afterwards.`
-                              : language === 'de'
-                              ? 'Löscht den Connector aus dem Dashboard und deinstalliert die zugehörige Deployment-Instanz im Cluster.'
-                              : 'Deletes the connector from the dashboard and uninstalls the related deployment from the cluster.'
+                              ? t('connectorDeleteTooltipWithComponents', {
+                                  count: String(connector.linkedComponentsCount),
+                                })
+                              : t('connectorDeleteTooltipWithoutComponents')
                           }
                         >
                           <button
@@ -242,41 +256,17 @@ export default function ConnectorsManager({
           connector={deleteConnector}
           title={t('deleteConnectorTitle')}
           message={
-            language === 'de' ? (
-              <div className="space-y-3">
-                <p>
-                  Möchten Sie <strong>{deleteConnector.name}</strong> wirklich löschen?
+            <div className="space-y-3">
+              <p>{t('connectorDeleteIntro', { name: deleteConnector.name })}</p>
+              <p>{t('connectorDeleteBody')}</p>
+              {deleteConnectorLinkedCount > 0 && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {t('connectorDeleteLinkedComponents', {
+                    count: String(deleteConnectorLinkedCount),
+                  })}
                 </p>
-                <p>
-                  Dadurch wird der Connector aus dem Dashboard entfernt und die
-                  zugehörige Helm-Deployment-Instanz im Cluster deinstalliert.
-                </p>
-                {deleteConnectorLinkedCount > 0 && (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    {deleteConnectorLinkedCount} verknüpfte Komponente(n)
-                    werden anschließend ebenfalls aus der Dashboard-Übersicht entfernt,
-                    damit keine ungültigen Verknüpfungen zurückbleiben.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p>
-                  Do you really want to delete <strong>{deleteConnector.name}</strong>?
-                </p>
-                <p>
-                  This removes the connector from the dashboard and uninstalls the
-                  related Helm deployment from the cluster.
-                </p>
-                {deleteConnectorLinkedCount > 0 && (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    {deleteConnectorLinkedCount} linked component(s) will
-                    also be removed from the dashboard overview afterwards so no broken
-                    references remain.
-                  </p>
-                )}
-              </div>
-            )
+              )}
+            </div>
           }
           cancelLabel={t('cancel')}
           confirmLabel={t('confirmDelete')}

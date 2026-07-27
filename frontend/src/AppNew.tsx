@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import {
   Activity,
@@ -23,6 +23,7 @@ import ComponentsManager from './components/ComponentsManager';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
 import keycloak, { isAuthDisabled } from './auth/keycloak';
+import { MAX_CONNECTORS } from './utils/nameRules';
 
 const CONNECTORS_STORAGE_KEY = 'connectors';
 const COMPONENTS_STORAGE_KEY = 'components';
@@ -351,7 +352,9 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     linkedConnector?: string;
     allowMultipleTypes?: boolean;
     initialSelectedTypes?: ComponentType[];
+    startAtConfiguration?: boolean;
   }>({});
+  const connectorLimitReached = connectors.length >= MAX_CONNECTORS;
 
   const loadConnectors = async () => {
     const loadedConnectors = await fetchConnectors();
@@ -368,12 +371,12 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     setActivityLogs(logs);
   };
 
-  const loadDataspace = async () => {
+  const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
     setDataspaceBpn(summary.bpn || sessionBpn);
     setDataspaceDetails(summary.details);
-  };
+  }, [sessionBpn, t]);
 
   useEffect(() => {
     loadConnectors();
@@ -387,13 +390,18 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [sessionBpn, t]);
+  }, [loadDataspace, sessionBpn, t]);
 
   const persistConnector = async (connector: DashboardConnector) => {
     const currentConnectors = readLocalStorage<DashboardConnector[]>(
       CONNECTORS_STORAGE_KEY,
       [],
     );
+    const isNewConnector = !currentConnectors.some((current) => current.name === connector.name);
+    if (isNewConnector && currentConnectors.length >= MAX_CONNECTORS) {
+      return false;
+    }
+
     const updatedConnectors = [
       ...currentConnectors.filter((current) => current.name !== connector.name),
       connector,
@@ -418,22 +426,30 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
 
     await loadConnectors();
+    return true;
   };
 
   const handleDeployConnector = async (connector: DashboardConnector) => {
-    await persistConnector(connector);
-    setShowDeploymentWizard(false);
+    const deployed = await persistConnector(connector);
+    if (deployed) {
+      setShowDeploymentWizard(false);
+    }
   };
 
   const handleDeployConnectorAndAddComponent = async (
     connector: DashboardConnector,
   ) => {
-    await persistConnector(connector);
+    const deployed = await persistConnector(connector);
+    if (!deployed) {
+      return;
+    }
+
     setShowDeploymentWizard(false);
     setComponentWizardDefaults({
       linkedConnector: connector.name,
       allowMultipleTypes: true,
       initialSelectedTypes: ['Submodel Service', 'Digital Twin Registry'],
+      startAtConfiguration: true,
     });
     setShowComponentWizard(true);
   };
@@ -444,26 +460,31 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       (component) => component.linkedConnector !== connector.name,
     );
 
+    if (connector.source !== 'local') {
+      try {
+        await connectorApi.delete(connector.name);
+      } catch (error) {
+        console.error('Failed to delete connector:', error);
+        return;
+      }
+    }
+
     setConnectors(remaining);
     saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
     setComponents(remainingComponents);
     saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingComponents);
 
     if (connector.source !== 'local') {
-      try {
-        await connectorApi.delete(connector.name);
-        await loadConnectors();
-      } catch (error) {
-        console.error('Failed to delete connector:', error);
-      }
+      await loadConnectors();
     }
   };
 
   const handleDeployComponent = (component: ManagedComponent) => {
-    const updatedComponents = [component, ...components];
-    setComponents(updatedComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setShowComponentWizard(false);
+    setComponents((current) => {
+      const updatedComponents = [component, ...current];
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+      return updatedComponents;
+    });
   };
 
   const handleDeleteComponent = (componentId: string) => {
@@ -562,7 +583,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           <StatsCard
             icon={<Server size={22} />}
             title={t('edcConnectors')}
-            value={connectors.length.toString()}
+            value={`${connectors.length}/${MAX_CONNECTORS}`}
             subtitle={`${activeConnectors} ${t('activeShort')}`}
             variant="info"
             tooltipTitle={statsGuidance.connectors.title}
@@ -610,9 +631,12 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       <AddComponentDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
+        connectorCount={connectors.length}
         onSelectEDC={() => {
           setShowAddDialog(false);
-          setShowDeploymentWizard(true);
+          if (!connectorLimitReached) {
+            setShowDeploymentWizard(true);
+          }
         }}
         onSelectComponent={() => {
           setShowAddDialog(false);
@@ -625,6 +649,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         onOpenChange={setShowDeploymentWizard}
         onDeploy={handleDeployConnector}
         onDeployAndAddComponent={handleDeployConnectorAndAddComponent}
+        connectorCount={connectors.length}
         prefilledBpn={dataspaceBpn || sessionBpn}
         defaultApiEndpoint={
           dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
@@ -645,6 +670,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         initialLinkedConnector={componentWizardDefaults.linkedConnector}
         allowMultipleTypes={componentWizardDefaults.allowMultipleTypes}
         initialSelectedTypes={componentWizardDefaults.initialSelectedTypes}
+        startAtConfiguration={componentWizardDefaults.startAtConfiguration}
       />
     </>
   );
@@ -1347,14 +1373,11 @@ function AppShell() {
     `${firstName} ${lastName}`.trim() ||
     keycloak.tokenParsed?.preferred_username ||
     t('userFallback');
-  const sessionBpnCandidates = useMemo(
-    () => getSessionBpnCandidates(keycloak.tokenParsed, keycloak.token),
-    [keycloak.token, keycloak.tokenParsed],
+  const sessionBpnCandidates = getSessionBpnCandidates(
+    keycloak.tokenParsed,
+    keycloak.token,
   );
-  const sessionBpn = useMemo(
-    () => readSessionBpn(keycloak.tokenParsed, keycloak.token),
-    [keycloak.token, keycloak.tokenParsed],
-  );
+  const sessionBpn = readSessionBpn(keycloak.tokenParsed, keycloak.token);
 
   const [sdeUrl, setSdeUrl] = useState(
     getRuntimeConfigValue(

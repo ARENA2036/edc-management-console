@@ -98,6 +98,11 @@ export interface ConnectorCreate {
   name: string;
   url: string;
   bpn?: string;
+  version?: string;
+  db_username?: string;
+  db_password?: string;
+  registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
   config?: Record<string, unknown>; // Auch hier statt any Record
 }
 
@@ -105,6 +110,11 @@ export interface ConnectorUpdate {
   name?: string;
   url?: string;
   bpn?: string;
+  version?: string;
+  db_username?: string;
+  db_password?: string;
+  registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
   config?: Record<string, unknown>; // Auch hier statt any Record
   status?: string;
 }

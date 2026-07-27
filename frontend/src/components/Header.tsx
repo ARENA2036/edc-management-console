@@ -38,8 +38,8 @@ export default function Header({
             EDC
           </div>
           <h1 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100 md:text-xl">
-            <span className="hidden sm:inline">EDC Management Console</span>
-            <span className="sm:hidden">EDC Console</span>
+            <span className="hidden sm:inline">{t('appTitle')}</span>
+            <span className="sm:hidden">{t('appTitleShort')}</span>
           </h1>
         </div>
 
@@ -72,15 +72,7 @@ export default function Header({
           </div>
 
           <Tooltip
-            content={
-              language === 'de'
-                ? theme === 'dark'
-                  ? 'Zum hellen Modus wechseln'
-                  : 'Zum dunklen Modus wechseln'
-                : theme === 'dark'
-                ? 'Switch to light mode'
-                : 'Switch to dark mode'
-            }
+            content={theme === 'dark' ? t('themeSwitchToLight') : t('themeSwitchToDark')}
           >
             <button
               onClick={onThemeToggle}
@@ -113,7 +105,7 @@ export default function Header({
                   onClick={onLogout}
                   className="ml-1 text-xs text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 md:ml-2"
                 >
-                  Logout
+                  {t('logout')}
                 </button>
               )}
             </div>

@@ -48,7 +48,11 @@ const translations = {
     connectorNameLabel: 'Connector name',
     connectorNamePlaceholder: 'test-connector',
     connectorNameHelp:
-      'Use lowercase letters, numbers and hyphens so your team can identify the connector quickly.',
+      'Use 3 to 20 lowercase letters, numbers or hyphens, without spaces.',
+    hostnameLabel: 'Hostname',
+    hostnamePlaceholder: 'Generated automatically from the connector name',
+    hostnameHelp:
+      'The hostname is generated automatically from the connector name and the dataspace host suffix.',
     connectorTypeLabel: 'Connector type',
     connectorTypeConsumer: 'Consumer',
     connectorTypeProvider: 'Provider',
@@ -67,9 +71,9 @@ const translations = {
     componentTypeTwin: 'Digital Twin Registry',
     componentTypeCatalog: 'Data Catalog',
     componentNameLabel: 'Component name',
-    componentNamePlaceholder: 'Submodel Service EU-1',
-    componentNamePlaceholderSubmodel: 'Submodel Service EU-1',
-    componentNamePlaceholderTwin: 'Digital Twin Registry EU-1',
+    componentNamePlaceholder: 'submodel-service-eu1',
+    componentNamePlaceholderSubmodel: 'submodel-service-eu1',
+    componentNamePlaceholderTwin: 'digital-twin-registry-eu1',
     linkedConnectorLabel: 'Link to EDC connector',
     linkedConnectorPlaceholder: 'Select a connector',
     componentHelp: 'Components are attached to an existing EDC connector so users understand the relationship.',
@@ -201,9 +205,9 @@ const translations = {
       'This BPNL was detected automatically from your login or dataspace information. You can still adjust it if needed.',
     versionLabel: 'Version',
     deploymentPreparationWelcome:
-      'Before you start, it helps to have the connector name, BPNL and technical endpoints ready.',
+      'Before you start, choose a valid connector name and review the generated hostname.',
     deploymentPreparationCredentials:
-      'Users usually get these values from the platform team, dataspace onboarding docs, Kubernetes or ingress configuration, or existing operations documentation.',
+      'BPNL and technical connector values are loaded automatically from the backend dataspace configuration.',
     deploymentPreparationExample:
       'Example: for an EDC connector, you will usually need the public API endpoint and the data plane address maintained by your infrastructure or DevOps team.',
     deploymentEndpointFollowup:
@@ -212,7 +216,7 @@ const translations = {
       'You are deploying only the EDC connector here. DTR or Submodel Services can be added afterwards as components or connected as existing services.',
     deploymentAutoConfigTitle: 'BPNL and endpoints are filled automatically.',
     deploymentAutoConfigDescription:
-      'The wizard reads the BPNL and EDC endpoint values directly from the backend dataspace configuration, so users only need to enter a connector name.',
+      'The wizard reads the BPNL and host settings directly from the backend dataspace configuration, so users only need a connector name and the generated hostname.',
     deployAndAddComponent: 'Deploy & add component',
     componentGuidanceChoose:
       'Choose the service type based on its job: Submodel Service for asset data or Digital Twin Registry for registration functions.',
@@ -243,8 +247,12 @@ const translations = {
       'Use the format BPNL followed by 12 letters or numbers.',
     validationInvalidConnectorName:
       'Use only lowercase letters, numbers and hyphens. The name must start and end with a letter or number.',
+    validationInvalidResourceName:
+      'Use {min} to {max} lowercase letters, numbers or hyphens, without spaces.',
     validationInvalidUrl:
       'Enter a valid URL starting with http:// or https://.',
+    connectorLimitReached:
+      'A maximum of {max} EDC connectors can be deployed.',
     connectorTypeDefault: 'EDC Connector',
     connectorAddComponentTooltip:
       'Add a new component or connect an existing service for this connector.',
@@ -482,7 +490,11 @@ const translations = {
     connectorNameLabel: 'Connector-Name',
     connectorNamePlaceholder: 'test-connector',
     connectorNameHelp:
-      'Verwenden Sie Kleinbuchstaben, Zahlen und Bindestriche, damit Ihr Team den Connector schnell erkennt.',
+      'Verwenden Sie 3 bis 20 Kleinbuchstaben, Zahlen oder Bindestriche, ohne Leerzeichen.',
+    hostnameLabel: 'Hostname',
+    hostnamePlaceholder: 'Wird automatisch aus dem Connector-Namen erzeugt',
+    hostnameHelp:
+      'Der Hostname wird automatisch aus dem Connector-Namen und dem Dataspace-Host-Suffix erzeugt.',
     connectorTypeLabel: 'Connectortyp',
     connectorTypeConsumer: 'Consumer',
     connectorTypeProvider: 'Provider',
@@ -503,9 +515,9 @@ const translations = {
     componentTypeTwin: 'Digital Twin Registry',
     componentTypeCatalog: 'Data Catalog',
     componentNameLabel: 'Komponentenname',
-    componentNamePlaceholder: 'Submodel Service EU-1',
-    componentNamePlaceholderSubmodel: 'Submodel Service EU-1',
-    componentNamePlaceholderTwin: 'Digital Twin Registry EU-1',
+    componentNamePlaceholder: 'submodel-service-eu1',
+    componentNamePlaceholderSubmodel: 'submodel-service-eu1',
+    componentNamePlaceholderTwin: 'digital-twin-registry-eu1',
     linkedConnectorLabel: 'Mit EDC Connector verknüpfen',
     linkedConnectorPlaceholder: 'Connector auswählen',
     componentHelp:
@@ -642,9 +654,9 @@ const translations = {
       'Diese BPNL wurde automatisch aus Ihrem Login oder den Dataspace-Informationen übernommen. Sie können sie bei Bedarf anpassen.',
     versionLabel: 'Version',
     deploymentPreparationWelcome:
-      'Bevor Sie starten: Halten Sie idealerweise den gewünschten Connector-Namen, die BPNL und die technischen Endpoints bereit.',
+      'Bevor Sie starten, wählen Sie einen gültigen Connector-Namen und prüfen Sie den erzeugten Hostnamen.',
     deploymentPreparationCredentials:
-      'Benötigte Informationen finden Sie oft bei Ihrem Plattform-Team, im Dataspace-Onboarding, in Kubernetes-/Ingress-Konfigurationen oder in bestehenden Betriebsdokumenten.',
+      'BPNL und technische Connector-Werte werden automatisch aus der Dataspace-Konfiguration des Backends geladen.',
     deploymentPreparationExample:
       'Beispiel: Für einen EDC Connector benötigen Sie meist die öffentliche API-Adresse und die Data-Plane-Adresse, die Ihr Infrastruktur- oder DevOps-Team bereitstellt.',
     deploymentEndpointFollowup:
@@ -653,7 +665,7 @@ const translations = {
       'Sie deployen hier nur den EDC Connector. DTR oder Submodel Services können Sie danach gezielt als Komponente hinzufügen oder mit bestehenden Services verbinden.',
     deploymentAutoConfigTitle: 'BPNL und Endpoints werden automatisch gesetzt.',
     deploymentAutoConfigDescription:
-      'Der Wizard liest die BPNL und die EDC-Endpunkte direkt aus der Dataspace-Konfiguration des Backends. Der Nutzer muss deshalb nur noch einen Connector-Namen angeben.',
+      'Der Wizard liest die BPNL und die Host-Einstellungen direkt aus der Dataspace-Konfiguration des Backends. Der Nutzer braucht deshalb nur den Connector-Namen und den erzeugten Hostnamen.',
     deployAndAddComponent: 'Deployen & Komponente hinzufügen',
     componentGuidanceChoose:
       'Wählen Sie den Service-Typ nach seiner Aufgabe: Submodel Service für Asset-Daten oder Digital Twin Registry für Registrierungsfunktionen.',
@@ -684,8 +696,12 @@ const translations = {
       'Verwenden Sie das Format BPNL gefolgt von 12 Buchstaben oder Ziffern.',
     validationInvalidConnectorName:
       'Verwenden Sie nur Kleinbuchstaben, Zahlen und Bindestriche. Der Name muss mit einem Buchstaben oder einer Zahl beginnen und enden.',
+    validationInvalidResourceName:
+      'Verwenden Sie {min} bis {max} Kleinbuchstaben, Zahlen oder Bindestriche, ohne Leerzeichen.',
     validationInvalidUrl:
       'Geben Sie eine gültige URL beginnend mit http:// oder https:// ein.',
+    connectorLimitReached:
+      'Es können maximal {max} EDC-Connectoren bereitgestellt werden.',
     connectorTypeDefault: 'EDC Connector',
     connectorAddComponentTooltip:
       'Neue Komponente hinzufügen oder einen bestehenden Service für diesen Connector verbinden.',
@@ -946,6 +962,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useI18n() {
   const context = useContext(I18nContext);
   if (!context) {

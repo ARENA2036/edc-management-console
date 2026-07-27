@@ -24,7 +24,7 @@ interface Props {
 
 export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
   const location = useLocation();
-  const { language, t } = useI18n();
+  const { t } = useI18n();
   const [appsOpen, setAppsOpen] = useState(true);
   const [helpOpen, setHelpOpen] = useState(true);
 
@@ -33,169 +33,77 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
       icon: Home,
       label: t('dashboard'),
       path: '/',
-      title: language === 'de' ? 'Dashboard öffnen' : 'Open dashboard',
-      content:
-        language === 'de'
-          ? 'Hier sehen Nutzer Kennzahlen, Connectoren, Komponenten und den schnellsten Einstieg zum Hinzufügen neuer Elemente.'
-          : 'This is the main workspace where users review status cards, connectors, components and the fastest path to create new items.',
-      footer:
-        language === 'de'
-          ? 'Starten Sie hier, wenn Sie den nächsten sinnvollen Schritt im System suchen.'
-          : 'Start here when you want the clearest overview of the system.',
+      title: t('dashboardTooltipTitle'),
+      content: t('dashboardTooltipContent'),
+      footer: t('dashboardTooltipFooter'),
     },
     {
       icon: Monitor,
       label: t('sidebarMonitor'),
       path: '/monitor',
-      title: language === 'de' ? 'Monitoring anzeigen' : 'Open monitoring',
-      content:
-        language === 'de'
-          ? 'Dieser Bereich ist für Zustände, Betriebsüberwachung und spätere Live-Sicht auf Integrationen gedacht.'
-          : 'This area is intended for operational visibility, health checks and live system tracking.',
-      footer:
-        language === 'de'
-          ? 'Hilfreich, wenn Sie nach dem Deployment Systemzustände prüfen möchten.'
-          : 'Useful after deployment when you want to verify that integrations remain healthy.',
+      title: t('monitorTooltipTitle'),
+      content: t('monitorTooltipContent'),
+      footer: t('monitorTooltipFooter'),
     },
   ];
 
-  const appItems =
-    language === 'de'
-      ? [
-          {
-            icon: ExternalLink,
-            label: 'SDE',
-            path: '/sde',
-            title: 'Simple Data Exchanger',
-            content:
-              'Öffnet die angebundene SDE-Anwendung. Nutzen Sie diesen Eintrag, wenn Sie nach der Einrichtung in den eigentlichen Datenaustausch wechseln möchten.',
-            footer:
-              'Falls nichts geöffnet wird, prüfen Sie zuerst die SDE-URL in den Datasource Settings.',
-          },
-          {
-            icon: PanelsTopLeft,
-            label: 'Portal',
-            path: '/portal',
-            title: 'Portal Einstieg',
-            content:
-              'Reservierter Einstiegspunkt für ein Portal oder eine fachliche Oberfläche rund um Ihren Dataspace.',
-            footer:
-              'Die Struktur ist bereits da und kann später mit einer echten Portal-Integration verbunden werden.',
-          },
-          {
-            icon: SquareTerminal,
-            label: 'Dataspace OS',
-            path: '/dataspace-os',
-            title: 'Dataspace OS',
-            content:
-              'Platzhalter für eine betriebsnahe oder plattformbezogene Anwendung im Dataspace-Kontext.',
-            footer:
-              'Nützlich, wenn Teams mehrere Werkzeuge aus derselben Navigation heraus erreichen sollen.',
-          },
-        ]
-      : [
-          {
-            icon: ExternalLink,
-            label: 'SDE',
-            path: '/sde',
-            title: 'Simple Data Exchanger',
-            content:
-              'Opens the connected SDE application when users want to continue from the console into an exchange workflow.',
-            footer:
-              'If this does not open, check the SDE URL in Datasource Settings first.',
-          },
-          {
-            icon: PanelsTopLeft,
-            label: 'Portal',
-            path: '/portal',
-            title: 'Portal entry',
-            content:
-              'Reserved navigation entry for a portal or broader business-facing application around the dataspace.',
-            footer:
-              'This can later point to a real portal without changing the navigation pattern.',
-          },
-          {
-            icon: SquareTerminal,
-            label: 'Dataspace OS',
-            path: '/dataspace-os',
-            title: 'Dataspace OS',
-            content:
-              'Placeholder entry for operations or platform-oriented workflows related to the dataspace environment.',
-            footer:
-              'Useful when teams need access to several companion applications from one console.',
-          },
-        ];
+  const appItems = [
+    {
+      icon: ExternalLink,
+      label: t('sdeNavLabel'),
+      path: '/sde',
+      title: t('sdeNavTitle'),
+      content: t('sdeNavContent'),
+      footer: t('sdeNavFooter'),
+    },
+    {
+      icon: PanelsTopLeft,
+      label: t('portalNavLabel'),
+      path: '/portal',
+      title: t('portalNavTitle'),
+      content: t('portalNavContent'),
+      footer: t('portalNavFooter'),
+    },
+    {
+      icon: SquareTerminal,
+      label: t('dataspaceOsNavLabel'),
+      path: '/dataspace-os',
+      title: t('dataspaceOsNavTitle'),
+      content: t('dataspaceOsNavContent'),
+      footer: t('dataspaceOsNavFooter'),
+    },
+  ];
 
-  const helpItems =
-    language === 'de'
-      ? [
-          {
-            icon: HelpCircle,
-            label: t('reopenGuideButton'),
-            action: onHelpClick,
-            title: 'Guide erneut öffnen',
-            content:
-              'Öffnet den Einführungs-Guide erneut, damit Nutzer jederzeit Schritt-für-Schritt-Hilfe bekommen können.',
-          },
-          {
-            icon: BookOpen,
-            label: 'Documentation',
-            href: 'https://github.com/eclipse-tractusx/edc-management-console',
-            title: 'Repository & Dokumentation',
-            content:
-              'Öffnet das Git-Repository der Anwendung mit README, Projektkontext und weiterführenden Informationen.',
-          },
-          {
-            icon: Bug,
-            label: 'Troubleshooting',
-            href: 'https://github.com/eclipse-tractusx/edc-management-console/issues',
-            title: 'Fehlerbehebung',
-            content:
-              'Öffnet die Issues des Repositories, um bekannte Probleme und Lösungswege nachzuschlagen.',
-          },
-          {
-            icon: HelpCircle,
-            label: 'Contact Support',
-            href: 'mailto:support@example.com',
-            title: 'Support kontaktieren',
-            content:
-              'Erstellt eine Support-Anfrage per E-Mail, wenn direkte Hilfe vom Team benötigt wird.',
-          },
-        ]
-      : [
-          {
-            icon: HelpCircle,
-            label: t('reopenGuideButton'),
-            action: onHelpClick,
-            title: 'Reopen the guide',
-            content:
-              'Opens the onboarding guide again so users can get step-by-step help whenever they need it.',
-          },
-          {
-            icon: BookOpen,
-            label: 'Documentation',
-            href: 'https://github.com/eclipse-tractusx/edc-management-console',
-            title: 'Repository & documentation',
-            content:
-              'Opens the application repository with the README, project context and supporting information.',
-          },
-          {
-            icon: Bug,
-            label: 'Troubleshooting',
-            href: 'https://github.com/eclipse-tractusx/edc-management-console/issues',
-            title: 'Troubleshooting',
-            content:
-              'Opens the repository issues page to review known problems and possible fixes.',
-          },
-          {
-            icon: HelpCircle,
-            label: 'Contact Support',
-            href: 'mailto:support@example.com',
-            title: 'Contact support',
-            content:
-              'Starts an email support request when the user needs direct help from the responsible team.',
-          },
-        ];
+  const helpItems = [
+    {
+      icon: HelpCircle,
+      label: t('reopenGuideButton'),
+      action: onHelpClick,
+      title: t('guideReopenTitle'),
+      content: t('guideReopenContent'),
+    },
+    {
+      icon: BookOpen,
+      label: t('documentationLabel'),
+      href: 'https://github.com/eclipse-tractusx/edc-management-console',
+      title: t('documentationTitle'),
+      content: t('documentationContent'),
+    },
+    {
+      icon: Bug,
+      label: t('troubleshootingLabel'),
+      href: 'https://github.com/eclipse-tractusx/edc-management-console/issues',
+      title: t('troubleshootingTitle'),
+      content: t('troubleshootingContent'),
+    },
+    {
+      icon: HelpCircle,
+      label: t('contactSupportLabel'),
+      href: 'mailto:support@example.com',
+      title: t('contactSupportTitle'),
+      content: t('contactSupportContent'),
+    },
+  ];
 
   return (
     <>
@@ -373,12 +281,9 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
 
         <div className="border-t border-gray-200 p-4 dark:border-slate-800">
           <Tooltip
-            title={language === 'de' ? 'Datasource Settings' : 'Datasource Settings'}
-            content={
-              language === 'de'
-                ? 'Hier finden Sie synchronisierte Dataspace- und Plattforminformationen, die oft als Referenz für URLs, Umgebungen und Systemwerte dienen.'
-                : 'This page shows synchronized dataspace and platform information that often serves as a reference for URLs, environments and system values.'
-            }
+            title={t('settingsTooltipTitle')}
+            content={t('settingsTooltipContent')}
+            footer={t('settingsTooltipFooter')}
             position="right"
             fullWidth
           >
@@ -395,7 +300,7 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
               <div className="flex flex-col">
                 <span className="font-medium">{t('datasourceSettings')}</span>
                 <span className="text-xs text-orange-600/80 dark:text-slate-400">
-                  {language === 'de' ? 'Nur anzeigen, nicht bearbeiten' : 'View only'}
+                  {t('viewOnly')}
                 </span>
               </div>
             </Link>
