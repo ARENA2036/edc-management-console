@@ -411,15 +411,20 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
     try {
       await connectorApi.create({
-        name: connector.name,
-        url: connector.url,
-        bpn: connector.bpn,
-        version: connector.version,
-        db_username: connector.db_username,
-        db_password: connector.db_password,
-        registry: connector.registry,
-        submodel: connector.submodel,
-        config: connector.config,
+        components: [
+          {
+            type: 'connector',
+            name: connector.name,
+            url: connector.url,
+            bpn: connector.bpn,
+            version: connector.version ?? '0.11.0',
+            db_name: `${connector.name}-db`,
+            auth: {
+              db_username: connector.db_username || `${connector.name}-username`,
+              db_password: connector.db_password || `${connector.name}-password`,
+            },
+          },
+        ],
       });
     } catch (error) {
       console.error('Failed to deploy connector:', error);
@@ -487,8 +492,10 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     });
   };
 
-  const handleDeleteComponent = (componentId: string) => {
-    const updatedComponents = components.filter((component) => component.id !== componentId);
+  const handleDeleteComponent = (componentToDelete: ManagedComponent) => {
+    const updatedComponents = components.filter(
+      (component) => component.id !== componentToDelete.id,
+    );
     setComponents(updatedComponents);
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
   };

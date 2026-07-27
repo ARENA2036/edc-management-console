@@ -69,6 +69,10 @@ function getComponentTypeDescription(type: ComponentType, t: Translate) {
     : t('componentTypeSubmodelDescription');
 }
 
+function toManagedComponentType(type: ComponentType): ManagedComponent['type'] {
+  return type === 'Digital Twin Registry' ? 'digitalTwinRegistry' : 'submodelServer';
+}
+
 function createEmptyDraft(): ComponentDraft {
   return {
     name: '',
@@ -253,10 +257,11 @@ export default function ComponentWizard({
 
     for (const type of selectedComponentTypes) {
       const draft = getDraft(type);
+      const normalizedName = normalizeResourceName(draft.name);
       const component: ManagedComponent = {
         id: `comp-${type}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        name: normalizeResourceName(draft.name),
-        type,
+        name: normalizedName,
+        type: toManagedComponentType(type),
         version: '1.0.0',
         status: 'Active',
         linkedConnector,
@@ -266,6 +271,14 @@ export default function ComponentWizard({
           draft.connectionMode === 'existing' ? draft.existingEndpoint.trim() : undefined,
         credentials:
           draft.connectionMode === 'existing' ? draft.existingCredentials.trim() : undefined,
+        db_name: `${normalizedName}-db`,
+        auth: {
+          db_username: `${normalizedName}-user`,
+          db_password:
+            draft.connectionMode === 'existing'
+              ? draft.existingCredentials.trim()
+              : `${normalizedName}-password`,
+        },
       };
 
       await Promise.resolve(onDeploy(component));

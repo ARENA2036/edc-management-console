@@ -8,6 +8,7 @@ declare global {
       realm?: string;
       clientId?: string;
       sdeUrl?: string;
+      disableAuth?: boolean;
     };
   }
 }
@@ -34,6 +35,44 @@ export function getRuntimeConfigValue(
 
   if (isUsableValue(runtimeValue)) {
     return runtimeValue as string;
+  }
+
+  return fallback;
+}
+
+function parseBoolean(value: boolean | string | undefined) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return undefined;
+}
+
+export function getRuntimeConfigBoolean(
+  envValue: string | undefined,
+  runtimeValue: boolean | string | undefined,
+  fallback = false,
+) {
+  const envBoolean = parseBoolean(envValue);
+  if (envBoolean !== undefined) {
+    return envBoolean;
+  }
+
+  const runtimeBoolean = parseBoolean(runtimeValue);
+  if (runtimeBoolean !== undefined) {
+    return runtimeBoolean;
   }
 
   return fallback;
