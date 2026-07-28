@@ -95,8 +95,9 @@ jobs:
       # - backend-dependencies
       # - frontend-dependencies
     uses: ./.github/workflows/emc-build.yaml
+    with:
+      image_tag: ${{ inputs.image_tag }}
     secrets: inherit
-
   # ------------------------------------------------------------
   # Trivy scans the exact image tag selected above.
   # ------------------------------------------------------------

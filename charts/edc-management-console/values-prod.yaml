@@ -145,7 +145,6 @@ backend:
           context: "k8s-ap6-01"
           namespace: "edc-management-console"
 
-
       externalApps:
         sde:
           url: https://sde.prod.arena2036-x.de
@@ -154,7 +153,6 @@ backend:
           providerEDC:  https://dataprovider-edc-controlplane.prod.arena2036-x.de
           consumerEDC: https://dataconsumer-controlplane.prod.arena2036-x.de
           registryUrl: https://dtr.prod.arena2036-x.de/semantics/registry
-
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any

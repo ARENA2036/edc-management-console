@@ -655,7 +655,7 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# By default we're disabling observability
+# Observability stack (Grafana/Prometheus/Loki)
 grafana:
   enabled: true
   ingress:
