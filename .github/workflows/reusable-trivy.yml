@@ -28,8 +28,21 @@ on:
   # schedule:
     # Once a day
     # - cron: "0 0 * * 0"
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Docker image tag to scan"
+        required: false
+        type: string
+        default: ""
+
   workflow_dispatch:
-  # Trigger manually
+    inputs:
+      image_tag:
+        description: "Optional Docker image tag to scan"
+        required: false
+        default: ""
+        type: string
 
 env:
   IMAGE_NAMESPACE: harbor-hub-shared.arena.3ascloud.de/arena2036
@@ -54,7 +67,7 @@ jobs:
       severity: "CRITICAL,HIGH"
 
   trivy-images:
-    name: Trivy Image Scan
+    name: Scan ${{ matrix.image }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -72,6 +85,20 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+    
+      - name: Determine image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            IMAGE_TAG="${{ inputs.image_tag }}"
+          else
+            IMAGE_TAG="${{ github.sha }}"
+          fi
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Scanning image tag: $IMAGE_TAG"
 
       - name: Docker Login
         uses: docker/login-action@v3
@@ -83,7 +110,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (docker image)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: "${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:latest"
+          image-ref: "${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ env.IMAGE_TAG }}"
           format: "sarif"
           output: "trivy-results-${{ matrix.image }}.sarif"
           vuln-type: "os,library"

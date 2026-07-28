@@ -29,6 +29,9 @@ on:
     branches:
       - main
       - develop
+      
+  workflow_call:
+
 jobs:
   release:
     # depending on default permission settings for your org (contents being read-only or read-write for workloads), you will have to add permissions
@@ -40,7 +43,7 @@ jobs:
     steps:
       # fetch-depth: 0 is required to determine differences in chart(s)
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@c915c33a16f01166c17c4e35fe1d4085a2d71adb # v4.4.0
         with:
           fetch-depth: 0
 
@@ -59,3 +62,5 @@ jobs:
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           CR_SKIP_EXISTING: "true"
+        with:
+          charts_dir: charts

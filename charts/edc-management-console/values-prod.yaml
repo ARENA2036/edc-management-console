@@ -14,12 +14,12 @@ fullnameOverride: "emc"
 
 backend:
   enabled: true
-  name: "emc-backend-1"
+  name: "emc-backend"
   replicaCount: 1
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "latest-txcd"
+    tag: "latest"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -72,17 +72,17 @@ backend:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-int
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     hosts:
-      - host: &hostname "emc-backend-1.txcd.arena2036.app"
+      - host: &hostname "emc-backend.prod.arena2036-x.de"
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: emc-backend-1-tls
+      - secretName: emc-backend-tls
         hosts:
           - *hostname
 
@@ -97,7 +97,7 @@ backend:
     yml: |-
       appConfig:
         name: "ARENA2036 EDC Management Console"
-        client_id: "EMC-1"
+        client_id: "A36-EMC"
         version: "1.0.0"
         port: 5000
         host: "0.0.0.0"
@@ -116,21 +116,21 @@ backend:
         name: "ARENA2036-X"
         authority_id: "BPNL00000003CRHK"
         centralidp:
-          url: "https://centralidp.txcd.arena2036-x.de/auth/"
+          url: "https://centralidp.prod.arena2036-x.de/auth/"
           realm: "CX-Central"
           client_id: "${CENTRALIDP_CLIENT_ID}"
           client_secret: "${CENTRALIDP_CLIENT_SECRET}"
         ssi_wallet:
-          url: "https://ssi-dim-wallet-stub.txcd.arena2036-x.de"
+          url: "https://ssi-dim-wallet-stub.prod.arena2036-x.de"
           client_id: "${SSI_WALLET_CLIENT_ID}"
           client_secret: "${SSI_WALLET_CLIENT_SECRET}"
         portal:
-          url: "https://portal.txcd.arena2036-x.de"
+          url: "https://portal.prod.arena2036-x.de"
           client_id: "${PORTAL_CLIENT_ID}"
           client_secret: "${PORTAL_CLIENT_SECRET}"
         discovery:
           semantics:
-            url: "https://semantics.txcd.arena2036-x.de"
+            url: "https://semantics.prod.arena2036-x.de"
           discoveryFinder:
             endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
             keys:
@@ -145,22 +145,20 @@ backend:
           context: "k8s-ap6-01"
           namespace: "edc-management-console"
 
-
       externalApps:
         sde:
-          url: https://sde-1.services.construct-x.net
-          client_id: "SDE-1"
-          manufacturerId: BPNL000000000065
-          providerEDC:  https://connector-1-controlplane.services.construct-x.net
-          consumerEDC: https://connector-2-controlplane.services.construct-x.net
-          registryUrl: https://connector-1-dtr.services.construct-x.net/semantics/registry
-
+          url: https://sde.prod.arena2036-x.de
+          client_id: "CX-SDE"
+          manufacturerId: BPNLA360COMPANY1
+          providerEDC:  https://dataprovider-edc-controlplane.prod.arena2036-x.de
+          consumerEDC: https://dataconsumer-controlplane.prod.arena2036-x.de
+          registryUrl: https://dtr.prod.arena2036-x.de/semantics/registry
 
       # Dataspace/EDC query config + the inputs to the deployment derivation context
       # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
       # component's chart + subchart dependencies can be resolved.
       connector:
-        default_url: "https://connector-1-controlplane.services.construct-x.net"
+        default_url: "https://dataconsumer-controlplane.prod.arena2036-x.de"
         # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
         didMethod: "did:web"
         helmRepositories:
@@ -182,8 +180,8 @@ backend:
           transfer_edr: "/dataaddress?auto_refresh=true"
           dsp: "/api/v1/dsp"
         hostname:
-          controlplane: controlplane.txcd.arena2036.app
-          dataplane: dataplane.txcd.arena2036.app
+          controlplane: controlplane.prod.arena2036-x.de
+          dataplane: dataplane.prod.arena2036-x.de
         # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
         sts:
           dimEndpoint: "/api/sts"
@@ -283,11 +281,11 @@ backend:
             - path: controlplane.ingresses[0].annotations
               from: controlplane_annotations
             - path: controlplane.ingresses[0].tls.enabled
-              value: true
+              value: false
             - path: controlplane.ingresses[0].tls.secretName
               template: "{name}-cp-tls"
             - path: dataplane.ingresses[0].enabled
-              value: true
+              value: false
             - path: dataplane.ingresses[0].hostname
               from: dp_hostname
             - path: dataplane.ingresses[0].certManager.clusterIssuer
@@ -297,7 +295,7 @@ backend:
             - path: dataplane.ingresses[0].annotations
               from: dataplane_annotations
             - path: dataplane.ingresses[0].tls.enabled
-              value: true
+              value: false
             - path: dataplane.ingresses[0].tls.secretName
               template: "{name}-dp-tls"
             - path: dataplane.token.signer.privatekey_alias
@@ -348,7 +346,7 @@ backend:
             - path: ingress.enabled           # chart default is false
               value: true
             - path: ingress.className
-              value: 'nginx'
+              value: ''
             - path: ingress.annotations
               from: annotations
             - path: ingress.hosts[0].host
@@ -480,7 +478,7 @@ backend:
   envFrom: []
   env:
     - name: CLUSTER_SECRET
-      value: "cluster-int"
+      value: "cluster-prod"
     - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
     - name: VAULT_TOKEN
@@ -492,7 +490,7 @@ backend:
   ## Additional volumes on the output Deployment definition.
   volumes:
     # -- persist the backend configuration
-    - name: emc-backend-1-config
+    - name: emc-backend-config
       configMap:
         name: "{{ .Release.Name }}-backend-config"
     # -- per-version upstream tractusx-connector default values.yaml (render templates)
@@ -512,17 +510,17 @@ backend:
       configMap:
         name: "{{ .Release.Name }}-dtr-values-0-12-0"
     # -- persist the backend data directories
-    - name: pvc-emc-backend-1
+    - name: pvc-emc-backend
       persistentVolumeClaim:
         claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
     # -- temporary file system mount
-    - name: tmpfs-1
+    - name: tmpfs
       emptyDir: {}
 
   ## Volume mounts for the backend deployment.
   volumeMounts:
     # -- mounted path for the backend configuration added in the config maps
-    - name: emc-backend-1-config
+    - name: emc-backend-config
       mountPath: /backend/config/configuration.yml
       subPath: configuration.yml
     # -- mounted per-version upstream connector value templates.
@@ -545,55 +543,53 @@ backend:
       mountPath: /backend/config/registry-templates/values-0.12.0.yaml
       subPath: values.yaml
     # -- contains the location for the process data directory
-    - name: pvc-emc-backend-1
+    - name: pvc-emc-backend
       mountPath: /backend/data
       subPath: data
     # -- contains the log directory used by the backend
-    - name: tmpfs-1
+    - name: tmpfs
       mountPath: /backend/logs
       subPath: logs
 
 frontend:
   enabled: true
-  name: "emc-frontend-1"
+  name: "emc-frontend"
   replicaCount: 1
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "02-07-2026-emc01"
+    tag: "latest"
   imagePullSecrets:
     - name: registry-creds
 
-
-
   env:
     - name: VITE_BACKEND_URL
-      value: https://emc-backend-1.txcd.arena2036.app
+      value: https://emc-backend.prod.arena2036-x.de
     - name: VITE_API_KEY
       value: emc-api-key
     - name: VITE_EDC_HOSTNAME
-      value: txcd.arena2036.app
+      value: prod.arena2036-x.de
     - name: VITE_KEYCLOAK_URL
-      value: https://centralidp.txcd.arena2036-x.de/auth/
+      value: https://centralidp.prod.arena2036-x.de/auth/
     - name: VITE_KEYCLOAK_REALM
       value: "CX-Central"
     - name: VITE_KEYCLOAK_CLIENT_ID
-      value: EMC-1
+      value: A36-EMC
     - name: VITE_SDE_URL
-      value: https://sde-1.services.construct-x.net
+      value: https://sde.prod.arena2036-x.de
     - name: VITE_PORTAL_URL
-      value: https://portal.txcd.arena2036-x.de
+      value: https://portal.prod.arena2036-x.de
 
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
-    apiUrl: https://emc-backend-1.txcd.arena2036.app,
+    apiUrl: https://emc-backend.prod.arena2036-x.de,
     apiKey: emc-api-key,
     edcHost: arena2036-x.de,
-    keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
+    keycloakUrl: https://centralidp.prod.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: EMC-1,
-    sdeUrl: https://sde-1.services.construct-x.net,
-    portalUrl: https://portal.txcd.arena2036-x.de
+    clientId: A36-EMC,
+    sdeUrl: https://sde.prod.arena2036-x.de,
+    portalUrl: https://portal.prod.arena2036-x.de
     };
 
   service:
@@ -603,28 +599,28 @@ frontend:
     enabled: true
     ingressClassName: "nginx"
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-int
+      cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
       nginx.ingress.kubernetes.io/ssl-passthrough: "false"
       nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
       nginx.ingress.kubernetes.io/service-upstream: "true"
     hosts:
-      - host: &fehostname "emc-1.txcd.arena2036.app"
+      - host: &fehostname "emc.prod.arena2036-x.de"
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: emc-frontend-1-tls
+      - secretName: emc-frontend-tls
         hosts:
           - *fehostname
 
   resources: {}
   volumes:
-    - name: emc-frontend-1-config
+    - name: emc-frontend-config
       configMap:
         name: "{{ .Release.Name }}-frontend-config"
   volumeMounts:
-    - name: emc-frontend-1-config
+    - name: emc-frontend-config
       mountPath: /frontend/.env
       subPath: .env
   autoscaling:
@@ -637,7 +633,7 @@ serviceAccount:
   create: true
   automount: true
   annotations: {}
-  name: "emc-1"
+  name: ""
 
 podAnnotations: {}
 podLabels: {}
@@ -656,3 +652,133 @@ readinessProbe:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# By default we're disabling observability
+grafana:
+  enabled: true
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    hosts:
+      - grafana.prod.arena2036-x.de
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: emc-grafana-prod-tls
+        hosts:
+          - grafana.prod.arena2036-x.de
+
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: edc-management-console
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          uid: prometheus
+          type: prometheus
+          access: proxy
+          url: http://emc-prometheus-server
+          isDefault: true
+          editable: false
+
+        - name: Loki
+          uid: loki
+          type: loki
+          access: proxy
+          url: http://emc-loki-gateway
+          editable: false
+
+# Prometheus
+prometheus:
+  enabled: true
+  # Not required for a small prod environment.
+  alertmanager:
+    enabled: false
+  # Keep this enabled because your dashboard uses kube_* metrics.
+  kube-state-metrics:
+    enabled: true
+  # Creates one pod on every Kubernetes node when enabled.
+  prometheus-node-exporter:
+    enabled: false
+  # Not required unless applications explicitly push metrics.
+  prometheus-pushgateway:
+    enabled: false
+
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+
+# Loki
+loki:
+  enabled: true
+  deploymentMode: SingleBinary
+
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+      path_prefix: /var/loki
+    storage:
+      type: filesystem
+      bucketNames:
+        chunks: chunks
+        ruler: ruler
+        admin: admin
+
+    useTestSchema: true
+
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+      retention_period: 168h
+
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  backend:
+    replicas: 0
+
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+
+  gateway:
+    enabled: true
+
+  lokiCanary:
+    enabled: false
+
+  # Required when lokiCanary is disabled.
+  test:
+    enabled: false
+
+# Disabled components
+opentelemetry-collector:
+  enabled: false
+jaeger:
+  enabled: false

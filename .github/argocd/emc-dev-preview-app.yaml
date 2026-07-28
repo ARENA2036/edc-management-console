@@ -1,0 +1,147 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: REPLACE_PREVIEW_NAME
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: emc
+    app.kubernetes.io/component: developer-preview
+    app.kubernetes.io/managed-by: github-actions
+
+  annotations:
+    preview.emc/branch: REPLACE_BRANCH_NAME
+
+spec:
+  project: edc-management-console
+
+  source:
+    repoURL: https://github.com/ARENA2036/edc-management-console.git
+    targetRevision: REPLACE_BRANCH_NAME
+    path: charts/edc-management-console
+
+    helm:
+      releaseName: REPLACE_PREVIEW_NAME
+
+      valueFiles:
+        - values-dev.yaml
+
+      # Preview-specific structured overrides.
+      # values-dev.yaml stays unchanged.
+      valuesObject:
+        grafana:
+          datasources:
+            datasources.yaml:
+              apiVersion: 1
+              datasources:
+                - name: Prometheus
+                  uid: prometheus
+                  type: prometheus
+                  access: proxy
+                  url: http://REPLACE_PREVIEW_NAME-prometheus-server
+                  isDefault: true
+                  editable: false
+
+                - name: Loki
+                  uid: loki
+                  type: loki
+                  access: proxy
+                  url: http://REPLACE_PREVIEW_NAME-loki-gateway
+                  editable: false
+
+      parameters:
+        # Unique resource names
+        - name: fullnameOverride
+          value: REPLACE_PREVIEW_NAME
+          forceString: true
+
+        # Docker image tags
+        - name: backend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
+        - name: frontend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
+        # Backend ingress
+        - name: backend.ingress.enabled
+          value: "true"
+
+        - name: backend.ingress.hosts[0].host
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingress.tls[0].hosts[0]
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-backend-tls
+          forceString: true
+
+        # Frontend ingress
+        - name: frontend.ingress.enabled
+          value: "true"
+
+        - name: frontend.ingress.hosts[0].host
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].hosts[0]
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-frontend-tls
+          forceString: true
+
+        # Grafana
+        - name: grafana.enabled
+          value: "true"
+
+        - name: grafana.ingress.enabled
+          value: "true"
+
+        - name: grafana.ingress.hosts[0]
+          value: REPLACE_GRAFANA_HOST
+          forceString: true
+
+        - name: grafana.ingress.tls[0].hosts[0]
+          value: REPLACE_GRAFANA_HOST
+          forceString: true
+
+        - name: grafana.ingress.tls[0].secretName
+          value: REPLACE_PREVIEW_NAME-grafana-tls
+          forceString: true
+
+        - name: grafana.sidecar.dashboards.enabled
+          value: "true"
+
+        - name: grafana.sidecar.dashboards.searchNamespace
+          value: REPLACE_NAMESPACE
+          forceString: true
+
+        # Observability
+        - name: prometheus.enabled
+          value: "true"
+
+        - name: loki.enabled
+          value: "true"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: REPLACE_NAMESPACE
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3

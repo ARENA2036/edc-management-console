@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: emc-staging
+  namespace: argocd
+
+spec:
+  project: edc-management-console
+
+  source:
+    repoURL: https://github.com/ARENA2036/edc-management-console.git
+    targetRevision: develop
+    path: charts/edc-management-console
+    helm:
+      releaseName: emc
+      valueFiles:
+        - values-staging.yaml
+        
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edc-management-console
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
