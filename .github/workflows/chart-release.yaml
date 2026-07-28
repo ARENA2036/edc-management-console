@@ -43,7 +43,7 @@ jobs:
     steps:
       # fetch-depth: 0 is required to determine differences in chart(s)
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@c915c33a16f01166c17c4e35fe1d4085a2d71adb # v4.4.0
         with:
           fetch-depth: 0
 

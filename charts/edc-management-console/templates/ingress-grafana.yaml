@@ -5,6 +5,10 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-grafana
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.grafana.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 
 spec:
   ingressClassName: {{ .Values.grafana.ingress.ingressClassName | default "nginx" | quote }}
@@ -20,4 +24,9 @@ spec:
                 name: {{ .Release.Name }}-grafana
                 port:
                   number: 80
+
+  {{- with .Values.grafana.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
