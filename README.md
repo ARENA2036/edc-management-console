@@ -71,16 +71,17 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ### Connectors
 - `GET /api/connectors` - List all connectors
-- `POST /api/connectors` - Create connector
+- `POST /api/connector` - Create connector
 - `GET /api/connectors/{id}` - Get connector
 - `PUT /api/connectors/{id}` - Update connector
-- `DELETE /api/connectors/{id}` - Delete connector
-- `GET /api/connectors/{id}/health` - Check health
+- `DELETE /api/connectors/{connector_name}` - Delete connector
+- `GET /api/connectors/health` - Check connectors health
 
 ### System
-- `GET /api/health` - System health
-- `GET /api/edc/health` - Default EDC health
-- `GET /api/activity-logs` - Activity logs
+- `GET /health` - Backend health
+- `GET /api/config` - Application configuration
+- `GET /api/dataspace` - Dataspace settings
+- `GET /api/logs` - Activity logs, when enabled by the backend
 
 ### EDC Operations
 - `POST /api/data/get` - EDC GET request with policies
