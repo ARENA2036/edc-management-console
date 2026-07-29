@@ -65,12 +65,15 @@ export default function DetailsModal({ connector, onClose }: Props) {
           <div className="border-b border-gray-200 pb-4 dark:border-slate-800">
             <label className="block text-sm font-medium text-gray-500">Status</label>
             <p
-              className={`text-lg font-semibold ${connector.status === 'healthy' || connector.status === 'unhealthy'
+              className={`text-lg font-semibold ${
+                connector.status === 'healthy' || connector.status === 'active'
                   ? 'text-emerald-600 dark:text-emerald-400'
+                  : connector.status === 'unhealthy' || connector.status === 'unreachable'
+                  ? 'text-red-600 dark:text-red-400'
                   : 'text-gray-600 dark:text-slate-300'
-                }`}
+              }`}
             >
-              {connector.status === 'unhealthy' ? 'Active' : connector.status}
+              {connector.status}
             </p>
           </div>
         </div>

@@ -190,7 +190,11 @@ export default function ComponentWizard({
         type: componentType.type,
         name: name.trim(),
         version: componentType.defaultVersion,
-        status: "Deploying",
+        // 'existing' mode just registers an already-running service - nothing
+        // is actually being installed, so it shouldn't get stuck showing
+        // "Deploying" forever (there's no backend row for it whose health
+        // check would ever move it to Active).
+        status: connectionMode === "existing" ? "Active" : "Deploying",
         linkedConnector,
         deployedAt: new Date().toISOString(),
 
@@ -408,7 +412,44 @@ export default function ComponentWizard({
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                       {language === 'de' ? 'Service-Modus' : 'Service mode'}
                     </label>
-                    
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setConnectionMode('new')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                          connectionMode === 'new'
+                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
+                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
+                          {language === 'de' ? 'Neu deployen' : 'Deploy new'}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                          {language === 'de'
+                            ? 'Der Service wird als neue Komponente im Dashboard erfasst.'
+                            : 'Register the service as a new component in the dashboard.'}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConnectionMode('existing')}
+                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
+                          connectionMode === 'existing'
+                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
+                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
+                          {language === 'de' ? 'Bestehenden Service verbinden' : 'Connect existing'}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                          {language === 'de'
+                            ? 'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service.'
+                            : 'Use an already running DTR or submodel service.'}
+                        </p>
+                      </button>
+                    </div>
                   </div>
 
                   {connectionMode === 'existing' && (

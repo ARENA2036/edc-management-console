@@ -91,6 +91,5 @@ export default function AddComponentDialog({
         </div>
       </div>
     </div>
-
   );
 }

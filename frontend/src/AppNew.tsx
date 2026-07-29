@@ -208,9 +208,8 @@ function mergeManagedComponents(
 
   for (const component of apiComponents) {
     const key = getManagedComponentIdentity(component);
-    if (!merged.has(key)) {
-      merged.set(key, component);
-    }
+    const existing = merged.get(key);
+    merged.set(key, existing ? { ...existing, ...component } : component);
   }
 
   return Array.from(merged.values());
@@ -277,13 +276,20 @@ function inferLinkedConnector(
   return '';
 }
 
+function mapComponentStatus(rawStatus?: string): ManagedComponent['status'] {
+  const normalized = rawStatus?.toLowerCase();
+  if (normalized === 'deploying') return 'Deploying';
+  if (normalized === 'active' || normalized === 'healthy') return 'Active';
+  return 'Inactive';
+}
+
 /** Build a ManagedComponent from an API component row (submodel/DTR). */
 function apiRowToManagedComponent(
   row: DashboardConnector,
   type: 'digitalTwinRegistry' | 'submodelServer',
   linkedConnector: string,
 ): ManagedComponent {
-  const status = row.status?.toLowerCase() === 'deploying' ? 'Deploying' : 'Active';
+  const status = mapComponentStatus(row.status);
   return {
     id: `${type}-${row.name}-api`,
     type,

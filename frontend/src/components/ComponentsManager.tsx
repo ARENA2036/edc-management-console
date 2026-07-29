@@ -5,21 +5,23 @@ import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
 
 function ComponentStatusBadge({ status }: { status: string }) {
-  if (status === 'Active' || status === 'active' || status === 'healthy') {
+  const normalized = status?.toLowerCase();
+
+  if (normalized === 'active' || normalized === 'healthy') {
     return (
       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
         Active
       </span>
     );
   }
-  if (status === 'Deploying' || status === 'deploying') {
+  if (normalized === 'deploying') {
     return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Active
+      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Deploying
       </span>
     );
   }
-  if (status === 'Inactive' || status === 'inactive') {
+  if (normalized === 'inactive') {
     return (
       <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
         Inactive

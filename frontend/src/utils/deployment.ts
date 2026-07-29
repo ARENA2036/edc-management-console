@@ -4,8 +4,35 @@ import type {
   DashboardConnector,
   ManagedComponent,
 } from '../types';
+import { getRuntimeConfigValue } from '../runtime-config';
 
 export type ComponentKind = 'connector' | 'digitalTwinRegistry' | 'submodelServer';
+
+const edcHost = getRuntimeConfigValue(
+  import.meta.env.VITE_EDC_HOST,
+  window.__RUNTIME_CONFIG__?.edcHost,
+  'txcd.arena2036-x.de',
+);
+const urlScheme = getRuntimeConfigValue(
+  import.meta.env.VITE_URL_SCHEME,
+  window.__RUNTIME_CONFIG__?.urlScheme,
+  'https',
+);
+
+export function buildConnectorEndpoints(name: string): {
+  apiEndpoint: string;
+  dataPlaneUrl: string;
+} {
+  const trimmedName = trimOrEmpty(name);
+  if (!trimmedName) {
+    return { apiEndpoint: '', dataPlaneUrl: '' };
+  }
+
+  return {
+    apiEndpoint: `${urlScheme}://${trimmedName}-controlplane.${edcHost}`,
+    dataPlaneUrl: `${urlScheme}://${trimmedName}-dataplane.${edcHost}`,
+  };
+}
 
 export interface ComponentDraft {
   enabled: boolean;
@@ -65,14 +92,15 @@ export function buildComponentPayload(
 }
 
 export function buildDeployRequest(draft: DeploymentDraft): DeployRequest {
+  const connectorName = trimOrEmpty(draft.connector.name);
   const components: DeployComponent[] = [
     buildComponentPayload('connector', {
-      name: draft.connector.name,
+      name: connectorName,
       version: draft.connector.version,
       url: draft.connector.url,
-      dbName: `${draft.connector.name}-db`,
-      username: `${draft.connector.name}-username`,
-      password: `${draft.connector.name}-password`,
+      dbName: `${connectorName}-db`,
+      username: `${connectorName}-username`,
+      password: `${connectorName}-password`,
       bpn: draft.connector.bpn,
     }),
   ];

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import {
+  buildConnectorEndpoints,
   getDefaultComponentDraft,
   type ComponentDraft,
   type DeploymentDraft,
@@ -167,8 +168,19 @@ export default function DeploymentWizard({
     setName(connectorName);
     setBpn(initialConnector?.bpn || '');
     setVersion((initialConnector?.version as (typeof connectorVersions)[number]) || connectorVersions[0]);
-    setApiEndpoint(initialConnector?.url || '');
-    setDataPlaneUrl((initialConnector?.config as { dataPlaneUrl?: string } | undefined)?.dataPlaneUrl || initialConnector?.dp_hostname || '');
+
+    if (initialConnector) {
+      setApiEndpoint(initialConnector.url || '');
+      setDataPlaneUrl(
+        (initialConnector.config as { dataPlaneUrl?: string } | undefined)?.dataPlaneUrl ||
+          initialConnector.dp_hostname ||
+          '',
+      );
+    } else {
+      const endpoints = buildConnectorEndpoints(connectorName);
+      setApiEndpoint(endpoints.apiEndpoint);
+      setDataPlaneUrl(endpoints.dataPlaneUrl);
+    }
     setSubmodelDraft(
       prepareDraftForInput(
         toDraft(connectorName, 'submodelServer', initialSubmodel),
@@ -184,6 +196,16 @@ export default function DeploymentWizard({
     setStep(1);
     setRemoveConfirm(null);
   }, [initialConnector, initialDtr, initialSubmodel, open, prefilledBpn]);
+
+  useEffect(() => {
+    if (!open || initialConnector) {
+      return;
+    }
+
+    const endpoints = buildConnectorEndpoints(name);
+    setApiEndpoint(endpoints.apiEndpoint);
+    setDataPlaneUrl(endpoints.dataPlaneUrl);
+  }, [name, open, initialConnector]);
 
   const resetState = () => {
     setStep(1);
@@ -377,32 +399,11 @@ export default function DeploymentWizard({
                       />
                     </div>
                   </div>
-                  {/* <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                        {t('apiEndpointLabel')}
-                      </label>
-                      <input
-                        type="url"
-                        value={apiEndpoint}
-                        onChange={(event) => setApiEndpoint(event.target.value)}
-                        placeholder={t('apiEndpointPlaceholder')}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                        {t('dataPlaneLabel')}
-                      </label>
-                      <input
-                        type="url"
-                        value={dataPlaneUrl}
-                        onChange={(event) => setDataPlaneUrl(event.target.value)}
-                        placeholder={t('dataPlanePlaceholder')}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-orange-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                      />
-                    </div>
-                  </div> */}
+                  {/*
+                    API endpoint / data plane URL are derived automatically
+                    from the connector name (see buildConnectorEndpoints in
+                    utils/deployment.ts) - the user never enters them.
+                  */}
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                       {language === 'de' ? 'Version' : 'Version'}

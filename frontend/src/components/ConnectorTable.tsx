@@ -68,12 +68,16 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      connector.status === 'deployed' || connector.status === 'unhealthy'
+                      connector.status === 'deployed' ||
+                      connector.status === 'active' ||
+                      connector.status === 'healthy'
                         ? 'bg-green-100 text-green-800'
+                        : connector.status === 'unhealthy' || connector.status === 'unreachable'
+                        ? 'bg-red-100 text-red-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {connector.status === 'unhealthy' ? 'Active' : connector.status}
+                    {connector.status}
                   </span>
                 </td>
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-gray-500">

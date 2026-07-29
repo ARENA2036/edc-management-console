@@ -24,24 +24,31 @@ function getConnectorType(connector: DashboardConnector) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'healthy' || status === 'active' || status === 'Active') {
+  const normalized = status?.toLowerCase();
+
+  if (normalized === 'healthy' || normalized === 'active') {
     return (
       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
         Active
       </span>
     );
   }
-  if (status === 'unhealthy' || status === 'inactive' || status === 'critical') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'deploying') {
+  if (normalized === 'deploying') {
     return (
       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
         Deploying
+      </span>
+    );
+  }
+  if (
+    normalized === 'unhealthy' ||
+    normalized === 'unreachable' ||
+    normalized === 'inactive' ||
+    normalized === 'critical'
+  ) {
+    return (
+      <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+        Unreachable
       </span>
     );
   }
