@@ -364,4 +364,4 @@ components:
 
 database:
   url: "${DATABASE_URL}"
-  echo: false
+  echo: false 

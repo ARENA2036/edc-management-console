@@ -17,8 +17,7 @@ const edcHost = getRuntimeConfigValue(
   window.__RUNTIME_CONFIG__?.edcHost,
   '__EDC_HOST__',
 );
-// TLS toggle for local testing: set VITE_URL_SCHEME=http to reach EDC
-// controlplanes over plain HTTP instead of HTTPS. Defaults to https.
+
 const urlScheme = getRuntimeConfigValue(
   import.meta.env.VITE_URL_SCHEME,
   window.__RUNTIME_CONFIG__?.urlScheme,
