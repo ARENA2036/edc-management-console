@@ -481,7 +481,7 @@ backend:
   env:
     - name: CLUSTER_SECRET
       value: "cluster-staging"
-    - name: "VAULT_ADDR_STAGING"
+    - name: "VAULT_ADDR"
       value: "https://vault.staging.arena2036-x.de"
     - name: VAULT_TOKEN
       valueFrom:
