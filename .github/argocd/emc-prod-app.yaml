@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: emc-prod
+  name: emc-application-prod
   namespace: argocd
 
   labels:
@@ -44,7 +44,7 @@ spec:
           forceString: true
 
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-prod
     namespace: edc-management-console
 
   syncPolicy:

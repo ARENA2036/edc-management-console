@@ -2,29 +2,59 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: emc-staging
+  name: emc-application-staging
   namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: emc
+    app.kubernetes.io/component: staging
+    app.kubernetes.io/managed-by: github-actions
+
+  annotations:
+    environment.emc/type: staging
 
 spec:
   project: edc-management-console
 
   source:
     repoURL: https://github.com/ARENA2036/edc-management-console.git
+
+    # Staging deploys from develop
     targetRevision: develop
+
     path: charts/edc-management-console
+
     helm:
       releaseName: emc
+
       valueFiles:
         - values-staging.yaml
-        
+
+      parameters:
+        # Staging backend image
+        # Existing Harbor image tag if provided,
+        # otherwise manual image tag or current Git SHA.
+        - name: backend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
+        # Staging frontend image
+        - name: frontend.image.tag
+          value: REPLACE_IMAGE_TAG
+          forceString: true
+
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-staging
     namespace: edc-management-console
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+
     syncOptions:
       - CreateNamespace=true
       - Replace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3

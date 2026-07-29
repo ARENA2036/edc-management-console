@@ -131,7 +131,7 @@ spec:
           value: "true"
 
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-ap6
     namespace: REPLACE_NAMESPACE
 
   syncPolicy:
