@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: emc-dev
+  name: emc-application-ap6
   namespace: argocd
 
   labels:
@@ -33,17 +33,17 @@ spec:
         # 1. Manual image_tag, when provided.
         # 2. Current Git SHA, when image_tag is empty.
         - name: backend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_BACKEND_IMAGE_TAG
           forceString: true
 
         # Frontend Docker image tag.
         # Uses the same resolved tag as the backend.
         - name: frontend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_FRONTEND_IMAGE_TAG
           forceString: true
 
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-ap6
     namespace: edc-management-console
 
   syncPolicy:

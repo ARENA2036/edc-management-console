@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: emc-prod
+  name: emc-application-prod
   namespace: argocd
 
   labels:
@@ -35,16 +35,16 @@ spec:
         # Manual image tag if provided,
         # otherwise CI/CD uses the current Git SHA.
         - name: backend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_BACKEND_IMAGE_TAG
           forceString: true
 
         # Production frontend image
         - name: frontend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_FRONTEND_IMAGE_TAG
           forceString: true
 
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-prod
     namespace: edc-management-console
 
   syncPolicy:

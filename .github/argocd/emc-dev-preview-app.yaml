@@ -58,11 +58,11 @@ spec:
 
         # Docker image tags
         - name: backend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_BACKEND_IMAGE_TAG
           forceString: true
 
         - name: frontend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_FRONTEND_IMAGE_TAG
           forceString: true
 
         # Backend ingress
@@ -131,7 +131,7 @@ spec:
           value: "true"
 
   destination:
-    server: https://kubernetes.default.svc
+    name: arenax-ap6
     namespace: REPLACE_NAMESPACE
 
   syncPolicy:
