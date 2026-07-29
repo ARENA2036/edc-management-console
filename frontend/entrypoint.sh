@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
----
+
 #!/bin/bash
 
 ROOT_DIR=/usr/share/nginx/html

@@ -51,6 +51,8 @@ paths:
         Returns:
             response: :obj:`data object with the list of connectors`
       operationId: list_connectors_api_connectors_get
+      security:
+       - ApiKeyAuth: []
       responses:
         '200':
           description: Successful Response
@@ -405,4 +407,3 @@ components:
   securitySchemes:
     HTTPBearer:
       type: http
-      scheme: bearer

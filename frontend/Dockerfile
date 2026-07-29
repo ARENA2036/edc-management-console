@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
----
+
 # stage1 as builder
 FROM node:lts-alpine as builder
 
