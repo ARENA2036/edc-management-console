@@ -422,7 +422,7 @@ jobs:
           export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
           export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
 
-          CLUSTER_PATH="staging/data/cluster-prod"
+          CLUSTER_PATH="staging/infra/cluster-prod"
 
           vault kv get \
             -field=config \

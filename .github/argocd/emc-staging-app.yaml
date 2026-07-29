@@ -35,12 +35,12 @@ spec:
         # Existing Harbor image tag if provided,
         # otherwise manual image tag or current Git SHA.
         - name: backend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_BACKEND_IMAGE_TAG
           forceString: true
 
         # Staging frontend image
         - name: frontend.image.tag
-          value: REPLACE_IMAGE_TAG
+          value: REPLACE_FRONTEND_IMAGE_TAG
           forceString: true
 
   destination:
