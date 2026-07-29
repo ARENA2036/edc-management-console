@@ -216,3 +216,12 @@ Some endpoints are protected by API key authentication, while others expect a Ke
 - Swagger Keycloak OAuth integration is present as a placeholder and needs full configuration.
 - The frontend calls an activity log endpoint, but the backend route may be disabled.
 - Some UI labels use `Datasource Settings`, while the documentation and backend use `Dataspace Settings`.
+
+## NOTICE
+
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+- Copyright (c) 2026 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2026 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console
