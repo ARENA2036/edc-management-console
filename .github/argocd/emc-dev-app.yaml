@@ -29,9 +29,9 @@ spec:
 
       parameters:
         # Backend Docker image tag.
-        # CI/CD replaces REPLACE_IMAGE_TAG with:
-        # 1. Manual image_tag, when provided.
-        # 2. Current Git SHA, when image_tag is empty.
+        # CI/CD injects the selected backend and frontend image tags.        
+        # 1. Manual image tag, when provided.
+        # 2. Current Git SHA, when image tag is empty.
         - name: backend.image.tag
           value: REPLACE_BACKEND_IMAGE_TAG
           forceString: true
