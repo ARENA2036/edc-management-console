@@ -24,3 +24,12 @@ backend/tractusx-connector/edc_manager.db
 .history/
 /node_modules/
 .DS_Store
+.env
+.env.local
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+!.env.example
+!backend/.env.example
+!frontend/.env.example

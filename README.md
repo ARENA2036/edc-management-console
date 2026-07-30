@@ -50,7 +50,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Create environment variables file
-# Create backend/.env and set your values:
+# Copy backend/.env.example to backend/.env and set your values:
 # - DATABASE_URL (PostgreSQL connection string)
 # - API_KEY (your secure API key)
 # - Keycloak credentials (if using Keycloak)
@@ -87,7 +87,7 @@ cd frontend
 npm install
 
 # Configure environment
-# Create frontend/.env and set your values:
+# Copy frontend/.env.example to frontend/.env and set your values:
 ```
 
 **Frontend Environment (.env):**

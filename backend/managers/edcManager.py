@@ -33,7 +33,7 @@ class EdcManager:
         self.bdrs_config = connector_config.get("bdrs", {})
         self.did_method = connector_config.get("didMethod", "did:web")
         self.ssi_wallet_url = dataspace_config.get("ssi_wallet", {}).get("url", None)
-        self.authority_id = dataspace_config.get("authority_id", "BPNL00000003CRHK")
+        self.authority_id = dataspace_config.get("authority_id", "")
 
     def check_health(self, connector_url: Optional[str] = None) -> Dict:
         url = connector_url or self.default_url

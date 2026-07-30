@@ -3,21 +3,21 @@ import { getRuntimeConfigBoolean, getRuntimeConfigValue } from '../runtime-confi
 
 export function getKeycloakConfig(): KeycloakConfig {
   return {
-  url: getRuntimeConfigValue(
-    import.meta.env.VITE_KEYCLOAK_URL,
-    window.__RUNTIME_CONFIG__?.keycloakUrl,
-    'http://localhost:8080',
-  ),
-  realm: getRuntimeConfigValue(
-    import.meta.env.VITE_KEYCLOAK_REALM,
-    window.__RUNTIME_CONFIG__?.realm,
-    'CX-Central',
-  ),
-  clientId: getRuntimeConfigValue(
-    import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
-    window.__RUNTIME_CONFIG__?.clientId,
-    'CX-EDC',
-  ),
+    url: getRuntimeConfigValue(
+      import.meta.env.VITE_KEYCLOAK_URL,
+      window.__RUNTIME_CONFIG__?.keycloakUrl,
+      '',
+    ),
+    realm: getRuntimeConfigValue(
+      import.meta.env.VITE_KEYCLOAK_REALM,
+      window.__RUNTIME_CONFIG__?.realm,
+      '',
+    ),
+    clientId: getRuntimeConfigValue(
+      import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
+      window.__RUNTIME_CONFIG__?.clientId,
+      '',
+    ),
   };
 }
 

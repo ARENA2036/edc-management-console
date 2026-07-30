@@ -1,6 +1,6 @@
 appConfig:
   name: "ARENA2036 EDC Management Console"
-  client_id: "CX-EDC"
+  client_id: "${APP_CLIENT_ID}"
   version: "1.0.0"
   port: 5000
   host: "0.0.0.0"
@@ -9,31 +9,31 @@ appConfig:
     enabled: true
     apiKey:
       key: "X-Api-Key"
-      value: "emc-api-key"
+      value: "${API_KEY}"
 
   startup:
     checks: true
     refresh_interval: 10
 
 dataspaceConfig:
-  name: "ARENA2036-X"
-  authority_id: "BPNL00000003CRHK"
+  name: "${DATASPACE_NAME}"
+  authority_id: "${DATASPACE_AUTHORITY_ID}"
   centralidp:
-    url: "https://centralidp.arena2036-x.de/auth/"
-    realm: "CX-Central"
+    url: "${CENTRALIDP_URL}"
+    realm: "${CENTRALIDP_REALM}"
     client_id: "${CENTRALIDP_CLIENT_ID}"
     client_secret: "${CENTRALIDP_CLIENT_SECRET}"
   ssi_wallet:
-    url: "https://ssi-dim-wallet-stub.arena2036-x.de"
+    url: "${SSI_WALLET_URL}"
     client_id: "${SSI_WALLET_CLIENT_ID}"
     client_secret: "${SSI_WALLET_CLIENT_SECRET}"
   portal:
-    url: "https://portal.arena2036-x.de"
+    url: "${PORTAL_URL}"
     client_id: "${PORTAL_CLIENT_ID}"
     client_secret: "${PORTAL_CLIENT_SECRET}"
   discovery:
     semantics:
-      url: "https://semantics.arena2036-x.de"
+      url: "${SEMANTICS_URL}"
     discoveryFinder:
       endpoint: "/discoveryfinder/api/v1.0/administration/connectors/discovery/search"
       keys:
@@ -45,25 +45,25 @@ dataspaceConfig:
       client_id: "${BPN_DISCOVERY_CLIENT_ID}"
       client_secret: "${BPN_DISCOVERY_CLIENT_SECRET}"
   clusterConfig:
-    context: "k8s-ap6-01"
-    namespace: "edc-management-console"
+    context: "${CLUSTER_CONTEXT}"
+    namespace: "${K8S_NAMESPACE}"
 
 
 externalApps:
   sde:
-    url: https://sde-1-txcd.arena2036-x.de
-    client_id: "SDE-1"
-    manufacturerId: BPNLA360COMPANY1
-    providerEDC:  https://emc-edc-1-controlplane-txcd.arena2036-x.de
-    consumerEDC: https://emc-edc-2-controlplane-txcd.arena2036-x.de
-    registryUrl: https://emc-edc-dtr-1-txcd.arena2036-x.de/semantics/registry
+    url: "${SDE_URL}"
+    client_id: "${SDE_CLIENT_ID}"
+    manufacturerId: "${MANUFACTURER_ID}"
+    providerEDC: "${SDE_PROVIDER_EDC_URL}"
+    consumerEDC: "${SDE_CONSUMER_EDC_URL}"
+    registryUrl: "${SDE_REGISTRY_URL}"
 
 
 # Dataspace/EDC query config + the inputs to the deployment derivation context
 # (wallet/sts/bdrs/hostname). Helm repos here are registered at startup so any
 # component's chart + subchart dependencies can be resolved.
 connector:
-  default_url: "https://dataconsumer-controlplane.arena2036-x.de"
+  default_url: "${DEFAULT_EDC_URL}"
   # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
   didMethod: "did:web"
   helmRepositories:
@@ -85,8 +85,8 @@ connector:
     transfer_edr: "/dataaddress?auto_refresh=true"
     dsp: "/api/v1/dsp"
   hostname:
-    controlplane: controlplane.txcd.arena2036-x.de
-    dataplane: dataplane.txcd.arena2036-x.de
+    controlplane: "${EDC_CONTROLPLANE_HOST_SUFFIX}"
+    dataplane: "${EDC_DATAPLANE_HOST_SUFFIX}"
   # STS/OAuth paths appended to the SSI wallet url + the vault secret alias.
   sts:
     dimEndpoint: "/api/sts"
