@@ -65,7 +65,7 @@ externalApps:
 connector:
   default_url: "${DEFAULT_EDC_URL}"
   # DID method used to derive connector and issuer identities (did:<method>:<host>:<id>).
-  didMethod: "did:web"
+  didMethod: "${EDC_DID_METHOD}"
   helmRepositories:
     - name: tractusx-dev
       url: https://eclipse-tractusx.github.io/charts/dev
@@ -148,9 +148,11 @@ components:
       # `imagePullSecrets` for both the control plane and data plane (it has no
       # per-plane override), so this single list applies to both.
       imagePullSecrets:
-        - name: registry-creds
+        - name: "${IMAGE_PULL_SECRET_NAME}"
 
     valueMappings:
+      - path: fullnameOverride
+        template: "{name}"
       - path: participant.id
         from: bpn
         transform: urlencode
@@ -179,22 +181,30 @@ components:
         value: 'management'
       - path: controlplane.ingresses[0].hostname
         from: cp_hostname
+      - path: controlplane.ingresses[0].certManager.clusterIssuer
+        value: '${INGRESS_TLS_CLUSTER_ISSUER}'
       - path: controlplane.ingresses[0].className
-        value: 'nginx'
+        value: '${INGRESS_CLASS_NAME}'
       - path: controlplane.ingresses[0].annotations
         from: controlplane_annotations
       - path: controlplane.ingresses[0].tls.enabled
-        value: false
+        value: true
+      - path: controlplane.ingresses[0].tls.secretName
+        template: "{name}-cp-tls"
       - path: dataplane.ingresses[0].enabled
         value: true
       - path: dataplane.ingresses[0].hostname
         from: dp_hostname
+      - path: dataplane.ingresses[0].certManager.clusterIssuer
+        value: '${INGRESS_TLS_CLUSTER_ISSUER}'
       - path: dataplane.ingresses[0].className
-        value: 'nginx'
+        value: '${INGRESS_CLASS_NAME}'
       - path: dataplane.ingresses[0].annotations
         from: dataplane_annotations
       - path: dataplane.ingresses[0].tls.enabled
-        value: false
+        value: true
+      - path: dataplane.ingresses[0].tls.secretName
+        template: "{name}-dp-tls"
       - path: dataplane.token.signer.privatekey_alias
         value: "tokenSignerPrivateKey"
       - path: dataplane.token.verifier.publickey_alias
@@ -235,13 +245,14 @@ components:
       # external-dns points at this component's own host.
       annotations:
         external-dns.alpha.kubernetes.io/hostname: "{url}"
+        cert-manager.io/cluster-issuer: "${INGRESS_TLS_CLUSTER_ISSUER}"
     valueMappings:
       - path: fullnameOverride
         template: "{name}"
       - path: ingress.enabled           # chart default is false
         value: true
       - path: ingress.className
-        value: 'nginx'
+        value: '${INGRESS_CLASS_NAME}'
       - path: ingress.annotations
         from: annotations
       - path: ingress.hosts[0].host
@@ -250,8 +261,10 @@ components:
         value: '/'
       - path: ingress.hosts[0].paths[0].pathType
         value: 'Prefix'
-      - path: ingress.tls
-        value: []
+      - path: ingress.tls[0].hosts[0]
+        from: url
+      - path: ingress.tls[0].secretName
+        template: "{name}-submodel-tls"
       # Liveness/readiness probes — the local chart gates them on `.enabled`.
       # The image's /actuator/health/* paths 404, so keep them off here.
       - path: livenessProbe.enabled
@@ -276,6 +289,7 @@ components:
       # external-dns points at this component's own host.
       annotations:
         external-dns.alpha.kubernetes.io/hostname: "{url}"
+        cert-manager.io/cluster-issuer: "${INGRESS_TLS_CLUSTER_ISSUER}"
         nginx.ingress.kubernetes.io/rewrite-target: /$2
         nginx.ingress.kubernetes.io/use-regex: "true"
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
@@ -316,11 +330,13 @@ components:
       - path: registry.ingress.urlPrefix
         value: '/semantics/registry'
       - path: registry.ingress.className
-        value: 'nginx'
+        value: '${INGRESS_CLASS_NAME}'
       - path: registry.ingress.annotations
         from: annotations
       - path: registry.ingress.tls.enabled        # tls is a MAP here, not a list
-        value: false
+        value: true
+      - path: registry.ingress.tls.secretName
+        template: "{name}-dtr-tls"
 
   # IdentityHub — its own chart + release, deployed for every connector
   # (it is the connector's own DID/credential service, not an optional add-on).
