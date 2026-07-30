@@ -1,12 +1,43 @@
-import { Boxes, MoreHorizontal, PencilLine, Trash2, X } from 'lucide-react';
+import { Boxes, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
 
+function ComponentStatusBadge({ status }: { status: string }) {
+  const normalized = status?.toLowerCase();
+
+  if (normalized === 'active' || normalized === 'healthy') {
+    return (
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+        Active
+      </span>
+    );
+  }
+  if (normalized === 'deploying') {
+    return (
+      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Deploying
+      </span>
+    );
+  }
+  if (normalized === 'inactive') {
+    return (
+      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+        Inactive
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+      {status || 'Unknown'}
+    </span>
+  );
+}
+
 interface Props {
   components: ManagedComponent[];
-  onDelete: (componentId: string) => void;
+  onDelete: (component: ManagedComponent) => Promise<void> | void;
 }
 
 function ComponentDetailsModal({
@@ -206,23 +237,13 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                       {component.version}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                        {t('statusActive')}
-                      </span>
+                      <ComponentStatusBadge status={component.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       {component.linkedConnector}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <Tooltip content={t('tableManage')}>
-                          <button
-                            onClick={() => setSelectedComponent(component)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
-                          >
-                            <PencilLine size={16} />
-                          </button>
-                        </Tooltip>
                         <Tooltip
                           content={
                             language === 'de'
@@ -267,7 +288,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
           component={componentToDelete}
           onClose={() => setComponentToDelete(null)}
           onConfirm={() => {
-            onDelete(componentToDelete.id);
+            void onDelete(componentToDelete);
             setComponentToDelete(null);
           }}
         />

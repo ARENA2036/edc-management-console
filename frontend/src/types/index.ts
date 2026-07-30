@@ -33,17 +33,55 @@ export interface DashboardConnector extends Connector {
   source?: 'api' | 'local';
 }
 
+export interface DeployComponent {
+  type: "connector" | "digitalTwinRegistry" | "submodelServer";
+
+  name: string;
+  version: string;
+  url: string;
+
+  bpn?: string;
+  db_name?: string;
+
+  auth?: {
+    db_username: string;
+    db_password: string;
+  };
+}
+
+export interface DeployRequest {
+  components: DeployComponent[];
+}
+
+export interface DeploymentState {
+  open: boolean;
+  mode: 'create' | 'edit';
+}
+
 export interface ManagedComponent {
   id: string;
+
+  type: "digitalTwinRegistry" | "submodelServer";
+
   name: string;
-  type: string;
   version: string;
-  status: 'Active' | 'Inactive';
+
+  status: "Active" | "Inactive" | "Deploying";
+
   linkedConnector: string;
   deployedAt: string;
-  connectionMode?: 'new' | 'existing';
+
+  connectionMode: "new" | "existing";
+
   endpoint?: string;
   credentials?: string;
+
+  db_name: string;
+
+  auth: {
+    db_username: string;
+    db_password: string;
+  };
 }
 
 export interface ActivityLog {

@@ -10,6 +10,7 @@ import {
 import { activityApi, connectorApi, dataspaceApi } from './api/client';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
+import { buildDeployRequest, buildStandaloneConnector, buildManagedComponentFromDraft, buildComponentPayload, type DeploymentDraft } from './utils/deployment';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -181,7 +182,138 @@ function getConnectorEndpoint(connector: DashboardConnector) {
   return '';
 }
 
-async function fetchConnectors() {
+function normalizeComponentIdentityPart(value: string | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function getManagedComponentIdentity(component: Pick<ManagedComponent, 'type' | 'name' | 'linkedConnector'>) {
+  const normalizedType = normalizeComponentIdentityPart(component.type);
+  const normalizedName = normalizeComponentIdentityPart(component.name);
+  if (normalizedName) {
+    return `${normalizedType}:${normalizedName}`;
+  }
+
+  return `${normalizedType}:${normalizeComponentIdentityPart(component.linkedConnector)}`;
+}
+
+function mergeManagedComponents(
+  localComponents: ManagedComponent[],
+  apiComponents: ManagedComponent[],
+) {
+  const merged = new Map<string, ManagedComponent>();
+
+  for (const component of localComponents) {
+    merged.set(getManagedComponentIdentity(component), component);
+  }
+
+  for (const component of apiComponents) {
+    const key = getManagedComponentIdentity(component);
+    const existing = merged.get(key);
+    merged.set(key, existing ? { ...existing, ...component } : component);
+  }
+
+  return Array.from(merged.values());
+}
+
+function isComponentLinkedToConnector(
+  component: Pick<ManagedComponent, 'name' | 'linkedConnector'>,
+  connectorName: string,
+) {
+  const normalizedConnectorName = normalizeComponentIdentityPart(connectorName);
+  if (!normalizedConnectorName) {
+    return false;
+  }
+
+  return (
+    normalizeComponentIdentityPart(component.linkedConnector) === normalizedConnectorName
+    || normalizeComponentIdentityPart(component.name).startsWith(`${normalizedConnectorName}-`)
+  );
+}
+
+/** Returns true only for rows that represent an EDC connector (not submodel/DTR). */
+function isEdcConnectorRow(row: DashboardConnector): boolean {
+  const configType = (row.config as Record<string, unknown> | undefined)?.type;
+  if (typeof configType === 'string') {
+    return configType === 'connector';
+  }
+  // Rows without a config.type originate from localStorage or the old schema —
+  // treat them as EDC connectors (the default).
+  return true;
+}
+
+/** Returns the component type for a non-EDC API row, or null for EDC rows. */
+function getComponentType(
+  row: DashboardConnector,
+): 'digitalTwinRegistry' | 'submodelServer' | null {
+  const configType = (row.config as Record<string, unknown> | undefined)?.type;
+  if (configType === 'digitalTwinRegistry') return 'digitalTwinRegistry';
+  if (configType === 'submodelServer') return 'submodelServer';
+  return null;
+}
+
+/**
+ * Derives the linked EDC connector name for a component row using a name-prefix
+ * heuristic (e.g. "beku-sms" → "beku", "beku-dtr" → "beku").
+ */
+function inferLinkedConnector(
+  row: DashboardConnector,
+  edcConnectors: DashboardConnector[],
+): string {
+  const linkedFromConfig = (row.config as Record<string, unknown> | undefined)?.linkedConnector;
+  if (typeof linkedFromConfig === 'string' && linkedFromConfig.length > 0) {
+    return linkedFromConfig;
+  }
+
+  const componentName = row.name;
+  for (const connector of edcConnectors) {
+    if (
+      componentName.startsWith(connector.name + '-') ||
+      componentName === connector.name
+    ) {
+      return connector.name;
+    }
+  }
+  return '';
+}
+
+function mapComponentStatus(rawStatus?: string): ManagedComponent['status'] {
+  const normalized = rawStatus?.toLowerCase();
+  if (normalized === 'deploying') return 'Deploying';
+  if (normalized === 'active' || normalized === 'healthy') return 'Active';
+  return 'Inactive';
+}
+
+/** Build a ManagedComponent from an API component row (submodel/DTR). */
+function apiRowToManagedComponent(
+  row: DashboardConnector,
+  type: 'digitalTwinRegistry' | 'submodelServer',
+  linkedConnector: string,
+): ManagedComponent {
+  const status = mapComponentStatus(row.status);
+  return {
+    id: `${type}-${row.name}-api`,
+    type,
+    name: row.name,
+    version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.1.0'),
+    status,
+    linkedConnector,
+    deployedAt: row.created_at || new Date().toISOString(),
+    connectionMode: 'new',
+    endpoint: row.url || '',
+    db_name: row.db_username ? row.db_username.replace(/-username$/, '-db') : '',
+    auth: {
+      db_username: row.db_username || '',
+      db_password: row.db_password || '',
+    },
+  };
+}
+
+interface FetchConnectorsResult {
+  edcConnectors: DashboardConnector[];
+  apiComponents: ManagedComponent[];
+}
+
+async function fetchConnectors(): Promise<FetchConnectorsResult> {
   const cachedConnectors = readLocalStorage<DashboardConnector[]>(
     CONNECTORS_STORAGE_KEY,
     [],
@@ -189,25 +321,39 @@ async function fetchConnectors() {
 
   try {
     const response = await connectorApi.getAll();
-    const apiConnectors = Array.isArray(response.data.data)
+    const allApiRows = Array.isArray(response.data.data)
       ? (response.data.data as DashboardConnector[])
       : [];
-    const merged = mergeConnectors(
-      apiConnectors.map((connector) => ({
-        ...connector,
-        source: 'api' as const,
-      })),
-      cachedConnectors,
+
+    // Split: EDC connector rows vs component (submodel/DTR) rows.
+    const apiEdcRows = allApiRows.filter(isEdcConnectorRow).map((row) => ({
+      ...row,
+      source: 'api' as const,
+    }));
+    const apiComponentRows = allApiRows.filter(
+      (row) => getComponentType(row) !== null,
     );
+
+    const merged = mergeConnectors(apiEdcRows, cachedConnectors);
     saveLocalStorage(CONNECTORS_STORAGE_KEY, merged);
-    return merged;
+
+    // Synthesize ManagedComponent entries from API component rows.
+    const apiComponents: ManagedComponent[] = apiComponentRows.flatMap((row) => {
+      const type = getComponentType(row);
+      if (!type) return [];
+      const linkedConnector = inferLinkedConnector(row, merged);
+      return [apiRowToManagedComponent(row, type, linkedConnector)];
+    });
+
+    return { edcConnectors: merged, apiComponents };
   } catch (error) {
     console.error('Failed to load connectors:', error);
-    return cachedConnectors;
+
+    return { edcConnectors: cachedConnectors, apiComponents: [] };
   }
 }
 
-function fetchComponents() {
+function fetchLocalComponents() {
   return readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
 }
 
@@ -261,7 +407,7 @@ function formatTimestamp(
 }
 
 function getHealthTone(status: string) {
-  if (status === 'healthy' || status === 'Active') {
+  if (status === 'healthy' || status === 'active' || status === 'Active') {
     return {
       label: 'Healthy',
       badge:
@@ -327,25 +473,41 @@ function mergeConnectors(
 function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [components, setComponents] = useState<ManagedComponent[]>([]);
+  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
+  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [dataspaceBpn, setDataspaceBpn] = useState('');
-  const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [showComponentWizard, setShowComponentWizard] = useState(false);
-  const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
-    linkedConnector?: string;
-  }>({});
+  const [deploymentTarget, setDeploymentTarget] = useState<{
+    connector?: DashboardConnector;
+    mode: 'create' | 'edit';
+  }>({ mode: 'create' });
+
+  // Merge API-sourced components with local ones; API entries are skipped if
+  // a local entry already exists for the same persisted component identity.
+  const components = useMemo<ManagedComponent[]>(() => {
+    return mergeManagedComponents(localComponents, apiComponents);
+  }, [localComponents, apiComponents]);
 
   const loadConnectors = async () => {
-    const loadedConnectors = await fetchConnectors();
-    setConnectors(loadedConnectors);
+    const result = await fetchConnectors();
+    setConnectors(result.edcConnectors);
+    setApiComponents(result.apiComponents);
   };
 
-  const loadComponents = () => {
-    const storedComponents = fetchComponents();
-    setComponents(storedComponents);
+  const loadConnectorsHealth = async () => {
+    try {
+      await connectorApi.getConnectorsHealth();
+    } catch (error) {
+      console.error('Failed to load connectors health:', error);
+    }
+  };
+
+  const loadLocalComponents = () => {
+    setLocalComponents(fetchLocalComponents());
   };
 
   const loadActivityLogs = async () => {
@@ -361,96 +523,193 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   useEffect(() => {
     loadConnectors();
-    loadComponents();
+    loadLocalComponents();
     loadActivityLogs();
     loadDataspace();
+    loadConnectorsHealth();
 
     const interval = setInterval(() => {
       loadConnectors();
       loadActivityLogs();
     }, 30000);
 
-    return () => clearInterval(interval);
+    const connectorsHealthInterval = setInterval(() => {
+      loadConnectorsHealth();
+    }, 60000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(connectorsHealthInterval);
+    };
   }, [t]);
 
-  const persistConnector = async (connector: DashboardConnector) => {
-    const updatedConnectors = mergeConnectors([], [
-      ...readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []),
-      connector,
-    ]);
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, updatedConnectors);
-    setConnectors(updatedConnectors);
+  const updateLocalConnectorState = (
+    connector: DashboardConnector,
+    draft: DeploymentDraft,
+  ) => {
+    const storedConnectors = readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []);
+    const nextConnector = {
+      ...connector,
+      name: draft.connector.name,
+      url: draft.connector.url,
+      bpn: draft.connector.bpn,
+      version: draft.connector.version,
+      cp_hostname: draft.connector.url,
+      dp_hostname: draft.connector.dataPlaneUrl,
+      db_username: `${draft.connector.name}-username`,
+      db_password: `${draft.connector.name}-password`,
+      config: {
+        ...(connector.config || {}),
+        connectorType: 'EDC Connector',
+        endpoint: draft.connector.url,
+        dataPlaneUrl: draft.connector.dataPlaneUrl,
+        bpn: draft.connector.bpn,
+        version: draft.connector.version,
+        dbName: `${draft.connector.name}-db`,
+      },
+      source: connector.source || 'local',
+    } as DashboardConnector;
 
-    try {
-      await connectorApi.create({
-        name: connector.name,
-        url: connector.url,
-        bpn: connector.bpn,
-        version: connector.version,
-        db_username: connector.db_username,
-        db_password: connector.db_password,
-        registry: connector.registry,
-        submodel: connector.submodel,
-        config: connector.config,
-      });
-    } catch (error) {
-      console.error('Failed to deploy connector:', error);
+    const nextConnectors = deploymentTarget.connector
+      ? storedConnectors.map((item) => (
+        item.id === connector.id || item.name === connector.name ? nextConnector : item
+      ))
+      : mergeConnectors([nextConnector], storedConnectors);
+
+    saveLocalStorage(CONNECTORS_STORAGE_KEY, nextConnectors);
+    setConnectors(nextConnectors);
+
+    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const keptComponents = currentLocalComponents.filter((component) => {
+      return component.linkedConnector !== connector.name
+        && component.linkedConnector !== draft.connector.name;
+    });
+
+    const updatedComponents = [...keptComponents];
+    if (draft.submodelServer.enabled) {
+      updatedComponents.push(
+        buildManagedComponentFromDraft('submodelServer', draft.submodelServer, draft.connector.name),
+      );
+    }
+    if (draft.digitalTwinRegistry.enabled) {
+      updatedComponents.push(
+        buildManagedComponentFromDraft('digitalTwinRegistry', draft.digitalTwinRegistry, draft.connector.name),
+      );
     }
 
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    setLocalComponents(updatedComponents);
+  };
+
+  const handleDeployConnector = async (draft: DeploymentDraft) => {
+    const request = buildDeployRequest(draft);
+    const activeTarget = deploymentTarget.connector;
+
+    if (activeTarget) {
+      await connectorApi.update(activeTarget.id, request);
+      updateLocalConnectorState(activeTarget, draft);
+    } else {
+      await connectorApi.create(request);
+      updateLocalConnectorState(
+        buildStandaloneConnector(draft.connector),
+        draft,
+      );
+    }
+
+    setShowDeploymentWizard(false);
+    setDeploymentTarget({ mode: 'create' });
     await loadConnectors();
-  };
-
-  const handleDeployConnector = async (connector: DashboardConnector) => {
-    await persistConnector(connector);
-    setShowDeploymentWizard(false);
-  };
-
-  const handleDeployConnectorAndAddComponent = async (
-    connector: DashboardConnector,
-  ) => {
-    await persistConnector(connector);
-    setShowDeploymentWizard(false);
-    setComponentWizardDefaults({ linkedConnector: connector.name });
-    setShowComponentWizard(true);
   };
 
   const handleDeleteConnector = async (connector: DashboardConnector) => {
     const remaining = connectors.filter((item) => item.name !== connector.name);
-    const remainingComponents = components.filter(
-      (component) => component.linkedConnector !== connector.name,
+    const remainingLocalComponents = localComponents.filter(
+      (component) => !isComponentLinkedToConnector(component, connector.name),
+    );
+    const remainingApiComponents = apiComponents.filter(
+      (component) => !isComponentLinkedToConnector(component, connector.name),
     );
 
-    setConnectors(remaining);
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
-    setComponents(remainingComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingComponents);
-
-    if (connector.source !== 'local') {
-      try {
+    try {
+      if (connector.source !== 'local') {
         await connectorApi.delete(connector.name);
-      } catch (error) {
-        console.error('Failed to delete connector:', error);
       }
+
+      setConnectors(remaining);
+      saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
+      setLocalComponents(remainingLocalComponents);
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingLocalComponents);
+      setApiComponents(remainingApiComponents);
+
+      if (connector.source !== 'local') {
+        await loadConnectors();
+      }
+    } catch (error) {
+      console.error('Failed to delete connector:', error);
     }
   };
 
-  const handleDeployComponent = (component: ManagedComponent) => {
-    const updatedComponents = [component, ...components];
-    setComponents(updatedComponents);
+  const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
+    const updatedLocalComponents = localComponents.filter((component) => {
+      return component.id !== componentToDelete.id && component.name !== componentToDelete.name;
+    });
+    setLocalComponents(updatedLocalComponents);
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedLocalComponents);
+
+    const isApiComponent = componentToDelete.id.endsWith('-api');
+    if (isApiComponent) {
+      try {
+        await connectorApi.delete(componentToDelete.name);
+      } catch (error) {
+        console.error('Failed to delete component:', error);
+      }
+      await loadConnectors();
+    }
+  };
+
+  const handleDeployComponent = async (component: ManagedComponent) => {
+    if (component.connectionMode === 'new') {
+      await connectorApi.create({
+        components: [
+          buildComponentPayload(component.type, {
+            name: component.name,
+            version: component.version,
+            url: component.endpoint ?? `${component.name}.txcd.arena2036-x.de`,
+            dbName: component.db_name,
+            username: component.auth.db_username,
+            password: component.auth.db_password,
+          }),
+        ],
+      });
+    }
+
+    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+    const updatedComponents = [...currentLocalComponents, component];
     saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+    setLocalComponents(updatedComponents);
     setShowComponentWizard(false);
+
+    if (component.connectionMode === 'new') {
+      await loadConnectors();
+    }
   };
 
-  const handleDeleteComponent = (componentId: string) => {
-    const updatedComponents = components.filter((component) => component.id !== componentId);
-    setComponents(updatedComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
+  const openConnectorWizard = (connector?: DashboardConnector) => {
+    setDeploymentTarget(connector ? { connector, mode: 'edit' } : { mode: 'create' });
+    setShowDeploymentWizard(true);
   };
 
-  const openComponentWizard = (linkedConnector?: string) => {
-    setComponentWizardDefaults(
-      linkedConnector ? { linkedConnector } : {},
-    );
+  const openAddDialog = () => {
+    setShowAddDialog(true);
+  };
+
+  const handleAddEdcSelection = () => {
+    setShowAddDialog(false);
+    openConnectorWizard();
+  };
+
+  const handleAddComponentSelection = () => {
+    setShowAddDialog(false);
     setShowComponentWizard(true);
   };
 
@@ -466,89 +725,89 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const statsGuidance =
     language === 'de'
       ? {
-          dataSpace: {
-            title: 'Data Space Information',
-            content:
-              'Diese Karte zeigt den aktuell geladenen Dataspace-Namen und oft die wichtigste Kennung für Ihre Umgebung.',
-            footer:
-              'Wenn hier Werte fehlen, prüfen Sie die Dataspace Settings oder die zentrale Plattform-Konfiguration.',
-          },
-          health: {
-            title: 'System-Status verstehen',
-            content:
-              'Hier sehen Nutzer auf einen Blick, ob die Konsole und die verbundenen Funktionen grundsätzlich gesund erscheinen.',
-            footer:
-              'Nutzen Sie diese Karte als erste Orientierung, bevor Sie tiefer in Connectoren oder Services einsteigen.',
-          },
-          activity: {
-            title: 'Aktivitäten verfolgen',
-            content:
-              'Diese Karte hilft zu erkennen, ob im Hintergrund Logs, Synchronisierung oder andere Prozesse stattfinden.',
-            footer:
-              'Wenn etwas unerwartet wirkt, vergleichen Sie die Aktivität mit den Tabellen darunter.',
-          },
-          connectors: {
-            title: 'Connector-Übersicht',
-            content:
-              'Zeigt, wie viele EDC Connectoren aktuell bekannt sind und wie viele davon aktiv wirken.',
-            footer:
-              'Ein guter Startpunkt für Nutzer ohne Technik-Erfahrung: erst hier prüfen, dann über Add+ neue Connectoren anlegen.',
-          },
-          add: {
-            title: 'Neue Elemente anlegen',
-            content:
-              'Nach dem Klick wählen Sie zwischen EDC Connector und Component/Service. Danach führt Sie ein Wizard Schritt für Schritt durch die benötigten Angaben.',
-            items: [
-              'EDC Connector: sinnvoll, wenn Sie eine neue Datenaustausch-Instanz bereitstellen möchten.',
-              'Component / Service: sinnvoll, wenn Sie einen bestehenden Connector um einen Fachservice ergänzen möchten.',
-              'Benötigte Werte wie URLs oder Zugangsdaten kommen oft aus Plattform-Dokumentation, vom DevOps-Team oder vom Service-Verantwortlichen.',
-            ],
-            footer:
-              'Wenn Sie unsicher sind, starten Sie mit einem Connector und verknüpfen Sie Services erst danach.',
-          },
-        }
+        dataSpace: {
+          title: 'Data Space Information',
+          content:
+            'Diese Karte zeigt den aktuell geladenen Dataspace-Namen und oft die wichtigste Kennung für Ihre Umgebung.',
+          footer:
+            'Wenn hier Werte fehlen, prüfen Sie die Dataspace Settings oder die zentrale Plattform-Konfiguration.',
+        },
+        health: {
+          title: 'System-Status verstehen',
+          content:
+            'Hier sehen Nutzer auf einen Blick, ob die Konsole und die verbundenen Funktionen grundsätzlich gesund erscheinen.',
+          footer:
+            'Nutzen Sie diese Karte als erste Orientierung, bevor Sie tiefer in Connectoren oder Services einsteigen.',
+        },
+        activity: {
+          title: 'Aktivitäten verfolgen',
+          content:
+            'Diese Karte hilft zu erkennen, ob im Hintergrund Logs, Synchronisierung oder andere Prozesse stattfinden.',
+          footer:
+            'Wenn etwas unerwartet wirkt, vergleichen Sie die Aktivität mit den Tabellen darunter.',
+        },
+        connectors: {
+          title: 'Connector-Übersicht',
+          content:
+            'Zeigt, wie viele EDC Connectoren aktuell bekannt sind und wie viele davon aktiv wirken.',
+          footer:
+            'Ein guter Startpunkt für Nutzer ohne Technik-Erfahrung: erst hier prüfen, dann über Add+ neue Connectoren anlegen.',
+        },
+        add: {
+          title: 'Neue Elemente anlegen',
+          content:
+            'Nach dem Klick wählen Sie zwischen EDC Connector und Component/Service. Danach führt Sie ein Wizard Schritt für Schritt durch die benötigten Angaben.',
+          items: [
+            'EDC Connector: sinnvoll, wenn Sie eine neue Datenaustausch-Instanz bereitstellen möchten.',
+            'Component / Service: sinnvoll, wenn Sie einen bestehenden Connector um einen Fachservice ergänzen möchten.',
+            'Benötigte Werte wie URLs oder Zugangsdaten kommen oft aus Plattform-Dokumentation, vom DevOps-Team oder vom Service-Verantwortlichen.',
+          ],
+          footer:
+            'Wenn Sie unsicher sind, starten Sie mit einem Connector und verknüpfen Sie Services erst danach.',
+        },
+      }
       : {
-          dataSpace: {
-            title: 'Understand the data space',
-            content:
-              'This card shows the loaded dataspace name and often the main identifier for the environment you are working in.',
-            footer:
-              'If values are missing here, check Datasource Settings or the central platform configuration.',
-          },
-          health: {
-            title: 'Read system health',
-            content:
-              'Users can quickly see whether the console and its connected capabilities appear generally healthy.',
-            footer:
-              'Use this as a first orientation point before diving into connectors or services.',
-          },
-          activity: {
-            title: 'Follow activity',
-            content:
-              'This card helps users understand whether logs, synchronization or background processes are currently active.',
-            footer:
-              'If something looks unusual, compare the activity state with the tables below.',
-          },
-          connectors: {
-            title: 'Connector overview',
-            content:
-              'Shows how many EDC connectors are currently known and how many appear active.',
-            footer:
-              'A strong starting point for non-technical users: check this card first, then use Add+ if you need a new connector.',
-          },
-          add: {
-            title: 'Create something new',
-            content:
-              'After clicking, the app asks whether you want an EDC connector or a component/service, then guides you step by step through the required information.',
-            items: [
-              'EDC Connector: use when you want to deploy a new data exchange instance.',
-              'Component / Service: use when you want to attach a business or platform service to an existing connector.',
-              'Values such as URLs or credentials usually come from platform docs, the DevOps team, or the service owner.',
-            ],
-            footer:
-              'If you are unsure, start with a connector first and add components afterwards.',
-          },
-        };
+        dataSpace: {
+          title: 'Understand the data space',
+          content:
+            'This card shows the loaded dataspace name and often the main identifier for the environment you are working in.',
+          footer:
+            'If values are missing here, check Datasource Settings or the central platform configuration.',
+        },
+        health: {
+          title: 'Read system health',
+          content:
+            'Users can quickly see whether the console and its connected capabilities appear generally healthy.',
+          footer:
+            'Use this as a first orientation point before diving into connectors or services.',
+        },
+        activity: {
+          title: 'Follow activity',
+          content:
+            'This card helps users understand whether logs, synchronization or background processes are currently active.',
+          footer:
+            'If something looks unusual, compare the activity state with the tables below.',
+        },
+        connectors: {
+          title: 'Connector overview',
+          content:
+            'Shows how many EDC connectors are currently known and how many appear active.',
+          footer:
+            'A strong starting point for non-technical users: check this card first, then use Add+ if you need a new connector.',
+        },
+        add: {
+          title: 'Create something new',
+          content:
+            'After clicking, the app asks whether you want an EDC connector or a component/service, then guides you step by step through the required information.',
+          items: [
+            'EDC Connector: use when you want to deploy a new data exchange instance.',
+            'Component / Service: use when you want to attach a business or platform service to an existing connector.',
+            'Values such as URLs or credentials usually come from platform docs, the DevOps team, or the service owner.',
+          ],
+          footer:
+            'If you are unsure, start with a connector first and add components afterwards.',
+        },
+      };
 
   return (
     <>
@@ -609,7 +868,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             position="left"
           >
             <button
-              onClick={() => setShowAddDialog(true)}
+              onClick={openAddDialog}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-orange-600"
             >
               <Plus size={18} />
@@ -623,7 +882,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             connectors={connectors}
             components={components}
             onDelete={handleDeleteConnector}
-            onAddComponent={(connector) => openComponentWizard(connector.name)}
+            onEditConnector={(connector) => openConnectorWizard(connector)}
           />
           <ComponentsManager
             components={components}
@@ -636,38 +895,35 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         {t('footerCopyright')}
       </div>
 
+      <DeploymentWizard
+        open={showDeploymentWizard}
+        onOpenChange={(open) => {
+          setShowDeploymentWizard(open);
+          if (!open) {
+            setDeploymentTarget({ mode: 'create' });
+          }
+        }}
+        onSubmit={handleDeployConnector}
+        initialConnector={deploymentTarget.connector}
+        initialComponents={components.filter(
+          (component) =>
+            deploymentTarget.connector
+              ? component.linkedConnector === deploymentTarget.connector.name
+              : false,
+        )}
+        prefilledBpn={dataspaceBpn || sessionBpn}
+      />
       <AddComponentDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onSelectEDC={() => {
-          setShowAddDialog(false);
-          setShowDeploymentWizard(true);
-        }}
-        onSelectComponent={() => {
-          setShowAddDialog(false);
-          openComponentWizard();
-        }}
+        onSelectEDC={handleAddEdcSelection}
+        onSelectComponent={handleAddComponentSelection}
       />
-
-      <DeploymentWizard
-        open={showDeploymentWizard}
-        onOpenChange={setShowDeploymentWizard}
-        onDeploy={handleDeployConnector}
-        onDeployAndAddComponent={handleDeployConnectorAndAddComponent}
-        prefilledBpn={dataspaceBpn || sessionBpn}
-      />
-
       <ComponentWizard
         open={showComponentWizard}
-        onOpenChange={(open) => {
-          setShowComponentWizard(open);
-          if (!open) {
-            setComponentWizardDefaults({});
-          }
-        }}
+        onOpenChange={setShowComponentWizard}
         connectors={connectors}
         onDeploy={handleDeployComponent}
-        initialLinkedConnector={componentWizardDefaults.linkedConnector}
       />
     </>
   );
@@ -676,7 +932,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 function Monitor() {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [components, setComponents] = useState<ManagedComponent[]>([]);
+  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
+  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
@@ -684,23 +941,28 @@ function Monitor() {
     details: null,
   });
 
+  const components = useMemo<ManagedComponent[]>(() => {
+    return mergeManagedComponents(localComponents, apiComponents);
+  }, [localComponents, apiComponents]);
+
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [loadedConnectors, loadedActivityLogs, loadedDataspace] = await Promise.all([
+      const [connectorsResult, loadedActivityLogs, loadedDataspace] = await Promise.all([
         fetchConnectors(),
         fetchActivityLogs(),
         fetchDataspaceSummary(t('dataspaceFallback')),
       ]);
-      const loadedComponents = fetchComponents();
+      const loadedLocalComponents = fetchLocalComponents();
 
       if (!active) {
         return;
       }
 
-      setConnectors(loadedConnectors);
-      setComponents(loadedComponents);
+      setConnectors(connectorsResult.edcConnectors);
+      setApiComponents(connectorsResult.apiComponents);
+      setLocalComponents(loadedLocalComponents);
       setActivityLogs(loadedActivityLogs);
       setDataspace(loadedDataspace);
     };
@@ -743,10 +1005,10 @@ function Monitor() {
           !linkedConnector
             ? 'critical'
             : linkedConnector.status === 'unhealthy'
-            ? 'warning'
-            : hasEndpoint
-            ? 'healthy'
-            : 'warning';
+              ? 'warning'
+              : hasEndpoint
+                ? 'healthy'
+                : 'warning';
 
         return {
           ...component,
@@ -758,12 +1020,12 @@ function Monitor() {
                 ? 'Connector fehlt'
                 : 'Connector missing'
               : status === 'warning'
-              ? language === 'de'
-                ? 'Prüfung empfohlen'
-                : 'Needs review'
-              : language === 'de'
-              ? 'Bereit'
-              : 'Ready',
+                ? language === 'de'
+                  ? 'Prüfung empfohlen'
+                  : 'Needs review'
+                : language === 'de'
+                  ? 'Bereit'
+                  : 'Ready',
         };
       }),
     [components, connectors, language],
@@ -787,8 +1049,8 @@ function Monitor() {
             log.status === 'error' || log.status === 'failed'
               ? 'critical'
               : log.status === 'warning'
-              ? 'warning'
-              : 'healthy',
+                ? 'warning'
+                : 'healthy',
         }));
     }
 
@@ -804,8 +1066,8 @@ function Monitor() {
             ? 'Der letzte bekannte Zustand ist kritisch. Prüfen Sie Endpoint und Plattform-Erreichbarkeit.'
             : 'The last known state is critical. Check endpoint and platform reachability.'
           : language === 'de'
-          ? 'Der Connector ist im Dashboard bekannt und kann für weitere Services genutzt werden.'
-          : 'The connector is known in the dashboard and can be used for additional services.',
+            ? 'Der Connector ist im Dashboard bekannt und kann für weitere Services genutzt werden.'
+            : 'The connector is known in the dashboard and can be used for additional services.',
       timestamp: connector.created_at,
       severity: connector.status === 'unhealthy' ? 'critical' : 'healthy',
     }));
@@ -894,8 +1156,8 @@ function Monitor() {
     connectorRows.some((connector) => connector.status === 'unhealthy')
       ? getHealthTone('critical')
       : recommendations.length > 1 || connectorRows.length === 0
-      ? getHealthTone('warning')
-      : getHealthTone('healthy');
+        ? getHealthTone('warning')
+        : getHealthTone('healthy');
 
   return (
     <div className="p-4 md:p-6">
@@ -958,8 +1220,8 @@ function Monitor() {
                   ? 'Direkt aus dem Backend-Log geladen'
                   : 'Loaded directly from backend activity logs'
                 : language === 'de'
-                ? 'Aus bekannten Connector- und Komponenten-Daten abgeleitet'
-                : 'Derived from known connector and component data',
+                  ? 'Aus bekannten Connector- und Komponenten-Daten abgeleitet'
+                  : 'Derived from known connector and component data',
             tone: getHealthTone(activityLogs.length > 0 ? 'healthy' : 'warning').badge,
           },
         ].map((card) => (
@@ -1021,8 +1283,8 @@ function Monitor() {
                               ? 'Kritisch'
                               : 'Critical'
                             : language === 'de'
-                            ? 'Aktiv'
-                            : 'Active'}
+                              ? 'Aktiv'
+                              : 'Active'}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
@@ -1164,12 +1426,12 @@ function Monitor() {
                           ? 'Kritisch'
                           : 'Critical'
                         : event.severity === 'warning'
-                        ? language === 'de'
-                          ? 'Hinweis'
-                          : 'Notice'
-                        : language === 'de'
-                        ? 'Okay'
-                        : 'OK'}
+                          ? language === 'de'
+                            ? 'Hinweis'
+                            : 'Notice'
+                          : language === 'de'
+                            ? 'Okay'
+                            : 'OK'}
                     </span>
                   </div>
                   <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
@@ -1237,6 +1499,42 @@ function SDE({ sdeUrl }: { sdeUrl: string }) {
   );
 }
 
+function PortalRedirect() {
+  const portalUrl = import.meta.env.VITE_PORTAL_URL;
+  useEffect(() => {
+    if (portalUrl) {
+      window.open(portalUrl, "_blank", "noopener,noreferrer");
+    }
+  }, [portalUrl]);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-slate-100">
+            Redirecting to Portal...
+          </h2>
+          <p className="text-gray-500 dark:text-slate-400">
+            You will be redirected to the Portal application in a new tab.
+          </p>
+          <p className="mt-4 text-sm text-gray-400 dark:text-slate-500">
+            If the Portal does not open automatically,{" "}
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-500 hover:underline"
+            >
+              click here
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
   const { language, t } = useI18n();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1264,8 +1562,8 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
           ? 'Ja'
           : 'Yes'
         : language === 'de'
-        ? 'Nein'
-        : 'No';
+          ? 'Nein'
+          : 'No';
     }
 
     return value && value.trim().length > 0 ? value : t('noValue');
@@ -1506,15 +1804,7 @@ function AppShell() {
                 <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
                 <Route path="/monitor" element={<Monitor />} />
                 <Route path="/sde" element={<SDE sdeUrl={sdeUrl} />} />
-                <Route
-                  path="/portal"
-                  element={
-                    <AppPlaceholder
-                      title="Portal"
-                      description="This application entry is ready for a portal integration and can later be connected to a real portal URL or embedded portal experience."
-                    />
-                  }
-                />
+                <Route path="/portal" element={<PortalRedirect />} />
                 <Route
                   path="/dataspace-os"
                   element={

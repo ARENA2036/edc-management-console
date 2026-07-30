@@ -8,6 +8,7 @@ declare global {
       realm?: string;
       clientId?: string;
       sdeUrl?: string;
+      urlScheme?: string;
     };
   }
 }

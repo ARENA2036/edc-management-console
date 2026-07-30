@@ -1,4 +1,4 @@
-import { FileText, MoreHorizontal, Plus, Trash2, Zap } from 'lucide-react';
+import { FileText, MoreHorizontal, PencilLine, Trash2, Zap } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
@@ -11,7 +11,7 @@ interface Props {
   connectors: DashboardConnector[];
   components: ManagedComponent[];
   onDelete: (connector: DashboardConnector) => Promise<void> | void;
-  onAddComponent: (connector: DashboardConnector) => void;
+  onEditConnector: (connector: DashboardConnector) => void;
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -21,6 +21,42 @@ function getConnectorType(connector: DashboardConnector) {
   }
 
   return 'EDC Connector';
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status?.toLowerCase();
+
+  if (normalized === 'healthy' || normalized === 'active') {
+    return (
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+        Active
+      </span>
+    );
+  }
+  if (normalized === 'deploying') {
+    return (
+      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Deploying
+      </span>
+    );
+  }
+  if (
+    normalized === 'unhealthy' ||
+    normalized === 'unreachable' ||
+    normalized === 'inactive' ||
+    normalized === 'critical'
+  ) {
+    return (
+      <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+        Unreachable
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+      {status || 'Unknown'}
+    </span>
+  );
 }
 
 function getConnectorEndpoint(connector: DashboardConnector) {
@@ -39,7 +75,7 @@ export default function ConnectorsManager({
   connectors,
   components,
   onDelete,
-  onAddComponent,
+  onEditConnector,
 }: Props) {
   const { language, t } = useI18n();
   const [selectedConnector, setSelectedConnector] = useState<DashboardConnector | null>(null);
@@ -125,9 +161,7 @@ export default function ConnectorsManager({
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                        {t('statusActive')}
-                      </span>
+                      <StatusBadge status={connector.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       <span className="block max-w-[260px] truncate">
@@ -136,26 +170,26 @@ export default function ConnectorsManager({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <Tooltip
-                          content={
-                            language === 'de'
-                              ? 'Neue Komponente hinzufügen oder einen bestehenden Service für diesen Connector verbinden.'
-                              : 'Add a new component or connect an existing service for this connector.'
-                          }
-                        >
-                          <button
-                            onClick={() => onAddComponent(connector)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </Tooltip>
                         <Tooltip content={t('tableManage')}>
                           <button
                             onClick={() => setYamlConnector(connector)}
                             className="rounded-lg p-2 text-orange-500 transition-colors hover:bg-orange-50"
                           >
                             <FileText size={16} />
+                          </button>
+                        </Tooltip>
+                        <Tooltip
+                          content={
+                            language === 'de'
+                              ? 'EDC und verknüpfte Komponenten ändern'
+                              : 'Edit the EDC and its linked components'
+                          }
+                        >
+                          <button
+                            onClick={() => onEditConnector(connector)}
+                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
+                          >
+                            <PencilLine size={16} />
                           </button>
                         </Tooltip>
                         <Tooltip
@@ -205,6 +239,7 @@ export default function ConnectorsManager({
       {yamlConnector && (
         <YamlViewModal
           connector={yamlConnector}
+          components={components.filter((c) => c.linkedConnector === yamlConnector.name)}
           onClose={() => setYamlConnector(null)}
         />
       )}

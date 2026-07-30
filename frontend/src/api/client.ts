@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
+import type { DeployRequest } from '../types';
 
 const backendUrl = getRuntimeConfigValue(
   import.meta.env.VITE_BACKEND_URL,
@@ -16,6 +17,12 @@ const edcHost = getRuntimeConfigValue(
   window.__RUNTIME_CONFIG__?.edcHost,
   '__EDC_HOST__',
 );
+
+const urlScheme = getRuntimeConfigValue(
+  import.meta.env.VITE_URL_SCHEME,
+  window.__RUNTIME_CONFIG__?.urlScheme,
+  'https',
+);
 const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 
 export const apiClient = axios.create({
@@ -28,7 +35,7 @@ export const apiClient = axios.create({
 
 
 export const edcClient = (name: string) => {
-  const baseURL = `https://${name}-controlplane.${edcHost}`;
+  const baseURL = `${urlScheme}://${name}-controlplane.${edcHost}`;
   return axios.create({
     baseURL,
     headers: {
@@ -42,10 +49,11 @@ export const edcClient = (name: string) => {
 export const connectorApi = {
   getAll: () => apiClient.get('/connectors'),
   getById: (id: number) => apiClient.get(`/connectors/${id}`),
-  create: (data: any) => apiClient.post('/connector', data),
-  update: (id: number, data: any) => apiClient.put(`/connectors/${id}`, data),
+  create: (data: DeployRequest) => apiClient.post('/connector', data),
+  update: (id: number, data: DeployRequest) => apiClient.put(`/connectors/${id}`, data),
   delete: (name: string) => apiClient.delete(`/connectors/${name}`),
   checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
+  getConnectorsHealth: () => apiClient.get('/connectors/health'),
 };
 
 export const healthApi = {
