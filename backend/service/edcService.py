@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import requests
@@ -39,17 +40,21 @@ class EdcService:
         # shared Helm repository cache.
         self._install_lock = asyncio.Lock()
 
-    def _repo_url(self, repo: Optional[str]) -> Optional[str]:
-        """Resolve a repository reference to a URL: pass through an explicit URL,
-        otherwise look the name up in the configured repositories."""
+    def _chart_lookup_args(self, chart_name: str, repo: Optional[str]) -> tuple[str, Optional[str]]:
+        """Resolve how a chart should be addressed for Helm lookup/install.
+
+        Helm accepts ``--repo <url>`` only for real repository URLs. For named
+        repositories that were already registered with ``helm repo add``, Helm
+        expects ``<repo-alias>/<chart-name>`` and no ``--repo`` flag.
+        """
         if not repo:
-            return None
+            return chart_name, None
         if "://" in repo:
-            return repo
+            return chart_name, repo
         for entry in self._repositories:
             if entry.get("name") == repo:
-                return entry.get("url")
-        return repo
+                return f"{repo}/{chart_name}", None
+        return chart_name, repo
 
     async def ensure_repositories(self) -> None:
         """Register the configured Helm repositories (``helm repo add``) and
@@ -82,15 +87,21 @@ class EdcService:
         up, so a failed deploy never leaves a broken release blocking the next.
         """
         async with self._install_lock:
+            chart_ref, chart_repo = self._chart_lookup_args(chart_name, repo)
+            chart_version = version
+            if chart_repo is None and "/" in chart_ref and "://" not in chart_ref:
+                pulled_dir = await self._command.pull(chart_ref, version=version)
+                chart_ref = str(Path(pulled_dir) / chart_name)
+                chart_version = None
             chart = await self._client.get_chart(
-                chart_name, repo=self._repo_url(repo), version=version,
+                chart_ref, repo=chart_repo, version=chart_version,
             )
             revision = await self._client.install_or_upgrade_release(
                 release_name,
                 chart,
                 values,
                 namespace=namespace,
-                create_namespace=False,
+                create_namespace=True,
                 atomic=False,
                 cleanup_on_fail=True,
                 wait=False,

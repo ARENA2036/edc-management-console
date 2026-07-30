@@ -34,6 +34,15 @@ function ComponentStatusBadge({ status }: { status: string }) {
   );
 }
 
+function localizeComponentType(
+  type: ManagedComponent['type'],
+  translate: ReturnType<typeof useI18n>['t'],
+) {
+  return type === 'digitalTwinRegistry'
+    ? translate('componentTypeTwin')
+    : translate('componentTypeSubmodel');
+}
+
 interface Props {
   components: ManagedComponent[];
   onDelete: (component: ManagedComponent) => Promise<void> | void;
@@ -74,7 +83,7 @@ function ComponentDetailsModal({
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableType')}</p>
-            <p>{component.type}</p>
+            <p>{localizeComponentType(component.type, t)}</p>
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableVersion')}</p>
@@ -82,7 +91,7 @@ function ComponentDetailsModal({
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableLinkedTo')}</p>
-            <p>{component.linkedConnector}</p>
+            <p>{component.linkedConnector || t('standaloneLabel')}</p>
           </div>
           {component.connectionMode && (
             <div>
@@ -231,7 +240,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
-                        {component.type}
+                        {localizeComponentType(component.type, t)}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
@@ -241,7 +250,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                       <ComponentStatusBadge status={component.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      {component.linkedConnector}
+                      {component.linkedConnector || t('standaloneLabel')}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
@@ -17,15 +17,16 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDeploy: (connector: DashboardConnector) => Promise<void> | void;
-  onDeployAndAddComponent?: (connector: DashboardConnector) => Promise<void> | void;
   connectorCount: number;
+  deploying?: boolean;
+  existingConnectorNames: string[];
+  defaultVersion?: string;
   prefilledBpn?: string;
   defaultApiEndpoint?: string;
   defaultDataPlaneUrl?: string;
 }
 
 type DeploymentField = 'name';
-const defaultConnectorVersion = '0.11.0';
 
 function getHostnameSuffix(value?: string) {
   if (!value) {
@@ -45,8 +46,10 @@ export default function DeploymentWizard({
   open,
   onOpenChange,
   onDeploy,
-  onDeployAndAddComponent,
   connectorCount,
+  deploying = false,
+  existingConnectorNames,
+  defaultVersion,
   prefilledBpn,
   defaultApiEndpoint,
   defaultDataPlaneUrl,
@@ -68,6 +71,15 @@ export default function DeploymentWizard({
     resetState();
   };
 
+  const normalizedConnectorName = useMemo(
+    () => normalizeResourceName(name),
+    [name],
+  );
+  const connectorNames = useMemo(
+    () => new Set(existingConnectorNames.map((value) => normalizeResourceName(value))),
+    [existingConnectorNames],
+  );
+
   const stepErrors: Partial<Record<DeploymentField, string>> = {};
   if (!name.trim()) {
     stepErrors.name = t('validationRequired', {
@@ -78,6 +90,8 @@ export default function DeploymentWizard({
       min: String(MIN_RESOURCE_NAME_LENGTH),
       max: String(MAX_RESOURCE_NAME_LENGTH),
     });
+  } else if (connectorNames.has(normalizedConnectorName)) {
+    stepErrors.name = t('validationDuplicateName');
   }
 
   const markTouched = (field: DeploymentField) => {
@@ -117,10 +131,6 @@ export default function DeploymentWizard({
     () => getHostnameSuffix(defaultDataPlaneUrl),
     [defaultDataPlaneUrl],
   );
-  const normalizedConnectorName = useMemo(
-    () => normalizeResourceName(name),
-    [name],
-  );
   const generatedHostname = useMemo(
     () =>
       buildGeneratedHostname(normalizedConnectorName, controlplaneHostnameSuffix)
@@ -138,7 +148,7 @@ export default function DeploymentWizard({
     name: normalizedConnectorName,
     url: resolvedApiEndpoint,
     bpn: resolvedBpn,
-    version: defaultConnectorVersion,
+    version: defaultVersion?.trim() || undefined,
     status: 'healthy',
     created_at: new Date().toISOString(),
     urls: [
@@ -156,21 +166,19 @@ export default function DeploymentWizard({
       hostname: generatedHostname,
       dataPlaneUrl: resolvedDataPlaneUrl,
       bpn: resolvedBpn,
-      version: defaultConnectorVersion,
+      version: defaultVersion?.trim() || '',
     },
     source: 'local',
   });
 
-  const deployConnector = async (
-    callback: (connector: DashboardConnector) => Promise<void> | void,
-  ) => {
+  const deployConnector = async () => {
     setSubmitted(true);
-    if (connectorLimitReached || Object.keys(stepErrors).length > 0) {
+    if (deploying || connectorLimitReached || Object.keys(stepErrors).length > 0) {
       return;
     }
 
     const connector = buildConnector();
-    await callback(connector);
+    await onDeploy(connector);
     closeDialog();
   };
 
@@ -181,47 +189,47 @@ export default function DeploymentWizard({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
       <div className="flex min-h-full items-center justify-center">
-      <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
-              {t('deployConnector')}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-              {t('connectorNameStep')}
-            </p>
-          </div>
-          <button
-            onClick={closeDialog}
-            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label={t('close')}
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
-          <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
-            {t('connectorNameHelp')}
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            <p className="font-medium text-gray-900 dark:text-slate-100">{t('deploymentPreparationWelcome')}</p>
-            <p className="mt-2">{t('deploymentPreparationCredentials')}</p>
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-            <p className="font-medium">{t('deploymentAutoConfigTitle')}</p>
-            <p className="mt-2">{t('deploymentAutoConfigDescription')}</p>
-          </div>
-          {connectorLimitReached && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-              {t('connectorLimitReached', { max: String(MAX_CONNECTORS) })}
+        <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
+                {t('deployConnector')}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                {t('connectorNameStep')}
+              </p>
             </div>
-          )}
+            <button
+              onClick={closeDialog}
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              aria-label={t('close')}
+            >
+              <X size={20} />
+            </button>
+          </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-              {t('connectorNameLabel')}
-            </label>
+          <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
+              {t('connectorNameHelp')}
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <p className="font-medium text-gray-900 dark:text-slate-100">{t('deploymentPreparationWelcome')}</p>
+              <p className="mt-2">{t('deploymentPreparationCredentials')}</p>
+            </div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              <p className="font-medium">{t('deploymentAutoConfigTitle')}</p>
+              <p className="mt-2">{t('deploymentAutoConfigDescription')}</p>
+            </div>
+            {connectorLimitReached && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                {t('connectorLimitReached', { max: String(MAX_CONNECTORS) })}
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                {t('connectorNameLabel')}
+              </label>
               <input
                 type="text"
                 value={name}
@@ -235,62 +243,49 @@ export default function DeploymentWizard({
                 aria-invalid={showError('name')}
                 className={inputClass(showError('name'))}
               />
-            {showError('name') && (
-              <p className="mt-2 text-xs text-red-600 dark:text-red-300">
-                {stepErrors.name}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-              {t('hostnameLabel')}
-            </label>
-            <input
-              type="text"
-              value={generatedHostname}
-              readOnly
-              placeholder={t('hostnamePlaceholder')}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-            />
-            <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-              {t('hostnameHelp')}
-            </p>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-100 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={closeDialog}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              {t('cancel')}
-            </button>
-            <div className="flex items-center gap-3">
-              {onDeployAndAddComponent && (
-                <button
-                  onClick={() => void deployConnector(onDeployAndAddComponent)}
-                  disabled={connectorLimitReached}
-                  className="inline-flex rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 transition-colors hover:bg-orange-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100 dark:hover:bg-orange-500/20 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Plus size={16} />
-                    {t('deployAndAddComponent')}
-                  </span>
-                </button>
+              {showError('name') && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-300">
+                  {stepErrors.name}
+                </p>
               )}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                {t('hostnameLabel')}
+              </label>
+              <input
+                type="text"
+                value={generatedHostname}
+                readOnly
+                placeholder={t('hostnamePlaceholder')}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                {t('hostnameHelp')}
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 px-6 py-4 dark:border-slate-800">
+            <div className="flex items-center justify-between">
               <button
-                onClick={() => void deployConnector(onDeploy)}
-                disabled={connectorLimitReached}
+                onClick={closeDialog}
+                disabled={deploying}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={() => void deployConnector()}
+                disabled={deploying || connectorLimitReached}
                 className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
-                {t('deployNow')}
+                {deploying ? t('deploymentStatusDeployingTitle') : t('deployNow')}
               </button>
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );

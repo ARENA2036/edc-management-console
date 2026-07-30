@@ -8,7 +8,7 @@ edc:
     ids: "/ids"
 
 appConfig:
-  name: "EDC Management Console"
+  name: "ARENA2036 EDC Management Console"
   version: "1.0.0"
 
 dataspaceConfig:

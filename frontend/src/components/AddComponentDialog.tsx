@@ -55,13 +55,8 @@ export default function AddComponentDialog({
                 disabled={connectorLimitReached}
                 className="group rounded-2xl border border-orange-200 bg-orange-50 p-6 text-left transition-all hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-lg disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:shadow-none dark:border-orange-500/30 dark:bg-orange-500/10 dark:disabled:border-slate-700 dark:disabled:bg-slate-800"
               >
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500 text-white shadow-md">
-                    <Network size={24} />
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-orange-600 shadow-sm dark:bg-slate-800 dark:text-orange-300">
-                    3 {t('stepCount')}
-                  </span>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500 text-white shadow-md">
+                  <Network size={24} />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                   {t('edcConnectorOption')}
@@ -80,13 +75,8 @@ export default function AddComponentDialog({
                 onClick={onSelectComponent}
                 className="group rounded-2xl border border-blue-200 bg-blue-50 p-6 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-blue-500/30 dark:bg-blue-500/10"
               >
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 text-white shadow-md">
-                    <Boxes size={24} />
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm dark:bg-slate-800 dark:text-blue-300">
-                    2 {t('stepCount')}
-                  </span>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 text-white shadow-md">
+                  <Boxes size={24} />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                   {t('componentOption')}

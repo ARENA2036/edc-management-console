@@ -213,10 +213,15 @@ class EdcManager:
         selector = cfg.get("version")
         if selector is not None:
             version = render_template(selector, render_source)
+            if isinstance(version, str) and not version.strip():
+                version = None
         elif versions:
             version = versions[0].get("version")
         else:
             version = chart.get("version")
+
+        if version is None and versions:
+            version = versions[0].get("version")
 
         entry = resolve_version_entry(version, versions) if versions else None
         if versions and entry is None:

@@ -4,6 +4,7 @@ import type {
   DashboardConnector,
   ManagedComponent,
 } from '../types';
+import { getRuntimeConfigValue } from '../runtime-config';
 
 export type ComponentKind = 'connector' | 'digitalTwinRegistry' | 'submodelServer';
 
@@ -149,16 +150,19 @@ export function getDefaultComponentDraft(
   const trimmedBase = trimOrEmpty(baseName);
   const isDtr = kind === 'digitalTwinRegistry';
   const defaultName = isDtr ? `${trimmedBase}-dtr` : `${trimmedBase}-sms`;
-  const defaultUrl = isDtr
-    ? `${trimmedBase}.txcd.arena2036-x.de`
-    : `${trimmedBase}.txcd.arena2036-x.de`;
+  const hostSuffix = getRuntimeConfigValue(
+    import.meta.env.VITE_EDC_HOSTNAME,
+    window.__RUNTIME_CONFIG__?.edcHost,
+    '',
+  );
+  const defaultUrl = trimmedBase && hostSuffix ? `${trimmedBase}.${hostSuffix}` : '';
   const defaultUsername = `${defaultName}-user`;
   const defaultPassword = `${defaultName}-password`;
 
   return {
     enabled: existing?.enabled ?? false,
     name: trimOrEmpty(existing?.name) || defaultName,
-    version: trimOrEmpty(existing?.version) || (isDtr ? '0.12.0' : '0.11.0'),
+    version: trimOrEmpty(existing?.version),
     url: trimOrEmpty(existing?.url) || defaultUrl,
     dbName: trimOrEmpty(existing?.dbName) || `${defaultName}-db`,
     username: trimOrEmpty(existing?.username) || defaultUsername,

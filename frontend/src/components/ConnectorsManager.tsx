@@ -152,7 +152,7 @@ export default function ConnectorsManager({
                       {connector.name}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      {connector.version || '0.9.0'}
+                      {connector.version || t('noValue')}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">

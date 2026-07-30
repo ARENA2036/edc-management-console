@@ -329,6 +329,12 @@ async def _deploy_components(components, namespace):
         )
         linked_connector = connector_name if comp.type != "connector" else comp.name
         _upsert_component_row(comp, plan, namespace, linked_connector)
+        databaseManager.log_activity(
+            action=f"DEPLOY_{comp.type}".upper(),
+            details=f"Deployed {comp.type} '{comp.name}' in namespace '{namespace}'",
+            connector_name=linked_connector,
+            status="success",
+        )
         deployed.append({"type": comp.type, "name": comp.name,
                          "release": plan["release_name"], "version": plan["version"]})
 
@@ -408,6 +414,12 @@ async def delete_connector(connector_name: str, request: Request):
             await edcService.uninstall(
                 release_name=release_name,
                 namespace=target.namespace or namespace,
+            )
+            databaseManager.log_activity(
+                action=f"DELETE_{_record_type(target)}".upper(),
+                details=f"Deleted {_record_type(target)} '{target.name}' from namespace '{target.namespace or namespace}'",
+                connector_name=_linked_connector_name(target),
+                status="success",
             )
             databaseManager.delete_connector(connector_id=target.id)
 
@@ -519,17 +531,17 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-# @app.get("/api/logs", tags=["Logs"])
-# async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
-#     try:
-#         logs = activity_manager.get_recent_logs(limit)
-#         return {
-#             "user": user["preferred_username"],
-#             "data": logs
-#         }
-#     except Exception as e:
-#         logger.exception(str(e))
-#         return HttpUtils.get_error_response(status=500, message=str(e))
+@app.get("/api/logs", tags=["Logs"])
+async def get_activity(request: Request, limit: int = 20):
+    try:
+        if not authManager.is_authenticated(request=request):
+            return HttpUtils.get_not_authorized()
+
+        logs = [entry.to_dict() for entry in databaseManager.get_recent_activity(limit)]
+        return HttpUtils.response(status=200, data=logs)
+    except Exception as e:
+        logger.exception(str(e))
+        return HttpUtils.get_error_response(status=500, message=str(e))
 
 @app.get("/api/config", tags=["Config"])
 async def get_config(user=Depends(keycloak_openid.get_current_user)):
@@ -571,6 +583,21 @@ def _configured_url(value):
         return resolved
 
     return f"https://{resolved}"
+
+
+def _component_versions(component_key: str):
+    component_config = app_configuration.get("components", {}).get(component_key, {})
+    versions = [
+        entry.get("version")
+        for entry in (component_config.get("versions") or [])
+        if entry.get("version")
+    ]
+    return {
+        "defaultVersion": versions[0] if versions else "",
+        "availableVersions": versions,
+    }
+
+
 @app.get("/api/dataspace", tags=["Dataspace"])
 async def get_dataspace_settings(request: Request):
     """
@@ -581,11 +608,11 @@ async def get_dataspace_settings(request: Request):
     """
     try:
         dataspace_config = app_configuration.get("dataspaceConfig", {})
-        edc_config = app_configuration.get("edc", {})
+        edc_config = app_configuration.get("connector", {})
         central_idp_config = dataspace_config.get("centralidp", {})
         discovery_config = dataspace_config.get("discovery", {})
-        sde_config = app_configuration.get("sde", {})
-        cluster_config = app_configuration.get("clusterConfig", {})
+        sde_config = app_configuration.get("externalApps", {}).get("sde", {})
+        cluster_config = dataspace_config.get("clusterConfig", {})
 
         dataspace_name = _configured_value(
             dataspace_config.get("name"),
@@ -640,12 +667,17 @@ async def get_dataspace_settings(request: Request):
             "edc": {
                 "default_url": _configured_value(edc_config.get("default_url")),
                 "controlplane_url": _configured_url(
-                    edc_config.get("hostname", {}).get("cp")
+                    edc_config.get("hostname", {}).get("controlplane")
                 ) or _configured_value(edc_config.get("default_url")),
                 "dataplane_url": _configured_url(
-                    edc_config.get("hostname", {}).get("dp")
+                    edc_config.get("hostname", {}).get("dataplane")
                 ),
                 "cluster_context": _configured_value(cluster_config.get("context")),
+            },
+            "deployment": {
+                "connector": _component_versions("connector"),
+                "digitalTwinRegistry": _component_versions("digitalTwinRegistry"),
+                "submodelServer": _component_versions("submodelServer"),
             },
             "readonly": True
         }

@@ -8,6 +8,7 @@ import pytest
 
 from utilities import common
 from managers.edcManager import EdcManager
+from service.edcService import EdcService
 
 
 # ---------------------------------------------------------------------------
@@ -274,3 +275,21 @@ def test_arbitrary_request_field_gates_and_maps(tmp_path):
 
     plan = mgr.prepare_deployment("vault", req)
     assert plan["values"]["server"]["host"] == "https://vault.example"
+
+
+def test_chart_lookup_args_use_repo_alias_in_chart_ref():
+    service = EdcService(
+        repositories=[
+            {"name": "tractusx-dev", "url": "https://eclipse-tractusx.github.io/charts/dev"},
+        ],
+    )
+    assert service._chart_lookup_args("tractusx-connector", "tractusx-dev") == (
+        "tractusx-dev/tractusx-connector",
+        None,
+    )
+
+
+def test_chart_lookup_args_preserve_explicit_url():
+    service = EdcService(repositories=[])
+    url = "https://eclipse-tractusx.github.io/charts/dev"
+    assert service._chart_lookup_args("tractusx-connector", url) == ("tractusx-connector", url)

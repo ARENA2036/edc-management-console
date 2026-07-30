@@ -10,7 +10,7 @@ export interface SubmodelServer {
 
 // Typisierung für config und urls
 export interface Connector {
-  id: number;
+  id: string | number;
   name: string;
   url: string;
   bpn?: string;
@@ -75,6 +75,7 @@ export interface ManagedComponent {
 
   endpoint?: string;
   credentials?: string;
+  source?: 'api' | 'local';
 
   db_name: string;
 
