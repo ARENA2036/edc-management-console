@@ -656,7 +656,6 @@ tolerations: []
 affinity: {}
 
 # Observability stack (Grafana/Prometheus/Loki)
-
 grafana:
   enabled: true
   ingress:
