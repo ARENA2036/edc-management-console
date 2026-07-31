@@ -155,7 +155,7 @@
   "settingsTooltipContent": "Hier finden Sie synchronisierte Dataspace- und Plattforminformationen, die oft als Referenz für URLs, Umgebungen und Systemwerte dienen.",
   "settingsTooltipFooter": "Nur anzeigen",
   "portalPlaceholderDescription": "Dieser Anwendungseintrag ist für eine Portal-Integration vorbereitet und kann später mit einer echten Portal-URL oder einer eingebetteten Portalerfahrung verbunden werden.",
-  "dataspaceOsPlaceholderDescription": "Dieser Anwendungseintrag öffnet den Industry Core Hub und verwandte plattformbezogene Workflows.",
+  "ichPlaceholderDescription": "Dieser Anwendungseintrag öffnet den Industry Core Hub und verwandte plattformbezogene Workflows.",
   "sdeRedirectTitle": "Weiterleitung zur SDE-Anwendung...",
   "sdeRedirectDescription": "Sie werden zur Simple-Data-Exchanger-Anwendung weitergeleitet.",
   "sdeRedirectLinkPrefix": "Falls Sie nicht weitergeleitet werden,",

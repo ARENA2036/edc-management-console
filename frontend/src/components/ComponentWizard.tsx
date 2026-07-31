@@ -205,6 +205,9 @@ export default function ComponentWizard({
   };
 
   const showStep2Error = (type: ComponentType, field: ComponentField) => {
+    if (deploying) {
+      return false;
+    }
     const errors = getStep2Errors(type);
     return Boolean(errors[field]) && (getDraft(type).touched[field] || submittedStep2);
   };
@@ -439,6 +442,7 @@ export default function ComponentWizard({
                           onBlur={() => markDraftTouched(type, 'name')}
                           placeholder={getComponentNamePlaceholder(type)}
                           maxLength={MAX_RESOURCE_NAME_LENGTH}
+                          disabled={deploying}
                           aria-invalid={showStep2Error(type, 'name')}
                           className={inputClass(showStep2Error(type, 'name'))}
                         />

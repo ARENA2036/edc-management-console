@@ -106,7 +106,7 @@ export default function DeploymentWizard({
   };
 
   const showError = (field: DeploymentField) =>
-    Boolean(stepErrors[field]) && (touched[field] || submitted);
+    !deploying && Boolean(stepErrors[field]) && (touched[field] || submitted);
 
   const inputClass = (hasError: boolean) =>
     `w-full rounded-xl border bg-white px-4 py-3 text-gray-900 outline-none transition-colors dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 ${
@@ -258,6 +258,7 @@ export default function DeploymentWizard({
                 onBlur={() => markTouched('name')}
                 placeholder={t('connectorNamePlaceholder')}
                 maxLength={MAX_RESOURCE_NAME_LENGTH}
+                disabled={deploying}
                 aria-invalid={showError('name')}
                 className={inputClass(showError('name'))}
               />
