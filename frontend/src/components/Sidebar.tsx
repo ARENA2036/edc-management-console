@@ -66,11 +66,11 @@ export default function Sidebar({ isOpen, onClose, onHelpClick }: Props) {
     },
     {
       icon: SquareTerminal,
-      label: t('dataspaceOsNavLabel'),
-      path: '/dataspace-os',
-      title: t('dataspaceOsNavTitle'),
-      content: t('dataspaceOsNavContent'),
-      footer: t('dataspaceOsNavFooter'),
+      label: t('ichNavLabel'),
+      path: '/ich',
+      title: t('ichNavTitle'),
+      content: t('ichNavContent'),
+      footer: t('ichNavFooter'),
     },
   ];
 

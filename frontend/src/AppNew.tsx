@@ -1657,11 +1657,11 @@ function AppShell() {
                       }
                     />
                     <Route
-                      path="/dataspace-os"
+                      path="/ich"
                       element={
                         <AppPlaceholder
-                          title={t('dataspaceOsNavLabel')}
-                          description={t('dataspaceOsPlaceholderDescription')}
+                          title={t('ichNavLabel')}
+                          description={t('ichPlaceholderDescription')}
                         />
                       }
                     />
