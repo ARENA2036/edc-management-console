@@ -1354,28 +1354,41 @@ function AppPlaceholder({
   );
 }
 
-function SDE({ sdeUrl }: { sdeUrl: string }) {
+function ExternalAppRedirect({
+  url,
+  title,
+  description,
+}: {
+  url: string;
+  title: string;
+  description: string;
+}) {
   const { t } = useI18n();
 
   useEffect(() => {
-    if (sdeUrl) {
-      window.open(sdeUrl, '_blank');
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
-  }, [sdeUrl]);
+  }, [url]);
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-slate-100">
-            {t('sdeRedirectTitle')}
+            {title}
           </h2>
           <p className="text-gray-500 dark:text-slate-400">
-            {t('sdeRedirectDescription')}
+            {description}
           </p>
           <p className="mt-4 text-sm text-gray-400 dark:text-slate-500">
             {t('sdeRedirectLinkPrefix')}{' '}
-            <a href={sdeUrl} className="text-orange-500 hover:underline">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-500 hover:underline"
+            >
               {t('sdeRedirectLinkLabel')}
             </a>
             {t('sdeRedirectLinkSuffix')}
@@ -1559,13 +1572,23 @@ function AppShell() {
   );
   const sessionBpn = readSessionBpn(keycloak.tokenParsed, keycloak.token);
 
-  const [sdeUrl, setSdeUrl] = useState(
-    getRuntimeConfigValue(
-      import.meta.env.VITE_SDE_URL,
-      window.__RUNTIME_CONFIG__?.sdeUrl,
-      '',
-    ),
+  // Explicit env / runtime-config values take precedence over the dataspace
+  // config, so a deployment can point these entries somewhere else without
+  // changing backend configuration.yml. Backend values are the fallback for
+  // when nothing is set here.
+  const envSdeUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_SDE_URL,
+    window.__RUNTIME_CONFIG__?.sdeUrl,
+    '',
   );
+  const envPortalUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_PORTAL_URL,
+    window.__RUNTIME_CONFIG__?.portalUrl,
+    '',
+  );
+
+  const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
+  const [portalUrl, setPortalUrl] = useState(envPortalUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1593,18 +1616,23 @@ function AppShell() {
   }, [sessionBpnCandidates]);
 
   useEffect(() => {
-    const loadSdeUrl = async () => {
+    const loadAppUrls = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        if (response.data?.data?.sde?.url) {
+        // Only fill in from the dataspace config when the deployment has not set
+        // an explicit value; otherwise the env setting would be silently ignored.
+        if (!envSdeUrl && response.data?.data?.sde?.url) {
           setSdeUrl(response.data.data.sde.url);
         }
+        if (!envPortalUrl && response.data?.data?.portal?.url) {
+          setPortalUrl(response.data.data.portal.url);
+        }
       } catch (error) {
-        console.error('Failed to load SDE URL:', error);
+        console.error('Failed to load external app URLs:', error);
       }
     };
 
-    loadSdeUrl();
+    loadAppUrls();
 
     const hasSeenWelcome = localStorage.getItem(WELCOME_STORAGE_KEY);
     if (!hasSeenWelcome) {
@@ -1646,14 +1674,31 @@ function AppShell() {
                   <Routes>
                     <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
                     <Route path="/monitor" element={<Monitor />} />
-                    <Route path="/sde" element={<SDE sdeUrl={sdeUrl} />} />
+                    <Route
+                      path="/sde"
+                      element={(
+                        <ExternalAppRedirect
+                          url={sdeUrl}
+                          title={t('sdeRedirectTitle')}
+                          description={t('sdeRedirectDescription')}
+                        />
+                      )}
+                    />
                     <Route
                       path="/portal"
                       element={
-                        <AppPlaceholder
-                          title={t('portalNavLabel')}
-                          description={t('portalPlaceholderDescription')}
-                        />
+                        portalUrl ? (
+                          <ExternalAppRedirect
+                            url={portalUrl}
+                            title={t('portalRedirectTitle')}
+                            description={t('portalRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('portalNavLabel')}
+                            description={t('portalPlaceholderDescription')}
+                          />
+                        )
                       }
                     />
                     <Route

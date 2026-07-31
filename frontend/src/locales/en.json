@@ -156,6 +156,8 @@
   "settingsTooltipFooter": "View only",
   "portalPlaceholderDescription": "This application entry is ready for a portal integration and can later be connected to a real portal URL or embedded portal experience.",
   "ichPlaceholderDescription": "This application entry opens Industry Core Hub and related platform-oriented workflows.",
+  "portalRedirectTitle": "Redirecting to Portal...",
+  "portalRedirectDescription": "You will be redirected to the portal application.",
   "sdeRedirectTitle": "Redirecting to SDE Application...",
   "sdeRedirectDescription": "You will be redirected to the Simple Data Exchanger application.",
   "sdeRedirectLinkPrefix": "If you are not redirected,",
