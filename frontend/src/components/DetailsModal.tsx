@@ -1,5 +1,6 @@
 import { X, Copy } from 'lucide-react';
 import type { Connector } from '../types';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   connector: Connector;
@@ -7,13 +8,16 @@ interface Props {
 }
 
 export default function DetailsModal({ connector, onClose }: Props) {
+  useLockBodyScroll(true);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/60 px-4 py-6 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center">
+        <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Connector Details</h2>
           <button
@@ -65,17 +69,15 @@ export default function DetailsModal({ connector, onClose }: Props) {
           <div className="border-b border-gray-200 pb-4 dark:border-slate-800">
             <label className="block text-sm font-medium text-gray-500">Status</label>
             <p
-              className={`text-lg font-semibold ${
-                connector.status === 'healthy' || connector.status === 'active'
+              className={`text-lg font-semibold ${connector.status === 'healthy' || connector.status === 'unhealthy'
                   ? 'text-emerald-600 dark:text-emerald-400'
-                  : connector.status === 'unhealthy' || connector.status === 'unreachable'
-                  ? 'text-red-600 dark:text-red-400'
                   : 'text-gray-600 dark:text-slate-300'
-              }`}
+                }`}
             >
-              {connector.status}
+              {connector.status === 'unhealthy' ? 'Active' : connector.status}
             </p>
           </div>
+        </div>
         </div>
       </div>
     </div>

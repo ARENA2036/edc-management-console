@@ -1,6 +1,7 @@
 import { X, Copy } from 'lucide-react';
 import type { Connector, ManagedComponent } from '../types';
 import yaml from 'js-yaml';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   connector: Connector;
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export default function YamlViewModal({ connector, components = [], onClose }: Props) {
+  useLockBodyScroll(true);
+
   const submodel = components.find((c) => c.type === 'submodelServer');
   const registry = components.find((c) => c.type === 'digitalTwinRegistry');
 
@@ -26,8 +29,9 @@ export default function YamlViewModal({ connector, components = [], onClose }: P
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
+        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
             YAML View: {connector.name}
@@ -50,9 +54,10 @@ export default function YamlViewModal({ connector, components = [], onClose }: P
           </div>
         </div>
         <div className="p-6">
-          <pre className="max-h-[60vh] overflow-auto rounded-xl bg-gray-900 p-4 text-sm leading-relaxed text-green-400">
+          <pre className="max-h-[60vh] overflow-auto overscroll-contain rounded-xl bg-gray-900 p-4 text-sm leading-relaxed text-green-400">
             {yamlContent}
           </pre>
+        </div>
         </div>
       </div>
     </div>

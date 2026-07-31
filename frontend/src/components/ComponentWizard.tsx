@@ -1,28 +1,42 @@
 import { CheckCircle2, ChevronDown, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DashboardConnector, ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
+import { useLockBodyScroll } from '../useLockBodyScroll';
+import {
+  isValidResourceName,
+  MAX_RESOURCE_NAME_LENGTH,
+  MIN_RESOURCE_NAME_LENGTH,
+  normalizeResourceName,
+} from '../utils/nameRules';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   connectors: DashboardConnector[];
-  onDeploy: (component: ManagedComponent) => void;
+  onDeploy: (component: ManagedComponent) => Promise<void> | void;
+  deploying?: boolean;
+  existingNames: string[];
+  defaultVersions?: Partial<Record<ManagedComponent['type'] | 'connector', string>>;
   initialLinkedConnector?: string;
+  allowMultipleTypes?: boolean;
+  initialSelectedTypes?: ComponentType[];
+  startAtConfiguration?: boolean;
 }
 
 const componentTypes = [
-  {
-    label: "Submodel Service",
-    type: "submodelServer",
-    defaultVersion: "0.1.0",
-  },
-  {
-    label: "Digital Twin Registry",
-    type: "digitalTwinRegistry",
-    defaultVersion: "0.12.0",
-  },
+  'Submodel Service',
+  'Digital Twin Registry',
 ] as const;
+
+export type ComponentType = (typeof componentTypes)[number];
+type Translate = ReturnType<typeof useI18n>['t'];
+type ComponentField = 'name';
+
+interface ComponentDraft {
+  name: string;
+  touched: Partial<Record<ComponentField, boolean>>;
+}
 
 function getConnectorType(connector: DashboardConnector) {
   const config = connector.config;
@@ -33,90 +47,36 @@ function getConnectorType(connector: DashboardConnector) {
   return 'EDC Connector';
 }
 
-function DeploymentProgress({
-  componentType,
-  step,
-}: {
-  componentType: string;
-  step: "installing" | "health" | "ready";
-}) {
-  return (
-    <div className="space-y-6 py-6">
-
-      <div className="text-center">
-
-        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-200 border-t-blue-500" />
-
-        <h3 className="text-2xl font-semibold">
-          Deploying {componentType}
-        </h3>
-
-        <p className="mt-2 text-sm text-gray-500">
-          Deployment usually takes around 1–2 minutes.
-        </p>
-
-      </div>
-
-      <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500" />
-      </div>
-
-      <div className="space-y-4 rounded-xl border border-gray-200 p-5">
-
-        <ProgressRow
-          done
-          text="Deployment request accepted"
-        />
-
-        <ProgressRow
-          done={step !== "installing"}
-          loading={step === "installing"}
-          text={`Installing ${componentType}`}
-        />
-
-        <ProgressRow
-          done={step === "ready"}
-          loading={step === "health"}
-          text="Waiting for health check"
-        />
-
-        <ProgressRow
-          done={step === "ready"}
-          text={`${componentType} is ready`}
-        />
-
-      </div>
-
-    </div>
-  );
+function getComponentTypeTitle(type: ComponentType, t: Translate) {
+  return type === 'Digital Twin Registry'
+    ? t('componentTypeTwin')
+    : t('componentTypeSubmodel');
 }
 
-function ProgressRow({
-  done,
-  loading,
-  text,
-}: {
-  done?: boolean;
-  loading?: boolean;
-  text: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
+function getComponentTypeDescription(type: ComponentType, t: Translate) {
+  return type === 'Digital Twin Registry'
+    ? t('componentTypeTwinDescription')
+    : t('componentTypeSubmodelDescription');
+}
 
-      {done ? (
-        <CheckCircle2
-          size={18}
-          className="text-green-500"
-        />
-      ) : loading ? (
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500" />
-      ) : (
-        <div className="h-4 w-4 rounded-full border border-gray-300" />
-      )}
+function toManagedComponentType(type: ComponentType): ManagedComponent['type'] {
+  return type === 'Digital Twin Registry' ? 'digitalTwinRegistry' : 'submodelServer';
+}
 
-      <span>{text}</span>
+function createEmptyDraft(): ComponentDraft {
+  return {
+    name: '',
+    touched: {},
+  };
+}
 
-    </div>
+function buildDrafts() {
+  return componentTypes.reduce(
+    (drafts, type) => ({
+      ...drafts,
+      [type]: createEmptyDraft(),
+    }),
+    {} as Record<ComponentType, ComponentDraft>,
   );
 }
 
@@ -125,405 +85,409 @@ export default function ComponentWizard({
   onOpenChange,
   connectors,
   onDeploy,
+  deploying = false,
+  existingNames,
+  defaultVersions,
   initialLinkedConnector,
+  allowMultipleTypes = true,
+  initialSelectedTypes,
+  startAtConfiguration = false,
 }: Props) {
-  const { language, t } = useI18n();
-  const [step, setStep] = useState(1);
-  type ComponentType = (typeof componentTypes)[number];
-
-  const [componentType, setComponentType] = useState<ComponentType>(
-    componentTypes[0]
+  const { t } = useI18n();
+  useLockBodyScroll(open);
+  const defaultSelectedTypes = useMemo<ComponentType[]>(
+    () =>
+      initialSelectedTypes?.length
+        ? [...initialSelectedTypes]
+        : ['Submodel Service'],
+    [initialSelectedTypes],
   );
-  const [name, setName] = useState('');
-  const [linkedConnector, setLinkedConnector] = useState('');
-  const [connectionMode, setConnectionMode] = useState<'new' | 'existing'>('new');
-  const [existingEndpoint, setExistingEndpoint] = useState('');
-  const [existingCredentials, setExistingCredentials] = useState('');
-  const [deploying, setDeploying] = useState(false);
 
-  const [deploymentStep, setDeploymentStep] = useState<
-    "installing" | "health" | "ready"
-  >("installing");
+  const [step, setStep] = useState(1);
+  const [selectedComponentTypes, setSelectedComponentTypes] =
+    useState<ComponentType[]>(defaultSelectedTypes);
+  const [linkedConnector, setLinkedConnector] = useState('');
+  const [componentDrafts, setComponentDrafts] = useState<Record<ComponentType, ComponentDraft>>(
+    buildDrafts(),
+  );
+  const [submittedStep1, setSubmittedStep1] = useState(false);
+  const [submittedStep2, setSubmittedStep2] = useState(false);
 
   const eligibleConnectors = connectors;
+  const localizeConnectorType = (type: string) =>
+    type === 'EDC Connector' ? t('connectorTypeDefault') : type;
+  const normalizedExistingNames = useMemo(
+    () => new Set(existingNames.map((value) => normalizeResourceName(value))),
+    [existingNames],
+  );
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    if (initialLinkedConnector) {
-      setLinkedConnector(initialLinkedConnector);
-    }
-  }, [eligibleConnectors, initialLinkedConnector, linkedConnector, open]);
-
-  const resetState = () => {
-    setStep(1);
-    setComponentType(componentTypes[0]);
-    setName('');
+    setStep(startAtConfiguration ? 2 : 1);
+    setSelectedComponentTypes(defaultSelectedTypes);
+    setComponentDrafts(buildDrafts());
+    setSubmittedStep1(false);
+    setSubmittedStep2(false);
     setLinkedConnector(initialLinkedConnector ?? '');
-    setConnectionMode('new');
-    setExistingEndpoint('');
-    setExistingCredentials('');
-  };
+  }, [
+    defaultSelectedTypes,
+    initialLinkedConnector,
+    open,
+    startAtConfiguration,
+  ]);
 
   const closeDialog = () => {
     onOpenChange(false);
-    resetState();
   };
 
-  const canContinue =
-    step === 1
-      ? Boolean(componentType)
-       : Boolean(
-        name.trim() &&
-        (connectionMode === 'new' || existingEndpoint.trim()),
-      );
+  const getDraft = (type: ComponentType) => componentDrafts[type] ?? createEmptyDraft();
+
+  const getComponentNamePlaceholder = (type: ComponentType) =>
+    type === 'Digital Twin Registry'
+      ? t('componentNamePlaceholderTwin')
+      : t('componentNamePlaceholderSubmodel');
+
+  const getStep2Errors = (type: ComponentType) => {
+    const draft = getDraft(type);
+    const errors: Partial<Record<ComponentField, string>> = {};
+    const normalizedName = normalizeResourceName(draft.name);
+    const duplicateInSelection = selectedComponentTypes.some(
+      (selectedType) =>
+        selectedType !== type
+        && normalizeResourceName(getDraft(selectedType).name) === normalizedName
+        && normalizedName.length > 0,
+    );
+
+    if (!draft.name.trim()) {
+      errors.name = t('validationRequired', {
+        field: t('componentNameLabel'),
+      });
+    } else if (!isValidResourceName(draft.name)) {
+      errors.name = t('validationInvalidResourceName', {
+        min: String(MIN_RESOURCE_NAME_LENGTH),
+        max: String(MAX_RESOURCE_NAME_LENGTH),
+      });
+    } else if (normalizedExistingNames.has(normalizedName) || duplicateInSelection) {
+      errors.name = t('validationDuplicateName');
+    }
+
+    return errors;
+  };
+
+  const inputClass = (hasError: boolean) =>
+    `w-full rounded-xl border bg-white px-4 py-3 text-gray-900 outline-none transition-colors dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+      hasError
+        ? 'border-red-400 focus:border-red-500 dark:border-red-500/70'
+        : 'border-gray-200 focus:border-blue-400'
+    }`;
+
+  const updateDraft = (
+    type: ComponentType,
+    updater: (draft: ComponentDraft) => ComponentDraft,
+  ) => {
+    setComponentDrafts((current) => ({
+      ...current,
+      [type]: updater(current[type] ?? createEmptyDraft()),
+    }));
+  };
+
+  const markDraftTouched = (type: ComponentType, field: ComponentField) => {
+    updateDraft(type, (draft) => ({
+      ...draft,
+      touched: {
+        ...draft.touched,
+        [field]: true,
+      },
+    }));
+  };
+
+  const showStep2Error = (type: ComponentType, field: ComponentField) => {
+    const errors = getStep2Errors(type);
+    return Boolean(errors[field]) && (getDraft(type).touched[field] || submittedStep2);
+  };
 
   const handleDeploy = async () => {
-    setDeploying(true);
-    setDeploymentStep("installing");
+    setSubmittedStep2(true);
 
-    try {
+    if (
+      deploying
+      || selectedComponentTypes.some((type) => Object.keys(getStep2Errors(type)).length > 0)
+    ) {
+      return;
+    }
+
+    for (const type of selectedComponentTypes) {
+      const draft = getDraft(type);
+      const normalizedName = normalizeResourceName(draft.name);
+      const managedType = toManagedComponentType(type);
       const component: ManagedComponent = {
-        id: `comp-${Date.now()}`,
-        type: componentType.type,
-        name: name.trim(),
-        version: componentType.defaultVersion,
-        // 'existing' mode just registers an already-running service - nothing
-        // is actually being installed, so it shouldn't get stuck showing
-        // "Deploying" forever (there's no backend row for it whose health
-        // check would ever move it to Active).
-        status: connectionMode === "existing" ? "Active" : "Deploying",
+        id: `comp-${type}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name: normalizedName,
+        type: managedType,
+        version: defaultVersions?.[managedType]?.trim() || '',
+        status: 'Active',
         linkedConnector,
         deployedAt: new Date().toISOString(),
-
-        connectionMode,
-
-        endpoint:
-          connectionMode === "existing"
-            ? existingEndpoint.trim()
-            : `${name.trim()}.txcd.arena2036-x.de`,
-
-        credentials:
-          connectionMode === "existing"
-            ? existingCredentials.trim()
-            : undefined,
-        db_name: `${name.trim()}-db`,
+        connectionMode: 'new',
+        db_name: `${normalizedName}-db`,
         auth: {
-          db_username: `${name.trim()}-username`,
-          db_password: `${name.trim()}-password`,
+          db_username: `${normalizedName}-user`,
+          db_password: `${normalizedName}-password`,
         },
       };
 
       await Promise.resolve(onDeploy(component));
-
-      setDeploymentStep("health");
-
-      // later
-      // await waitUntilHealthy(component.name);
-
-      setDeploymentStep("ready");
-
-      closeDialog();
-    } finally {
-      setDeploying(false);
     }
+
+    closeDialog();
+  };
+
+  const toggleComponentType = (type: ComponentType) => {
+    if (!allowMultipleTypes) {
+      setSelectedComponentTypes([type]);
+      return;
+    }
+
+    setSelectedComponentTypes((current) =>
+      current.includes(type)
+        ? current.filter((currentType) => currentType !== type)
+        : [...current, type],
+    );
+  };
+
+  const handlePrimaryAction = async () => {
+    if (step === 1) {
+      setSubmittedStep1(true);
+      if (selectedComponentTypes.length === 0) {
+        return;
+      }
+
+      setStep(2);
+      return;
+    }
+
+    await handleDeploy();
   };
 
   if (!open) {
     return null;
   }
 
-  const componentGuidance =
-    language === 'de'
-      ? {
-        choose:
-          'Wählen Sie den Service-Typ nach seiner Aufgabe: Submodel Service für Asset-Daten oder Digital Twin Registry für Registrierungsfunktionen.',
-        config:
-          'Für die Verknüpfung benötigen Sie normalerweise den passenden Connector sowie den Namen oder die URL des Zielservices aus Ihrer Betriebs- oder Projekt-Dokumentation.',
-        where:
-          'Diese Informationen kommen häufig vom Service-Verantwortlichen, aus Helm-/Kubernetes-Werten, API-Dokumentation oder aus Ihrem Plattform-Wiki.',
-        restriction:
-          'Services können eigenständig deployt oder mit einem vorhandenen Connector verknüpft werden, wenn Sie einen unten auswählen.',
-      }
-      : {
-        choose:
-          'Choose the service type based on its job: Submodel Service for asset data or Digital Twin Registry for registration functions.',
-        config:
-          'For the setup you usually need an existing connector plus the name or service URL from your project or operations documentation.',
-        where:
-          'These values often come from the service owner, Helm or Kubernetes values, API documentation or your platform wiki.',
-        restriction:
-          'Services can be deployed independently or linked to an existing connector if you choose one below.',
-      };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
-              {t('addComponent')}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-              {step === 1 ? t('componentTypeStep') : t('componentConfigStep')}
-            </p>
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
+        <div className="flex max-h-[calc(100vh-3rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-800">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100">
+                {t('addComponent')}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                {step === 1 ? t('componentTypeStep') : t('componentConfigStep')}
+              </p>
+            </div>
+            <button
+              onClick={closeDialog}
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              aria-label={t('close')}
+            >
+              <X size={20} />
+            </button>
           </div>
-          <button
-            onClick={closeDialog}
-            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label={t('close')}
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        <div className="space-y-6 px-6 py-6">
+          <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
+            {step === 1 && (
+              <>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                  {t('componentHelp')}
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {t('componentGuidanceChoose')}
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  {t('componentGuidanceRestriction')}
+                </div>
+                <div className="grid gap-3">
+                  {componentTypes.map((type) => {
+                    const title = getComponentTypeTitle(type, t);
+                    const description = getComponentTypeDescription(type, t);
+                    const isSelected = selectedComponentTypes.includes(type);
 
-          {deploying ? (
-
-            <DeploymentProgress
-              componentType={componentType.label}
-              step={deploymentStep}
-            />
-
-          ) : (
-
-            <>
-              {step === 1 && (
-                <>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                    {t('componentHelp')}
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {componentGuidance.choose}
-                  </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                    {componentGuidance.restriction}
-                  </div>
-                  <div className="grid gap-3">
-                    {componentTypes.map((component) => {
-                      const title =
-                        component.type === "submodelServer"
-                          ? t("componentTypeSubmodel")
-                          : t("componentTypeTwin");
-
-                      return (
-                        <button
-                          key={component.type}
-                          type="button"
-                          onClick={() => setComponentType(component)}
-                          className={`rounded-xl border px-4 py-4 text-left transition-all ${componentType.type === component.type
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleComponentType(type)}
+                        className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                          isSelected
                             ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
                             : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
-                            }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${componentType.type === component.type
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${
+                              isSelected
                                 ? 'border-blue-500 bg-blue-500 text-white'
                                 : 'border-gray-300 dark:border-slate-600'
-                                }`}
-                            >
-                              {componentType.type === component.type && (
-                                <CheckCircle2 size={12} />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
-                              <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{title}</p>
-                            </div>
+                            }`}
+                          >
+                            {isSelected && <CheckCircle2 size={12} />}
                           </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{description}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {submittedStep1 && selectedComponentTypes.length === 0 && (
+                  <p className="text-xs text-red-600 dark:text-red-300">
+                    {t('validationRequired', { field: t('componentTypeLabel') })}
+                  </p>
+                )}
+              </>
+            )}
 
-              {step === 2 && (
-                <div className="space-y-5">
-                  {connectors.length === 0 && (
-                    <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
-                      {t('noConnectorsForComponents')}
-                    </div>
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                  {t('componentHelp')}
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <p>{t('componentGuidanceConfig')}</p>
+                  <p className="mt-2">{t('componentGuidanceWhere')}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  {eligibleConnectors.length === 0
+                    ? t('noConnectorsForComponents')
+                    : t('linkedConnectorOptionalHint')}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                    {t('linkedConnectorLabel')}
+                  </label>
+                  {initialLinkedConnector && (
+                    <p className="mb-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                      {t('initialLinkedConnectorHint', { name: initialLinkedConnector })}
+                    </p>
                   )}
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                    {t('componentHelp')}
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    <p>{componentGuidance.config}</p>
-                    <p className="mt-2">{componentGuidance.where}</p>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {
-                        componentType.type === "digitalTwinRegistry"
-                          ? t("dtrNamePlaceholder")
-                          : t("submodelNamePlaceholder")
-                      }
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder={
-                        componentType.type === "digitalTwinRegistry"
-                          ? t("dtrNamePlaceholder")
-                          : t("submodelNamePlaceholder")
-                      }
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  <div className="relative">
+                    <select
+                      value={linkedConnector}
+                      onChange={(event) => setLinkedConnector(event.target.value)}
+                      className={`${inputClass(false)} appearance-none pr-10`}
+                    >
+                      <option value="">{t('standaloneComponentOption')}</option>
+                      {eligibleConnectors.map((connector) => (
+                        <option key={connector.id} value={connector.name}>
+                          {connector.name} ({localizeConnectorType(getConnectorType(connector))})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={18}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500"
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {t('linkedConnectorLabel')}
-                    </label>
-                    {initialLinkedConnector && (
-                      <p className="mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                        {language === 'de'
-                          ? `Diese Komponente wird standardmäßig mit "${initialLinkedConnector}" verknüpft. Sie können die Auswahl bei Bedarf anpassen.`
-                          : `This component is pre-linked to "${initialLinkedConnector}" so you can continue faster. You can still change it if needed.`}
-                      </p>
-                    )}
-                    <div className="relative">
-                      <select
-                        value={linkedConnector}
-                        onChange={(event) => setLinkedConnector(event.target.value)}
-                        className="w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-3 pr-10 text-gray-900 outline-none transition-colors focus:border-blue-400 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-800"
-                      >
-                        <option value="">{language === 'de' ? 'Ohne Connector' : 'Standalone / no connector'}</option>
-                        {eligibleConnectors.map((connector) => (
-                          <option key={connector.id} value={connector.name}>
-                            {connector.name} ({getConnectorType(connector)})
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        size={18}
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                      {language === 'de' ? 'Service-Modus' : 'Service mode'}
-                    </label>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => setConnectionMode('new')}
-                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
-                          connectionMode === 'new'
-                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
-                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <p className="font-medium text-gray-900 dark:text-slate-100">
-                          {language === 'de' ? 'Neu deployen' : 'Deploy new'}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                          {language === 'de'
-                            ? 'Der Service wird als neue Komponente im Dashboard erfasst.'
-                            : 'Register the service as a new component in the dashboard.'}
-                        </p>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConnectionMode('existing')}
-                        className={`rounded-xl border px-4 py-4 text-left transition-all ${
-                          connectionMode === 'existing'
-                            ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
-                            : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <p className="font-medium text-gray-900 dark:text-slate-100">
-                          {language === 'de' ? 'Bestehenden Service verbinden' : 'Connect existing'}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                          {language === 'de'
-                            ? 'Nutzen Sie einen bereits laufenden DTR- oder Submodel-Service.'
-                            : 'Use an already running DTR or submodel service.'}
-                        </p>
-                      </button>
-                    </div>
-                  </div>
+                {selectedComponentTypes.map((type, index) => {
+                  const draft = getDraft(type);
+                  const step2Errors = getStep2Errors(type);
 
-                  {connectionMode === 'existing' && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Bestehende Service-URL' : 'Existing service URL'}
-                        </label>
-                        <input
-                          type="url"
-                          value={existingEndpoint}
-                          onChange={(event) => setExistingEndpoint(event.target.value)}
-                          placeholder={
-                            componentType.type === "digitalTwinRegistry"
-                              ? 'https://registry.example.com'
-                              : 'https://submodel.example.com'
-                          }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-                        />
+                  return (
+                    <div
+                      key={type}
+                      className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+                            {getComponentTypeTitle(type, t)}
+                          </p>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                            {getComponentTypeDescription(type, t)}
+                          </p>
+                        </div>
+                        {selectedComponentTypes.length > 1 && (
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-200">
+                            {index + 1} / {selectedComponentTypes.length}
+                          </span>
+                        )}
                       </div>
+
                       <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {language === 'de' ? 'Credentials / API Key' : 'Credentials / API Key'}
+                          {t('componentNameLabel')}
                         </label>
                         <input
                           type="text"
-                          value={existingCredentials}
-                          onChange={(event) => setExistingCredentials(event.target.value)}
-                          placeholder={
-                            language === 'de'
-                              ? 'Optionaler Zugriffswert'
-                              : 'Optional access value'
+                          value={draft.name}
+                          onChange={(event) =>
+                            updateDraft(type, (current) => ({
+                              ...current,
+                              name: event.target.value.trimStart(),
+                            }))
                           }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition-colors focus:border-blue-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                          onBlur={() => markDraftTouched(type, 'name')}
+                          placeholder={getComponentNamePlaceholder(type)}
+                          maxLength={MAX_RESOURCE_NAME_LENGTH}
+                          aria-invalid={showStep2Error(type, 'name')}
+                          className={inputClass(showStep2Error(type, 'name'))}
                         />
+                        {showStep2Error(type, 'name') && (
+                          <p className="mt-2 text-xs text-red-600 dark:text-red-300">
+                            {step2Errors.name}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                </div>
-              )}
-            </>
-
-          )}
-        </div>
-
-        {!deploying && (
           <div className="border-t border-gray-100 px-6 py-4 dark:border-slate-800">
-            <div className="mb-4 flex justify-center gap-2">
-              {[1, 2].map((index) => (
-                <span
-                  key={index}
-                  className={`h-2.5 w-2.5 rounded-full ${index === step ? 'bg-blue-500' : 'bg-gray-200 dark:bg-slate-700'
-                    }`}
-                />
-              ))}
-            </div>
             <div className="flex items-center justify-between">
               <button
-                onClick={step === 1 ? closeDialog : () => setStep(1)}
+                onClick={() => {
+                  if (deploying) {
+                    return;
+                  }
+                  if (step === 1) {
+                    closeDialog();
+                    return;
+                  }
+
+                  setStep(1);
+                }}
+                disabled={deploying}
                 className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 {step === 1 ? t('cancel') : t('back')}
               </button>
               <button
-                onClick={step === 1 ? () => setStep(2) : handleDeploy}
-                disabled={!canContinue}
+                onClick={() => void handlePrimaryAction()}
+                disabled={deploying}
                 className="rounded-lg bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
-                {step === 1 ? t('continue') : t('deployNow')}
+                {deploying
+                  ? t('deploymentStatusDeployingTitle')
+                  : step === 1
+                  ? t('next')
+                  : t('deployNow')}
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -3,25 +3,24 @@ import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 function ComponentStatusBadge({ status }: { status: string }) {
-  const normalized = status?.toLowerCase();
-
-  if (normalized === 'active' || normalized === 'healthy') {
+  if (status === 'Active' || status === 'active' || status === 'healthy') {
     return (
       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
         Active
       </span>
     );
   }
-  if (normalized === 'deploying') {
+  if (status === 'Deploying' || status === 'deploying') {
     return (
-      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Deploying
+      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Active
       </span>
     );
   }
-  if (normalized === 'inactive') {
+  if (status === 'Inactive' || status === 'inactive') {
     return (
       <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
         Inactive
@@ -33,6 +32,15 @@ function ComponentStatusBadge({ status }: { status: string }) {
       {status || 'Unknown'}
     </span>
   );
+}
+
+function localizeComponentType(
+  type: ManagedComponent['type'],
+  translate: ReturnType<typeof useI18n>['t'],
+) {
+  return type === 'digitalTwinRegistry'
+    ? translate('componentTypeTwin')
+    : translate('componentTypeSubmodel');
 }
 
 interface Props {
@@ -48,6 +56,7 @@ function ComponentDetailsModal({
   onClose: () => void;
 }) {
   const { t, language } = useI18n();
+  useLockBodyScroll(true);
 
   const deployedAt = new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
     dateStyle: 'medium',
@@ -74,7 +83,7 @@ function ComponentDetailsModal({
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableType')}</p>
-            <p>{component.type}</p>
+            <p>{localizeComponentType(component.type, t)}</p>
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableVersion')}</p>
@@ -82,12 +91,16 @@ function ComponentDetailsModal({
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableLinkedTo')}</p>
-            <p>{component.linkedConnector}</p>
+            <p>{component.linkedConnector || t('standaloneLabel')}</p>
           </div>
           {component.connectionMode && (
             <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">Mode</p>
-              <p>{component.connectionMode === 'existing' ? 'Existing service' : 'New deployment'}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{t('componentModeLabel')}</p>
+              <p>
+                {component.connectionMode === 'existing'
+                  ? t('componentModeExisting')
+                  : t('componentModeNew')}
+              </p>
             </div>
           )}
           {component.endpoint && (
@@ -101,7 +114,7 @@ function ComponentDetailsModal({
             <p>{component.status}</p>
           </div>
           <div>
-            <p className="font-medium text-gray-900 dark:text-slate-100">Deployed</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{t('deployedLabel')}</p>
             <p>{deployedAt}</p>
           </div>
         </div>
@@ -119,7 +132,8 @@ function DeleteComponentModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
+  useLockBodyScroll(true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -139,11 +153,7 @@ function DeleteComponentModal({
         <div className="px-6 py-5 text-sm leading-6 text-gray-600 dark:text-slate-300">
           <div className="space-y-3">
             <p>{t('deleteComponentMessage', { name: component.name })}</p>
-            <p>
-              {language === 'de'
-                ? 'Die Komponente wird aus der Dashboard-Übersicht entfernt. Falls sie bereits technisch angebunden wurde, prüfen Sie bitte anschließend die zugehörige Zielumgebung oder Service-Konfiguration.'
-                : 'The component will be removed from the dashboard overview. If it was already connected technically, please review the related target environment or service configuration afterwards.'}
-            </p>
+            <p>{t('deleteComponentFollowup')}</p>
           </div>
         </div>
         <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-slate-800">
@@ -166,7 +176,7 @@ function DeleteComponentModal({
 }
 
 export default function ComponentsManager({ components, onDelete }: Props) {
-  const { language, t } = useI18n();
+  const { t } = useI18n();
   const [selectedComponent, setSelectedComponent] = useState<ManagedComponent | null>(null);
   const [componentToDelete, setComponentToDelete] = useState<ManagedComponent | null>(null);
 
@@ -230,7 +240,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
-                        {component.type}
+                        {localizeComponentType(component.type, t)}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
@@ -240,16 +250,12 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                       <ComponentStatusBadge status={component.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      {component.linkedConnector}
+                      {component.linkedConnector || t('standaloneLabel')}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <Tooltip
-                          content={
-                            language === 'de'
-                              ? 'Löscht diese Komponente nach Bestätigung aus der Dashboard-Übersicht.'
-                              : 'Deletes this component from the dashboard overview after confirmation.'
-                          }
+                          content={t('deleteComponentTooltip')}
                         >
                           <button
                             onClick={() => setComponentToDelete(component)}

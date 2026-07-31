@@ -8,32 +8,6 @@ import { getRuntimeConfigValue } from '../runtime-config';
 
 export type ComponentKind = 'connector' | 'digitalTwinRegistry' | 'submodelServer';
 
-const edcHost = getRuntimeConfigValue(
-  import.meta.env.VITE_EDC_HOST,
-  window.__RUNTIME_CONFIG__?.edcHost,
-  'txcd.arena2036-x.de',
-);
-const urlScheme = getRuntimeConfigValue(
-  import.meta.env.VITE_URL_SCHEME,
-  window.__RUNTIME_CONFIG__?.urlScheme,
-  'https',
-);
-
-export function buildConnectorEndpoints(name: string): {
-  apiEndpoint: string;
-  dataPlaneUrl: string;
-} {
-  const trimmedName = trimOrEmpty(name);
-  if (!trimmedName) {
-    return { apiEndpoint: '', dataPlaneUrl: '' };
-  }
-
-  return {
-    apiEndpoint: `${urlScheme}://${trimmedName}-controlplane.${edcHost}`,
-    dataPlaneUrl: `${urlScheme}://${trimmedName}-dataplane.${edcHost}`,
-  };
-}
-
 export interface ComponentDraft {
   enabled: boolean;
   name: string;
@@ -92,15 +66,14 @@ export function buildComponentPayload(
 }
 
 export function buildDeployRequest(draft: DeploymentDraft): DeployRequest {
-  const connectorName = trimOrEmpty(draft.connector.name);
   const components: DeployComponent[] = [
     buildComponentPayload('connector', {
-      name: connectorName,
+      name: draft.connector.name,
       version: draft.connector.version,
       url: draft.connector.url,
-      dbName: `${connectorName}-db`,
-      username: `${connectorName}-username`,
-      password: `${connectorName}-password`,
+      dbName: `${draft.connector.name}-db`,
+      username: `${draft.connector.name}-username`,
+      password: `${draft.connector.name}-password`,
       bpn: draft.connector.bpn,
     }),
   ];
@@ -177,16 +150,19 @@ export function getDefaultComponentDraft(
   const trimmedBase = trimOrEmpty(baseName);
   const isDtr = kind === 'digitalTwinRegistry';
   const defaultName = isDtr ? `${trimmedBase}-dtr` : `${trimmedBase}-sms`;
-  const defaultUrl = isDtr
-    ? `${trimmedBase}.txcd.arena2036-x.de`
-    : `${trimmedBase}.txcd.arena2036-x.de`;
+  const hostSuffix = getRuntimeConfigValue(
+    import.meta.env.VITE_EDC_HOSTNAME,
+    window.__RUNTIME_CONFIG__?.edcHost,
+    '',
+  );
+  const defaultUrl = trimmedBase && hostSuffix ? `${trimmedBase}.${hostSuffix}` : '';
   const defaultUsername = `${defaultName}-user`;
   const defaultPassword = `${defaultName}-password`;
 
   return {
     enabled: existing?.enabled ?? false,
     name: trimOrEmpty(existing?.name) || defaultName,
-    version: trimOrEmpty(existing?.version) || (isDtr ? '0.12.0' : '0.1.0'),
+    version: trimOrEmpty(existing?.version),
     url: trimOrEmpty(existing?.url) || defaultUrl,
     dbName: trimOrEmpty(existing?.dbName) || `${defaultName}-db`,
     username: trimOrEmpty(existing?.username) || defaultUsername,

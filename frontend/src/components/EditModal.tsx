@@ -25,7 +25,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
         buildDeployRequest({
           connector: {
             name,
-            version: connector.version || '0.11.2',
+            version: connector.version || '',
             url,
             bpn: bpn || '',
             dataPlaneUrl: connector.dp_hostname || '',
@@ -33,7 +33,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
           submodelServer: {
             enabled: false,
             name: '',
-            version: '0.1.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',
@@ -42,7 +42,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
           digitalTwinRegistry: {
             enabled: false,
             name: '',
-            version: '0.12.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',

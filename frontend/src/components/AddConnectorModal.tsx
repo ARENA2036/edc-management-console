@@ -25,7 +25,7 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
         buildDeployRequest({
           connector: {
             name,
-            version: '0.11.2',
+            version: '',
             url,
             bpn: bpn || '',
             dataPlaneUrl: '',
@@ -33,7 +33,7 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
           submodelServer: {
             enabled: false,
             name: '',
-            version: '0.1.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',
@@ -42,7 +42,7 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
           digitalTwinRegistry: {
             enabled: false,
             name: '',
-            version: '0.12.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',

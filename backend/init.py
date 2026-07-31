@@ -589,6 +589,43 @@ async def get_config(user=Depends(keycloak_openid.get_current_user)):
         "data": settings
     }
 
+def _configured_url(value):
+    """Normalise a configured hostname into an absolute URL.
+
+    Values in configuration.yml are bare hostnames (e.g. ``controlplane.example.de``),
+    but the frontend expects browser-usable URLs, so prefix a scheme when missing.
+    """
+    if not value:
+        return ""
+
+    if isinstance(value, str) and (
+        value.startswith("http://") or value.startswith("https://")
+    ):
+        return value
+
+    return f"https://{value}"
+
+
+def _component_versions(component_key: str):
+    """Expose the Helm chart versions the backend will accept for a component type.
+
+    The deployment wizard in the frontend populates its version dropdown from this,
+    and sends the chosen value back on POST /api/connector. Keeping it sourced from
+    the same ``components.<key>.versions`` block that edcManager validates against
+    means the UI can never offer a version the backend would reject.
+    """
+    component_config = app_configuration.get("components", {}).get(component_key, {})
+    versions = [
+        entry.get("version")
+        for entry in (component_config.get("versions") or [])
+        if entry.get("version")
+    ]
+    return {
+        "defaultVersion": versions[0] if versions else "",
+        "availableVersions": versions,
+    }
+
+
 @app.get("/api/dataspace", tags=["Dataspace"])
 async def get_dataspace_settings(request: Request):
     """
@@ -634,7 +671,26 @@ async def get_dataspace_settings(request: Request):
             },
             "edc": {
                 "default_url": edc_config.get("default_url", ""),
+                "controlplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("controlplane")
+                ) or edc_config.get("default_url", ""),
+                "dataplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("dataplane")
+                ),
+                # Bare host suffixes, exactly as consumed by the `cp_hostname` /
+                # `dp_hostname` derive templates ("{name}-{controlplane_hostname}").
+                # The wizard prefixes the user's connector name to these, so the
+                # hostname it previews matches the Ingress the backend will create.
+                # Sent separately from the *_url fields so the UI never has to infer
+                # a suffix by string-splitting a URL.
+                "controlplane_host_suffix": edc_config.get("hostname", {}).get("controlplane", ""),
+                "dataplane_host_suffix": edc_config.get("hostname", {}).get("dataplane", ""),
                 "cluster_context": dataspace_config.get("clusterConfig", {}).get("context", "")
+            },
+            "deployment": {
+                "connector": _component_versions("connector"),
+                "digitalTwinRegistry": _component_versions("digitalTwinRegistry"),
+                "submodelServer": _component_versions("submodelServer"),
             },
             "readonly": True
         }
