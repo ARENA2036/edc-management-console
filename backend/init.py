@@ -118,23 +118,6 @@ def _record_type(record: ConnectorDB) -> str:
     return ""
 
 
-def _linked_connector_name(record: ConnectorDB) -> str:
-    config = record.config or {}
-    linked = config.get("linkedConnector")
-    if isinstance(linked, str) and linked:
-        return linked
-    if _record_type(record) == "connector":
-        return record.name
-    return ""
-
-
-def _is_linked_to_connector(record: ConnectorDB, connector_name: str) -> bool:
-    linked = _linked_connector_name(record)
-    if linked:
-        return linked == connector_name
-    # Backward compatibility for rows created before linkedConnector was persisted.
-    return record.name.startswith(connector_name + "-")
-
 @app.get("/health")
 def get_health():
     """
@@ -294,12 +277,15 @@ async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_curr
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-def _upsert_component_row(comp, plan, namespace, linked_connector):
+def _upsert_component_row(comp, plan, namespace):
     """Create or refresh the ConnectorDB row for one deployed component.
 
     Each component is persisted as its own row keyed by its `name`; `config`
     records its type + release. cp/dp hostnames are only meaningful for the
     connector itself (used by the health probe), so they stay None for others.
+
+    Components are independent: nothing records a relationship to a connector,
+    and deleting one never affects another.
     """
     cp_host = app_configuration.get("connector", {}).get("hostname", {}).get("controlplane")
     dp_host = app_configuration.get("connector", {}).get("hostname", {}).get("dataplane")
@@ -308,7 +294,6 @@ def _upsert_component_row(comp, plan, namespace, linked_connector):
         "type": comp.type,
         "release": plan["release_name"],
         "chart": plan["chart"],
-        "linkedConnector": linked_connector,
     }
 
     record = databaseManager.get_connector_by_name(comp.name)
@@ -350,9 +335,6 @@ async def _deploy_components(components, namespace):
     empty/optional slot and is skipped. Shared by POST (create) and PUT (upgrade)
     since Helm install-or-upgrade is the same operation either way."""
     deployed = []
-    connector_name = next((comp.name for comp in components if comp.type == "connector"), "")
-    desired_component_names = {comp.name for comp in components if comp.type != "connector"}
-
     named_components = [comp.name for comp in components if comp.type and comp.name]
     seen_names = set()
     for dup_name in named_components:
@@ -378,23 +360,9 @@ async def _deploy_components(components, namespace):
             values=plan["values"],
             namespace=namespace,
         )
-        linked_connector = connector_name if comp.type != "connector" else comp.name
-        _upsert_component_row(comp, plan, namespace, linked_connector)
+        _upsert_component_row(comp, plan, namespace)
         deployed.append({"type": comp.type, "name": comp.name,
                          "release": plan["release_name"], "version": plan["version"]})
-
-    if connector_name:
-        existing_rows = databaseManager.get_all_connectors()
-        rows_to_remove = [
-            row for row in existing_rows
-            if _record_type(row) != "connector"
-            and _is_linked_to_connector(row, connector_name)
-            and row.name not in desired_component_names
-        ]
-        for row in rows_to_remove:
-            release_name = (row.config or {}).get("release") or row.name
-            await edcService.uninstall(release_name=release_name, namespace=row.namespace or namespace)
-            databaseManager.delete_connector(connector_id=row.id)
 
     return deployed
 
@@ -435,7 +403,11 @@ async def upgrade_connector(connector_id: str, payload: DeploymentRequest, reque
 
 @app.delete("/api/connectors/{connector_name}", tags=["EDC"])
 async def delete_connector(connector_name: str, request: Request):
-    """Delete one row by name; if it is an EDC connector, delete linked components too."""
+    """Delete exactly one component by name and uninstall its Helm release.
+
+    Components are independent, so deleting a connector never touches a digital
+    twin registry or submodel server, even if they were deployed together.
+    """
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
@@ -446,25 +418,14 @@ async def delete_connector(connector_name: str, request: Request):
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        targets = [record]
-        if _record_type(record) == "connector":
-            linked = [
-                row for row in databaseManager.get_all_connectors()
-                if _record_type(row) != "connector" and _is_linked_to_connector(row, record.name)
-            ]
-            targets.extend(linked)
+        release_name = (record.config or {}).get("release") or record.name
+        await edcService.uninstall(
+            release_name=release_name,
+            namespace=record.namespace or namespace,
+        )
+        databaseManager.delete_connector(connector_id=record.id)
 
-        for target in targets:
-            release_name = (target.config or {}).get("release") or target.name
-            await edcService.uninstall(
-                release_name=release_name,
-                namespace=target.namespace or namespace,
-            )
-            databaseManager.delete_connector(connector_id=target.id)
-
-        return HttpUtils.response(
-            status=200,
-            message=f"Deleted '{record.name}' and {len(targets) - 1} linked component(s)")
+        return HttpUtils.response(status=200, message=f"Deleted '{record.name}'")
 
     except Exception as e:
         logger.exception(str(e))

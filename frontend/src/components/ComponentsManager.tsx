@@ -89,20 +89,6 @@ function ComponentDetailsModal({
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableVersion')}</p>
             <p>{component.version}</p>
           </div>
-          <div>
-            <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableLinkedTo')}</p>
-            <p>{component.linkedConnector || t('standaloneLabel')}</p>
-          </div>
-          {component.connectionMode && (
-            <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">{t('componentModeLabel')}</p>
-              <p>
-                {component.connectionMode === 'existing'
-                  ? t('componentModeExisting')
-                  : t('componentModeNew')}
-              </p>
-            </div>
-          )}
           {component.endpoint && (
             <div>
               <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableEndpoint')}</p>
@@ -225,7 +211,6 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                   <th className="px-5 py-3">{t('tableType')}</th>
                   <th className="px-5 py-3">{t('tableVersion')}</th>
                   <th className="px-5 py-3">{t('tableStatus')}</th>
-                  <th className="px-5 py-3">{t('tableLinkedTo')}</th>
                   <th className="px-5 py-3">{t('tableActions')}</th>
                 </tr>
               </thead>
@@ -248,9 +233,6 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                       <ComponentStatusBadge status={component.status} />
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      {component.linkedConnector || t('standaloneLabel')}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

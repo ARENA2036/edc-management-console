@@ -121,7 +121,6 @@ export function buildStandaloneConnector(
 export function buildManagedComponentFromDraft(
   type: 'digitalTwinRegistry' | 'submodelServer',
   draft: ComponentDraft,
-  linkedConnector: string,
 ): ManagedComponent {
   return {
     id: `${type}-${draft.name}-${Date.now()}`,
@@ -129,9 +128,7 @@ export function buildManagedComponentFromDraft(
     name: trimOrEmpty(draft.name),
     version: trimOrEmpty(draft.version),
     status: 'Active',
-    linkedConnector,
     deployedAt: new Date().toISOString(),
-    connectionMode: 'new',
     endpoint: trimOrEmpty(draft.url),
     credentials: undefined,
     db_name: trimOrEmpty(draft.dbName),

@@ -1,6 +1,6 @@
 import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
-import type { DashboardConnector, ManagedComponent } from '../types';
+import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
 import DetailsModal from './DetailsModal';
@@ -9,7 +9,6 @@ import YamlViewModal from './YamlViewModal';
 
 interface Props {
   connectors: DashboardConnector[];
-  components: ManagedComponent[];
   onDelete: (connector: DashboardConnector) => Promise<void> | void;
   onAddComponent: (connector: DashboardConnector) => void;
   onEditConnector?: (connector: DashboardConnector) => void;
@@ -67,7 +66,6 @@ function getConnectorEndpoint(connector: DashboardConnector) {
 
 export default function ConnectorsManager({
   connectors,
-  components,
   onDelete,
   onAddComponent,
   onEditConnector,
@@ -87,16 +85,9 @@ export default function ConnectorsManager({
         ...connector,
         connectorType: localizeConnectorType(getConnectorType(connector)),
         endpoint: getConnectorEndpoint(connector),
-        linkedComponentsCount: components.filter(
-          (component) => component.linkedConnector === connector.name,
-        ).length,
       })),
-    [components, connectors, localizeConnectorType],
+    [connectors, localizeConnectorType],
   );
-
-  const deleteConnectorLinkedCount = deleteConnector
-    ? components.filter((component) => component.linkedConnector === deleteConnector.name).length
-    : 0;
 
   return (
     <>
@@ -189,8 +180,8 @@ export default function ConnectorsManager({
                           <Tooltip
                             content={
                               language === 'de'
-                                ? 'EDC und verknüpfte Komponenten ändern'
-                                : 'Edit the EDC and its linked components'
+                                ? 'EDC ändern'
+                                : 'Edit the EDC'
                             }
                           >
                             <button
@@ -201,15 +192,7 @@ export default function ConnectorsManager({
                             </button>
                           </Tooltip>
                         ) : null}
-                        <Tooltip
-                          content={
-                            connector.linkedComponentsCount > 0
-                              ? t('connectorDeleteTooltipWithComponents', {
-                                  count: String(connector.linkedComponentsCount),
-                                })
-                              : t('connectorDeleteTooltipWithoutComponents')
-                          }
-                        >
+                        <Tooltip content={t('connectorDeleteTooltipWithoutComponents')}>
                           <button
                             type="button"
                             onClick={() => setDeleteConnector(connector)}
@@ -246,7 +229,7 @@ export default function ConnectorsManager({
       {yamlConnector && (
         <YamlViewModal
           connector={yamlConnector}
-          components={components.filter((c) => c.linkedConnector === yamlConnector.name)}
+          components={[]}
           onClose={() => setYamlConnector(null)}
         />
       )}
@@ -259,13 +242,6 @@ export default function ConnectorsManager({
             <div className="space-y-3">
               <p>{t('connectorDeleteIntro', { name: deleteConnector.name })}</p>
               <p>{t('connectorDeleteBody')}</p>
-              {deleteConnectorLinkedCount > 0 && (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  {t('connectorDeleteLinkedComponents', {
-                    count: String(deleteConnectorLinkedCount),
-                  })}
-                </p>
-              )}
             </div>
           }
           cancelLabel={t('cancel')}

@@ -262,20 +262,13 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     return null;
   }
 
-  const linkedConnectorValue = record.config?.linkedConnector;
   return {
     id: String(record.id),
     name: record.name,
     type: recordType,
     version: record.version || '',
     status: record.status === 'inactive' ? 'Inactive' : 'Active',
-    linkedConnector:
-      typeof linkedConnectorValue === 'string' ? linkedConnectorValue : '',
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
-    connectionMode:
-      typeof linkedConnectorValue === 'string' && linkedConnectorValue.trim().length > 0
-        ? 'new'
-        : 'existing',
     endpoint: record.url,
     db_name: '',
     auth: {
@@ -428,7 +421,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     itemCount: 1,
   });
   const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
-    linkedConnector?: string;
     allowMultipleTypes?: boolean;
     initialSelectedTypes?: ComponentType[];
     startAtConfiguration?: boolean;
@@ -619,9 +611,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }
   };
 
-  const openComponentWizard = (linkedConnector?: string) => {
+  const openComponentWizard = () => {
     setComponentWizardDefaults({
-      linkedConnector,
       allowMultipleTypes: true,
     });
     setShowComponentWizard(true);
@@ -740,9 +731,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         <div className="space-y-6">
           <ConnectorsManager
             connectors={connectors}
-            components={components}
             onDelete={handleDeleteConnector}
-            onAddComponent={(connector) => openComponentWizard(connector.name)}
+            onAddComponent={() => openComponentWizard()}
           />
           <ComponentsManager
             components={components}
@@ -792,7 +782,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             setComponentWizardDefaults({});
           }
         }}
-        connectors={connectors}
         onDeploy={async (component) => {
           setComponentDeploymentInFlight(true);
           setDeploymentFeedback({
@@ -831,7 +820,6 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           digitalTwinRegistry: dataspaceDetails?.deployment?.digitalTwinRegistry?.defaultVersion,
           submodelServer: dataspaceDetails?.deployment?.submodelServer?.defaultVersion,
         }}
-        initialLinkedConnector={componentWizardDefaults.linkedConnector}
         allowMultipleTypes={componentWizardDefaults.allowMultipleTypes}
         initialSelectedTypes={componentWizardDefaults.initialSelectedTypes}
         startAtConfiguration={componentWizardDefaults.startAtConfiguration}
@@ -906,9 +894,6 @@ function Monitor() {
   const connectorRows = useMemo(
     () =>
       connectors.map((connector) => {
-        const linkedComponents = components.filter(
-          (component) => component.linkedConnector === connector.name,
-        );
         const tone = getHealthTone(connector.status, healthLabels);
         return {
           ...connector,
@@ -917,47 +902,22 @@ function Monitor() {
               ? t('connectorTypeDefault')
               : getConnectorType(connector),
           endpoint: getConnectorEndpoint(connector),
-          linkedComponents,
           tone,
         };
       }),
-    [components, connectors, healthLabels, t],
+    [connectors, healthLabels, t],
   );
 
   const componentRows = useMemo(
     () =>
-      components.map((component) => {
-        const linkedConnector = component.linkedConnector
-          ? connectors.find((connector) => connector.name === component.linkedConnector)
-          : undefined;
-        const isStandalone = !component.linkedConnector;
-        const status =
-          isStandalone
-            ? 'healthy'
-            : !linkedConnector
-            ? 'critical'
-            : linkedConnector.status === 'unhealthy'
-            ? 'warning'
-            : 'healthy';
-
-        return {
-          ...component,
-          endpointLabel:
-            component.endpoint
-            || (isStandalone ? t('standaloneDeployment') : t('deployedInsideConnector')),
-          statusCode: status,
-          tone: getHealthTone(status, healthLabels),
-          statusLabel:
-            isStandalone
-              ? t('standaloneReady')
-              : status === 'critical'
-              ? t('connectorMissing')
-              : status === 'warning'
-              ? t('connectorNeedsReview')
-              : t('connectorReady'),
-        };
-      }),
-    [components, connectors, healthLabels, t],
+      components.map((component) => ({
+        ...component,
+        endpointLabel: component.endpoint || t('standaloneDeployment'),
+        statusCode: 'healthy' as const,
+        tone: getHealthTone('healthy', healthLabels),
+        statusLabel: t('standaloneReady'),
+      })),
+    [components, healthLabels, t],
   );
 
   const derivedEvents = useMemo(() => {
@@ -994,10 +954,9 @@ function Monitor() {
 
     const componentEvents = components.slice(0, 4).map((component) => ({
       id: `component-${component.id}`,
-      title: t('eventComponentLinked', { name: component.name }),
-      body: t('eventComponentLinkedBody', {
+      title: t('eventComponentDeployed', { name: component.name }),
+      body: t('eventComponentDeployedBody', {
         type: getManagedComponentLabel(component.type, t),
-        connector: component.linkedConnector || t('standaloneLabel'),
       }),
       timestamp: component.deployedAt,
       severity: 'healthy',
@@ -1013,33 +972,10 @@ function Monitor() {
     const unhealthyConnectors = connectorRows.filter(
       (connector) => connector.status === 'unhealthy',
     );
-    const connectorsWithoutServices = connectorRows.filter(
-      (connector) => connector.linkedComponents.length === 0,
-    );
-    const detachedComponents = componentRows.filter(
-      (component) => component.statusCode === 'critical',
-    );
-
     if (unhealthyConnectors.length > 0) {
       items.push(
         t('recommendationUnhealthyConnectors', {
           count: String(unhealthyConnectors.length),
-        }),
-      );
-    }
-
-    if (connectorsWithoutServices.length > 0) {
-      items.push(
-        t('recommendationConnectorsWithoutServices', {
-          count: String(connectorsWithoutServices.length),
-        }),
-      );
-    }
-
-    if (detachedComponents.length > 0) {
-      items.push(
-        t('recommendationDetachedComponents', {
-          count: String(detachedComponents.length),
         }),
       );
     }
@@ -1053,7 +989,7 @@ function Monitor() {
     }
 
     return items;
-  }, [componentRows, connectorRows, t]);
+  }, [connectorRows, t]);
 
   const healthyConnectors = connectorRows.filter(
     (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
@@ -1162,7 +1098,6 @@ function Monitor() {
                     <th className="px-5 py-3">{t('tableStatus')}</th>
                     <th className="px-5 py-3">{t('tableLastCheck')}</th>
                     <th className="px-5 py-3">{t('tableEndpoint')}</th>
-                    <th className="px-5 py-3">{t('tableServices')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -1192,9 +1127,6 @@ function Monitor() {
                         <span className="block max-w-[260px] truncate">
                           {connector.endpoint || t('noValue')}
                         </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {connector.linkedComponents.length}
                       </td>
                     </tr>
                   ))}
@@ -1228,7 +1160,6 @@ function Monitor() {
                   <tr>
                     <th className="px-5 py-3">{t('tableName')}</th>
                     <th className="px-5 py-3">{t('tableType')}</th>
-                    <th className="px-5 py-3">{t('tableLinkedTo')}</th>
                     <th className="px-5 py-3">{t('tableStatus')}</th>
                     <th className="px-5 py-3">{t('tableEndpoint')}</th>
                   </tr>
@@ -1241,9 +1172,6 @@ function Monitor() {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {getManagedComponentLabel(component.type, t)}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {component.linkedConnector}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${component.tone.badge}`}>

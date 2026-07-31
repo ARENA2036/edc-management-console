@@ -68,10 +68,7 @@ export interface ManagedComponent {
 
   status: "Active" | "Inactive" | "Deploying";
 
-  linkedConnector: string;
   deployedAt: string;
-
-  connectionMode: "new" | "existing";
 
   endpoint?: string;
   credentials?: string;

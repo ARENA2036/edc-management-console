@@ -1,6 +1,6 @@
-import { CheckCircle2, ChevronDown, X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { DashboardConnector, ManagedComponent } from '../types';
+import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 import {
@@ -13,12 +13,10 @@ import {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  connectors: DashboardConnector[];
   onDeploy: (component: ManagedComponent) => Promise<void> | void;
   deploying?: boolean;
   existingNames: string[];
   defaultVersions?: Partial<Record<ManagedComponent['type'] | 'connector', string>>;
-  initialLinkedConnector?: string;
   allowMultipleTypes?: boolean;
   initialSelectedTypes?: ComponentType[];
   startAtConfiguration?: boolean;
@@ -36,15 +34,6 @@ type ComponentField = 'name';
 interface ComponentDraft {
   name: string;
   touched: Partial<Record<ComponentField, boolean>>;
-}
-
-function getConnectorType(connector: DashboardConnector) {
-  const config = connector.config;
-  if (config && typeof config.connectorType === 'string') {
-    return config.connectorType;
-  }
-
-  return 'EDC Connector';
 }
 
 function getComponentTypeTitle(type: ComponentType, t: Translate) {
@@ -83,12 +72,10 @@ function buildDrafts() {
 export default function ComponentWizard({
   open,
   onOpenChange,
-  connectors,
   onDeploy,
   deploying = false,
   existingNames,
   defaultVersions,
-  initialLinkedConnector,
   allowMultipleTypes = true,
   initialSelectedTypes,
   startAtConfiguration = false,
@@ -106,16 +93,12 @@ export default function ComponentWizard({
   const [step, setStep] = useState(1);
   const [selectedComponentTypes, setSelectedComponentTypes] =
     useState<ComponentType[]>(defaultSelectedTypes);
-  const [linkedConnector, setLinkedConnector] = useState('');
   const [componentDrafts, setComponentDrafts] = useState<Record<ComponentType, ComponentDraft>>(
     buildDrafts(),
   );
   const [submittedStep1, setSubmittedStep1] = useState(false);
   const [submittedStep2, setSubmittedStep2] = useState(false);
 
-  const eligibleConnectors = connectors;
-  const localizeConnectorType = (type: string) =>
-    type === 'EDC Connector' ? t('connectorTypeDefault') : type;
   const normalizedExistingNames = useMemo(
     () => new Set(existingNames.map((value) => normalizeResourceName(value))),
     [existingNames],
@@ -131,10 +114,8 @@ export default function ComponentWizard({
     setComponentDrafts(buildDrafts());
     setSubmittedStep1(false);
     setSubmittedStep2(false);
-    setLinkedConnector(initialLinkedConnector ?? '');
   }, [
     defaultSelectedTypes,
-    initialLinkedConnector,
     open,
     startAtConfiguration,
   ]);
@@ -232,9 +213,7 @@ export default function ComponentWizard({
         type: managedType,
         version: defaultVersions?.[managedType]?.trim() || '',
         status: 'Active',
-        linkedConnector,
         deployedAt: new Date().toISOString(),
-        connectionMode: 'new',
         db_name: `${normalizedName}-db`,
         auth: {
           db_username: `${normalizedName}-user`,
@@ -365,40 +344,6 @@ export default function ComponentWizard({
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   <p>{t('componentGuidanceConfig')}</p>
                   <p className="mt-2">{t('componentGuidanceWhere')}</p>
-                </div>
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                  {eligibleConnectors.length === 0
-                    ? t('noConnectorsForComponents')
-                    : t('linkedConnectorOptionalHint')}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                    {t('linkedConnectorLabel')}
-                  </label>
-                  {initialLinkedConnector && (
-                    <p className="mb-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                      {t('initialLinkedConnectorHint', { name: initialLinkedConnector })}
-                    </p>
-                  )}
-                  <div className="relative">
-                    <select
-                      value={linkedConnector}
-                      onChange={(event) => setLinkedConnector(event.target.value)}
-                      className={`${inputClass(false)} appearance-none pr-10`}
-                    >
-                      <option value="">{t('standaloneComponentOption')}</option>
-                      {eligibleConnectors.map((connector) => (
-                        <option key={connector.id} value={connector.name}>
-                          {connector.name} ({localizeConnectorType(getConnectorType(connector))})
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={18}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500"
-                    />
-                  </div>
                 </div>
 
                 {selectedComponentTypes.map((type, index) => {
