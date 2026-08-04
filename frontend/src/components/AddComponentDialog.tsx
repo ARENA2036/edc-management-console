@@ -1,12 +1,16 @@
 import { Boxes, Network, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
-import { MAX_CONNECTORS } from '../utils/nameRules';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   connectorCount: number;
+  connectorLimit: number;
+  digitalTwinRegistryCount: number;
+  digitalTwinRegistryLimit: number;
+  submodelServiceCount: number;
+  submodelServiceLimit: number;
   onSelectEDC: () => void;
   onSelectComponent: () => void;
 }
@@ -15,12 +19,20 @@ export default function AddComponentDialog({
   open,
   onOpenChange,
   connectorCount,
+  connectorLimit,
+  digitalTwinRegistryCount,
+  digitalTwinRegistryLimit,
+  submodelServiceCount,
+  submodelServiceLimit,
   onSelectEDC,
   onSelectComponent,
 }: Props) {
   const { t } = useI18n();
   useLockBodyScroll(open);
-  const connectorLimitReached = connectorCount >= MAX_CONNECTORS;
+  const connectorLimitReached = connectorCount >= connectorLimit;
+  const twinLimitReached = digitalTwinRegistryCount >= digitalTwinRegistryLimit;
+  const submodelLimitReached = submodelServiceCount >= submodelServiceLimit;
+  const componentLimitReached = twinLimitReached && submodelLimitReached;
 
   if (!open) {
     return null;
@@ -58,22 +70,34 @@ export default function AddComponentDialog({
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500 text-white shadow-md">
                   <Network size={24} />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                  {t('edcConnectorOption')}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+                    {t('edcConnectorOption')}
+                  </h3>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      connectorLimitReached
+                        ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                        : 'bg-white/70 text-gray-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {connectorCount}/{connectorLimit}
+                  </span>
+                </div>
                 <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-300">
                   {t('edcConnectorOptionHint')}
                 </p>
                 {connectorLimitReached && (
                   <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">
-                    {t('connectorLimitReached', { max: String(MAX_CONNECTORS) })}
+                    {t('connectorLimitReached', { max: String(connectorLimit) })}
                   </p>
                 )}
               </button>
 
               <button
                 onClick={onSelectComponent}
-                className="group rounded-2xl border border-blue-200 bg-blue-50 p-6 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-blue-500/30 dark:bg-blue-500/10"
+                disabled={componentLimitReached}
+                className="group rounded-2xl border border-blue-200 bg-blue-50 p-6 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:shadow-none dark:border-blue-500/30 dark:bg-blue-500/10 dark:disabled:border-slate-700 dark:disabled:bg-slate-800"
               >
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 text-white shadow-md">
                   <Boxes size={24} />
@@ -84,6 +108,31 @@ export default function AddComponentDialog({
                 <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-300">
                   {t('componentOptionHint')}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      twinLimitReached
+                        ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                        : 'bg-white/70 text-gray-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {t('componentTypeTwin')} {digitalTwinRegistryCount}/{digitalTwinRegistryLimit}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      submodelLimitReached
+                        ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                        : 'bg-white/70 text-gray-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {t('componentTypeSubmodel')} {submodelServiceCount}/{submodelServiceLimit}
+                  </span>
+                </div>
+                {componentLimitReached && (
+                  <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">
+                    {t('componentAllLimitsReached')}
+                  </p>
+                )}
               </button>
             </div>
 

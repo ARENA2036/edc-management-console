@@ -108,6 +108,36 @@ logger.info("[INIT] All managers initialized successfully!")
 # API ROUTES
 # ------------------------------------------------------------
 
+DEFAULT_MAX_COMPONENT_INSTANCES = 3
+
+
+class ComponentLimitExceeded(Exception):
+    """A deploy request would push a component type past its configured cap.
+
+    Distinct from a generic failure so the deploy endpoints can answer 409
+    (the request conflicts with current state) instead of 500.
+    """
+
+
+def _component_instance_limit(component_type: str) -> int:
+    """Resolve the per-type instance cap, falling back to the default.
+
+    A missing, non-numeric or non-positive ``maxInstances`` is treated as "not
+    configured" rather than "unlimited" — an accidental ``maxInstances: 0`` should
+    not silently disable the cap.
+    """
+    configured = (
+        app_configuration.get("components", {})
+        .get(component_type, {})
+        .get("maxInstances")
+    )
+    try:
+        limit = int(configured)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_COMPONENT_INSTANCES
+
+    return limit if limit > 0 else DEFAULT_MAX_COMPONENT_INSTANCES
+
 
 def _record_type(record: ConnectorDB) -> str:
     config_type = (record.config or {}).get("type")
@@ -334,6 +364,43 @@ def _upsert_component_row(comp, plan, namespace):
     return databaseManager.update_connector(record)
 
 
+def _assert_within_component_limits(components):
+    """Reject the whole request if it would push any component type past its cap.
+
+    Runs as a pre-flight check before any Helm work, so an over-limit request
+    changes nothing at all rather than deploying the first few components and then
+    failing part-way through.
+
+    Re-deploying a name that already exists is an in-place upgrade (Helm
+    install-or-upgrade), not a new instance, so it is deliberately not counted
+    against the cap — otherwise upgrading a component while at the limit would be
+    impossible.
+    """
+    existing = databaseManager.get_all_connectors()
+    existing_names = {record.name for record in existing}
+
+    counts: dict = {}
+    for record in existing:
+        record_type = _record_type(record)
+        if record_type:
+            counts[record_type] = counts.get(record_type, 0) + 1
+
+    for comp in components:
+        if not comp.type or not comp.name:
+            continue
+        if comp.name in existing_names:
+            continue
+
+        limit = _component_instance_limit(comp.type)
+        counts[comp.type] = counts.get(comp.type, 0) + 1
+        if counts[comp.type] > limit:
+            raise ComponentLimitExceeded(
+                f"Cannot deploy '{comp.name}': at most {limit} component(s) of type "
+                f"'{comp.type}' may exist at a time and that limit is already reached. "
+                "Delete an existing one before deploying another."
+            )
+
+
 async def _deploy_components(components, namespace):
     """Install-or-upgrade every component in the request (config-driven) and
     persist one DB row per component. A component with no `type`/`name` is an
@@ -350,6 +417,8 @@ async def _deploy_components(components, namespace):
                 "needs its own unique name."
             )
         seen_names.add(dup_name)
+
+    _assert_within_component_limits(components)
 
     for comp in components:
         if not comp.type or not comp.name:
@@ -389,6 +458,10 @@ async def add_components(payload: DeploymentRequest, request: Request):
         deployed = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, data={"deployed": deployed})
 
+    except ComponentLimitExceeded as e:
+        ## Expected, caller-correctable state — not a server fault, so no stack trace.
+        logger.warning("[deploy] %s", e)
+        return HttpUtils.get_error_response(status=409, message=str(e))
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
@@ -408,6 +481,9 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest, requ
         return HttpUtils.response(status=200, message="Components upgraded",
                                   data={"upgraded": upgraded})
 
+    except ComponentLimitExceeded as e:
+        logger.warning("[upgrade] %s", e)
+        return HttpUtils.get_error_response(status=409, message=str(e))
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
@@ -579,12 +655,16 @@ def _configured_url(value):
 
 
 def _component_versions(component_key: str):
-    """Expose the Helm chart versions the backend will accept for a component type.
+    """Expose the Helm chart versions and the instance cap for a component type.
 
     The deployment wizard in the frontend populates its version dropdown from this,
     and sends the chosen value back on POST /api/component. Keeping it sourced from
     the same ``components.<key>.versions`` block that edcManager validates against
     means the UI can never offer a version the backend would reject.
+
+    ``maxInstances`` is published for the same reason: the dashboard renders "x/max"
+    counters and disables full component types from it, so the number the user sees
+    is the number ``_assert_within_component_limits`` actually enforces.
     """
     component_config = app_configuration.get("components", {}).get(component_key, {})
     versions = [
@@ -595,6 +675,7 @@ def _component_versions(component_key: str):
     return {
         "defaultVersion": versions[0] if versions else "",
         "availableVersions": versions,
+        "maxInstances": _component_instance_limit(component_key),
     }
 
 

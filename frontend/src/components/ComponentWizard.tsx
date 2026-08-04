@@ -20,6 +20,8 @@ interface Props {
   allowMultipleTypes?: boolean;
   initialSelectedTypes?: ComponentType[];
   startAtConfiguration?: boolean;
+  typeCounts: Record<ManagedComponent['type'], number>;
+  typeLimits: Record<ManagedComponent['type'], number>;
 }
 
 const componentTypes = [
@@ -79,16 +81,30 @@ export default function ComponentWizard({
   allowMultipleTypes = true,
   initialSelectedTypes,
   startAtConfiguration = false,
+  typeCounts,
+  typeLimits,
 }: Props) {
   const { t } = useI18n();
   useLockBodyScroll(open);
-  const defaultSelectedTypes = useMemo<ComponentType[]>(
-    () =>
-      initialSelectedTypes?.length
-        ? [...initialSelectedTypes]
-        : ['Submodel Service'],
-    [initialSelectedTypes],
+
+  const isTypeFull = (type: ComponentType) => {
+    const managedType = toManagedComponentType(type);
+    return typeCounts[managedType] >= typeLimits[managedType];
+  };
+
+  const availableTypes = useMemo<ComponentType[]>(
+    () => componentTypes.filter((type) => !isTypeFull(type)),
+    [typeCounts, typeLimits],
   );
+  const allTypesFull = availableTypes.length === 0;
+
+  const defaultSelectedTypes = useMemo<ComponentType[]>(() => {
+    const requested = initialSelectedTypes?.length
+      ? [...initialSelectedTypes]
+      : ['Submodel Service' as ComponentType];
+    const selectable = requested.filter((type) => availableTypes.includes(type));
+    return selectable.length ? selectable : availableTypes.slice(0, 1);
+  }, [availableTypes, initialSelectedTypes]);
 
   const [step, setStep] = useState(1);
   const [selectedComponentTypes, setSelectedComponentTypes] =
@@ -198,6 +214,8 @@ export default function ComponentWizard({
 
     if (
       deploying
+      || selectedComponentTypes.length === 0
+      || selectedComponentTypes.some((type) => isTypeFull(type))
       || selectedComponentTypes.some((type) => Object.keys(getStep2Errors(type)).length > 0)
     ) {
       return;
@@ -228,6 +246,10 @@ export default function ComponentWizard({
   };
 
   const toggleComponentType = (type: ComponentType) => {
+    if (isTypeFull(type)) {
+      return;
+    }
+
     if (!allowMultipleTypes) {
       setSelectedComponentTypes([type]);
       return;
@@ -243,7 +265,7 @@ export default function ComponentWizard({
   const handlePrimaryAction = async () => {
     if (step === 1) {
       setSubmittedStep1(true);
-      if (selectedComponentTypes.length === 0) {
+      if (selectedComponentTypes.length === 0 || allTypesFull) {
         return;
       }
 
@@ -289,19 +311,33 @@ export default function ComponentWizard({
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
                   {t('componentGuidanceRestriction')}
                 </div>
+                {allTypesFull && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                    <p className="font-medium">{t('componentAllLimitsReached')}</p>
+                    <p className="mt-1">{t('componentLimitBlockedHint')}</p>
+                  </div>
+                )}
                 <div className="grid gap-3">
                   {componentTypes.map((type) => {
                     const title = getComponentTypeTitle(type, t);
                     const description = getComponentTypeDescription(type, t);
                     const isSelected = selectedComponentTypes.includes(type);
+                    const managedType = toManagedComponentType(type);
+                    const limit = typeLimits[managedType];
+                    const count = typeCounts[managedType];
+                    const full = isTypeFull(type);
 
                     return (
                       <button
                         key={type}
                         type="button"
                         onClick={() => toggleComponentType(type)}
+                        disabled={full}
+                        aria-disabled={full}
                         className={`rounded-2xl border px-4 py-4 text-left transition-all ${
-                          isSelected
+                          full
+                            ? 'cursor-not-allowed border-gray-200 bg-gray-100 opacity-70 dark:border-slate-700 dark:bg-slate-800'
+                            : isSelected
                             ? 'border-blue-400 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-500/10'
                             : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-slate-700 dark:hover:border-blue-500/40 dark:hover:bg-slate-800'
                         }`}
@@ -309,23 +345,42 @@ export default function ComponentWizard({
                         <div className="flex items-start gap-3">
                           <div
                             className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border ${
-                              isSelected
+                              isSelected && !full
                                 ? 'border-blue-500 bg-blue-500 text-white'
                                 : 'border-gray-300 dark:border-slate-600'
                             }`}
                           >
-                            {isSelected && <CheckCircle2 size={12} />}
+                            {isSelected && !full && <CheckCircle2 size={12} />}
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  full
+                                    ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                }`}
+                              >
+                                {count}/{limit}
+                              </span>
+                            </div>
                             <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{description}</p>
+                            {full && (
+                              <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-300">
+                                {t('componentTypeLimitReached', {
+                                  max: String(limit),
+                                  type: title,
+                                })}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </button>
                     );
                   })}
                 </div>
-                {submittedStep1 && selectedComponentTypes.length === 0 && (
+                {submittedStep1 && selectedComponentTypes.length === 0 && !allTypesFull && (
                   <p className="text-xs text-red-600 dark:text-red-300">
                     {t('validationRequired', { field: t('componentTypeLabel') })}
                   </p>
@@ -418,7 +473,7 @@ export default function ComponentWizard({
               </button>
               <button
                 onClick={() => void handlePrimaryAction()}
-                disabled={deploying}
+                disabled={deploying || allTypesFull}
                 className="rounded-lg bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
                 {deploying

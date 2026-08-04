@@ -335,5 +335,17 @@
   "appSystemHealthInfoTitle": "System health",
   "appActivityInfoTitle": "Activity",
   "appConnectorOverviewInfoTitle": "Connector overview",
-  "appCreateNewInfoTitle": "Create something new"
+  "appCreateNewInfoTitle": "Create something new",
+  "digitalTwinRegistries": "Digital Twin Registries",
+  "submodelServices": "Submodel Services",
+  "statsDigitalTwinRegistriesTitle": "Digital twin registry overview",
+  "statsDigitalTwinRegistriesContent": "Shows how many digital twin registries are deployed and how many of the {max} available slots are still free.",
+  "statsDigitalTwinRegistriesFooter": "Once the limit is reached, delete an existing registry before deploying another.",
+  "statsSubmodelServicesTitle": "Submodel service overview",
+  "statsSubmodelServicesContent": "Shows how many submodel services are deployed and how many of the {max} available slots are still free.",
+  "statsSubmodelServicesFooter": "Once the limit is reached, delete an existing service before deploying another.",
+  "componentTypeLimitReached": "A maximum of {max} {type} instances can be deployed.",
+  "componentAllLimitsReached": "Every component type has reached its deployment limit.",
+  "componentLimitBlockedHint": "Delete an existing one on the dashboard to free up a slot.",
+  "monitorServiceCapacityLabel": "Capacity per type"
 }

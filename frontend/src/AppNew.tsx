@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import {
   Activity,
+  Boxes,
   Database,
+  Layers,
   Plus,
   Server,
   SquareActivity,
@@ -24,7 +26,7 @@ import DeploymentStatusModal from './components/DeploymentStatusModal';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
 import keycloak, { isAuthDisabled } from './auth/keycloak';
-import { MAX_CONNECTORS } from './utils/nameRules';
+import { resolveComponentLimit } from './utils/nameRules';
 
 const CONNECTORS_STORAGE_KEY = 'connectors';
 const COMPONENTS_STORAGE_KEY = 'components';
@@ -85,14 +87,17 @@ interface DataspaceSettingsPayload {
     connector?: {
       defaultVersion?: string;
       availableVersions?: string[];
+      maxInstances?: number;
     };
     digitalTwinRegistry?: {
       defaultVersion?: string;
       availableVersions?: string[];
+      maxInstances?: number;
     };
     submodelServer?: {
       defaultVersion?: string;
       availableVersions?: string[];
+      maxInstances?: number;
     };
   };
 }
@@ -401,6 +406,31 @@ function getHealthTone(
   };
 }
 
+function resolveComponentLimits(details: DataspaceSettingsPayload | null) {
+  return {
+    connector: resolveComponentLimit('connector', details?.deployment?.connector?.maxInstances),
+    digitalTwinRegistry: resolveComponentLimit(
+      'digitalTwinRegistry',
+      details?.deployment?.digitalTwinRegistry?.maxInstances,
+    ),
+    submodelServer: resolveComponentLimit(
+      'submodelServer',
+      details?.deployment?.submodelServer?.maxInstances,
+    ),
+  };
+}
+
+function countComponentsByType(components: ManagedComponent[]) {
+  return {
+    digitalTwinRegistry: components.filter(
+      (component) => component.type === 'digitalTwinRegistry',
+    ).length,
+    submodelServer: components.filter(
+      (component) => component.type === 'submodelServer',
+    ).length,
+  };
+}
+
 function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
@@ -425,7 +455,12 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     initialSelectedTypes?: ComponentType[];
     startAtConfiguration?: boolean;
   }>({});
-  const connectorLimitReached = connectors.length >= MAX_CONNECTORS;
+  const componentLimits = useMemo(
+    () => resolveComponentLimits(dataspaceDetails),
+    [dataspaceDetails],
+  );
+  const componentCounts = useMemo(() => countComponentsByType(components), [components]);
+  const connectorLimitReached = connectors.length >= componentLimits.connector;
 
   const loadDeployments = useCallback(async () => {
     const deploymentState = await fetchDeploymentState();
@@ -463,7 +498,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       return false;
     }
 
-    if (connectors.length >= MAX_CONNECTORS) {
+    if (connectors.length >= componentLimits.connector) {
       return false;
     }
 
@@ -554,6 +589,13 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   };
 
   const handleDeployComponent = async (component: ManagedComponent) => {
+    if (componentCounts[component.type] >= componentLimits[component.type]) {
+      throw new Error(
+        `Cannot deploy '${component.name}': the limit of ${componentLimits[component.type]} `
+        + `'${component.type}' components is already reached.`,
+      );
+    }
+
     const generatedEndpoint = component.endpoint?.trim()
       || (DEFAULT_COMPONENT_HOST_SUFFIX
         ? `${component.name}.${DEFAULT_COMPONENT_HOST_SUFFIX}`
@@ -626,6 +668,19 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     [connectors],
   );
 
+  const activeComponentCounts = useMemo(() => {
+    const isActive = (component: ManagedComponent) =>
+      component.status !== 'Inactive';
+    return {
+      digitalTwinRegistry: components.filter(
+        (component) => component.type === 'digitalTwinRegistry' && isActive(component),
+      ).length,
+      submodelServer: components.filter(
+        (component) => component.type === 'submodelServer' && isActive(component),
+      ).length,
+    };
+  }, [components]);
+
   const activityValue = activityLogs.length > 0 ? t('statusActive') : t('statusHealthy');
   const statsGuidance = {
     dataSpace: {
@@ -648,6 +703,20 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
       content: t('statsConnectorsContent'),
       footer: t('statsConnectorsFooter'),
     },
+    digitalTwinRegistries: {
+      title: t('statsDigitalTwinRegistriesTitle'),
+      content: t('statsDigitalTwinRegistriesContent', {
+        max: String(componentLimits.digitalTwinRegistry),
+      }),
+      footer: t('statsDigitalTwinRegistriesFooter'),
+    },
+    submodelServices: {
+      title: t('statsSubmodelServicesTitle'),
+      content: t('statsSubmodelServicesContent', {
+        max: String(componentLimits.submodelServer),
+      }),
+      footer: t('statsSubmodelServicesFooter'),
+    },
     add: {
       title: t('statsAddTitle'),
       content: t('statsAddContent'),
@@ -668,7 +737,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t('welcome')}</p>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatsCard
             icon={<Database size={22} />}
             title={t('dataSpace')}
@@ -701,12 +770,32 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           <StatsCard
             icon={<Server size={22} />}
             title={t('edcConnectors')}
-            value={`${connectors.length}/${MAX_CONNECTORS}`}
+            value={`${connectors.length}/${componentLimits.connector}`}
             subtitle={`${activeConnectors} ${t('activeShort')}`}
             variant="info"
             tooltipTitle={statsGuidance.connectors.title}
             tooltipContent={statsGuidance.connectors.content}
             tooltipFooter={statsGuidance.connectors.footer}
+          />
+          <StatsCard
+            icon={<Boxes size={22} />}
+            title={t('digitalTwinRegistries')}
+            value={`${componentCounts.digitalTwinRegistry}/${componentLimits.digitalTwinRegistry}`}
+            subtitle={`${activeComponentCounts.digitalTwinRegistry} ${t('activeShort')}`}
+            variant="info"
+            tooltipTitle={statsGuidance.digitalTwinRegistries.title}
+            tooltipContent={statsGuidance.digitalTwinRegistries.content}
+            tooltipFooter={statsGuidance.digitalTwinRegistries.footer}
+          />
+          <StatsCard
+            icon={<Layers size={22} />}
+            title={t('submodelServices')}
+            value={`${componentCounts.submodelServer}/${componentLimits.submodelServer}`}
+            subtitle={`${activeComponentCounts.submodelServer} ${t('activeShort')}`}
+            variant="info"
+            tooltipTitle={statsGuidance.submodelServices.title}
+            tooltipContent={statsGuidance.submodelServices.content}
+            tooltipFooter={statsGuidance.submodelServices.footer}
           />
         </div>
 
@@ -745,6 +834,11 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         connectorCount={connectors.length}
+        connectorLimit={componentLimits.connector}
+        digitalTwinRegistryCount={componentCounts.digitalTwinRegistry}
+        digitalTwinRegistryLimit={componentLimits.digitalTwinRegistry}
+        submodelServiceCount={componentCounts.submodelServer}
+        submodelServiceLimit={componentLimits.submodelServer}
         onSelectEDC={() => {
           setShowAddDialog(false);
           if (!connectorLimitReached) {
@@ -823,6 +917,14 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         allowMultipleTypes={componentWizardDefaults.allowMultipleTypes}
         initialSelectedTypes={componentWizardDefaults.initialSelectedTypes}
         startAtConfiguration={componentWizardDefaults.startAtConfiguration}
+        typeCounts={{
+          digitalTwinRegistry: componentCounts.digitalTwinRegistry,
+          submodelServer: componentCounts.submodelServer,
+        }}
+        typeLimits={{
+          digitalTwinRegistry: componentLimits.digitalTwinRegistry,
+          submodelServer: componentLimits.submodelServer,
+        }}
       />
 
       <DeploymentStatusModal
@@ -991,11 +1093,32 @@ function Monitor() {
     return items;
   }, [connectorRows, t]);
 
+  const componentLimits = useMemo(
+    () => resolveComponentLimits(dataspace.details),
+    [dataspace.details],
+  );
+  const componentCounts = useMemo(() => countComponentsByType(components), [components]);
+  // Total capacity across the non-connector types, so the Services card reads
+  // "deployed / total slots" rather than "healthy / deployed".
+  const componentCapacity =
+    componentLimits.digitalTwinRegistry + componentLimits.submodelServer;
+  const serviceCapacityBadges = [
+    {
+      key: 'digitalTwinRegistry' as const,
+      label: t('componentTypeTwin'),
+      count: componentCounts.digitalTwinRegistry,
+      limit: componentLimits.digitalTwinRegistry,
+    },
+    {
+      key: 'submodelServer' as const,
+      label: t('componentTypeSubmodel'),
+      count: componentCounts.submodelServer,
+      limit: componentLimits.submodelServer,
+    },
+  ];
+
   const healthyConnectors = connectorRows.filter(
     (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
-  ).length;
-  const healthyComponents = componentRows.filter(
-    (component) => component.statusCode === 'healthy',
   ).length;
   const overallHealth =
     connectorRows.some((connector) => connector.status === 'unhealthy')
@@ -1041,8 +1164,10 @@ function Monitor() {
           },
           {
             title: t('statusLinkedServicesTitle'),
-            value: `${healthyComponents}/${componentRows.length}`,
-            subtitle: t('statusLinkedServicesSubtitle'),
+            value: `${componentRows.length}/${componentCapacity}`,
+            subtitle: serviceCapacityBadges
+              .map((badge) => `${badge.label} ${badge.count}/${badge.limit}`)
+              .join(' · '),
             tone: getHealthTone(
               componentRows.length === 0 ? 'warning' : 'healthy',
               healthLabels,
@@ -1153,6 +1278,24 @@ function Monitor() {
               <p className="text-sm text-gray-500 dark:text-slate-400">
                 {t('monitorServiceHealthDescription')}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+                  {t('monitorServiceCapacityLabel')}
+                </span>
+                {serviceCapacityBadges.map((badge) => {
+                  const full = badge.count >= badge.limit;
+                  return (
+                    <span
+                      key={badge.key}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        getHealthTone(full ? 'warning' : 'healthy', healthLabels).badge
+                      }`}
+                    >
+                      {badge.label} {badge.count}/{badge.limit}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full">

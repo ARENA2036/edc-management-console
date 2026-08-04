@@ -335,5 +335,17 @@
   "appSystemHealthInfoTitle": "System-Status",
   "appActivityInfoTitle": "Aktivität",
   "appConnectorOverviewInfoTitle": "Connector-Übersicht",
-  "appCreateNewInfoTitle": "Neue Elemente anlegen"
+  "appCreateNewInfoTitle": "Neue Elemente anlegen",
+  "digitalTwinRegistries": "Digital Twin Registries",
+  "submodelServices": "Submodel-Services",
+  "statsDigitalTwinRegistriesTitle": "Digital-Twin-Registry-Übersicht",
+  "statsDigitalTwinRegistriesContent": "Zeigt, wie viele Digital Twin Registries bereitgestellt sind und wie viele der {max} verfügbaren Plätze noch frei sind.",
+  "statsDigitalTwinRegistriesFooter": "Sobald das Limit erreicht ist, löschen Sie eine vorhandene Registry, bevor Sie eine weitere bereitstellen.",
+  "statsSubmodelServicesTitle": "Submodel-Service-Übersicht",
+  "statsSubmodelServicesContent": "Zeigt, wie viele Submodel-Services bereitgestellt sind und wie viele der {max} verfügbaren Plätze noch frei sind.",
+  "statsSubmodelServicesFooter": "Sobald das Limit erreicht ist, löschen Sie einen vorhandenen Service, bevor Sie einen weiteren bereitstellen.",
+  "componentTypeLimitReached": "Es können maximal {max} {type}-Instanzen bereitgestellt werden.",
+  "componentAllLimitsReached": "Alle Komponententypen haben ihr Bereitstellungslimit erreicht.",
+  "componentLimitBlockedHint": "Löschen Sie im Dashboard einen vorhandenen Eintrag, um einen Platz freizugeben.",
+  "monitorServiceCapacityLabel": "Kapazität pro Typ"
 }
