@@ -1,18 +1,13 @@
 name: EMC CI-CD Pipeline
 
 # Trigger behavior:
-# - feature/**, bugfix/**, hotfix/**: automatic on push
-# - develop: manual workflow_dispatch only (environment=dev-ap6 or staging)
-# - release/**: manual workflow_dispatch only (environment=prod)
+# - Manual workflow_dispatch only
+# - Developer Preview: feature/**, bugfix/**, hotfix/**, chore/**, docs/**, or ci-cd-branch with environment=dev-ap6
+# - Shared Development: develop with environment=dev-ap6
+# - Staging: develop with environment=staging
+# - Production: release/** with environment=prod
 
 on:
-  push:
-    branches:
-      - 'feature/**'
-      - 'bugfix/**'
-      - 'hotfix/**'
-      - ci-cd-branch
-
   workflow_dispatch:
     inputs:
       environment:
@@ -146,36 +141,27 @@ jobs:
     runs-on: ubuntu-latest
 
     if: |
+      github.event_name == 'workflow_dispatch' &&
       (
-        github.event_name == 'push' &&
         (
-          github.ref_name == 'ci-cd-branch' ||
-          startsWith(github.ref_name, 'feature/') ||
-          startsWith(github.ref_name, 'bugfix/') ||
-          startsWith(github.ref_name, 'hotfix/')
-        )
-      ) ||
-      (
-        github.event_name == 'workflow_dispatch' &&
-        (
+          github.event.inputs.environment == 'dev-ap6' &&
           (
-            github.event.inputs.environment == 'dev-ap6' &&
-            (
-              github.ref_name == 'develop' ||
-              github.ref_name == 'ci-cd-branch' ||
-              startsWith(github.ref_name, 'feature/') ||
-              startsWith(github.ref_name, 'bugfix/') ||
-              startsWith(github.ref_name, 'hotfix/')
-            )
-          ) ||
-          (
-            github.event.inputs.environment == 'staging' &&
-            github.ref_name == 'develop'
-          ) ||
-          (
-            github.event.inputs.environment == 'prod' &&
-            startsWith(github.ref_name, 'release/')
+            github.ref_name == 'develop' ||
+            github.ref_name == 'ci-cd-branch' ||
+            startsWith(github.ref_name, 'feature/') ||
+            startsWith(github.ref_name, 'bugfix/') ||
+            startsWith(github.ref_name, 'hotfix/') ||
+            startsWith(github.ref_name, 'chore/') ||
+            startsWith(github.ref_name, 'docs/')
           )
+        ) ||
+        (
+          github.event.inputs.environment == 'staging' &&
+          github.ref_name == 'develop'
+        ) ||
+        (
+          github.event.inputs.environment == 'prod' &&
+          startsWith(github.ref_name, 'release/')
         )
       )
 
@@ -252,7 +238,9 @@ jobs:
                   "${{ github.ref_name }}" == "ci-cd-branch" ||
                   "${{ github.ref_name }}" == feature/* ||
                   "${{ github.ref_name }}" == bugfix/* ||
-                  "${{ github.ref_name }}" == hotfix/* ]]; then
+                  "${{ github.ref_name }}" == hotfix/* ||
+                  "${{ github.ref_name }}" == chore/* ||
+                  "${{ github.ref_name }}" == docs/* ]]; then
 
             VALUES_FILE="charts/edc-management-console/values-dev.yaml"
 
@@ -328,24 +316,15 @@ jobs:
     runs-on: ubuntu-latest
 
     if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'dev-ap6' &&
       (
-        github.event_name == 'push' &&
-        (
-          github.ref_name == 'ci-cd-branch' ||
-          startsWith(github.ref_name, 'feature/') ||
-          startsWith(github.ref_name, 'bugfix/') ||
-          startsWith(github.ref_name, 'hotfix/')
-        )
-      ) ||
-      (
-        github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.environment == 'dev-ap6' &&
-        (
-          github.ref_name == 'ci-cd-branch' ||
-          startsWith(github.ref_name, 'feature/') ||
-          startsWith(github.ref_name, 'bugfix/') ||
-          startsWith(github.ref_name, 'hotfix/')
-        )
+        github.ref_name == 'ci-cd-branch' ||
+        startsWith(github.ref_name, 'feature/') ||
+        startsWith(github.ref_name, 'bugfix/') ||
+        startsWith(github.ref_name, 'hotfix/') ||
+        startsWith(github.ref_name, 'chore/') ||
+        startsWith(github.ref_name, 'docs/')
       )
 
     steps:
