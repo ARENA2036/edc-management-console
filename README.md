@@ -189,12 +189,17 @@ python -c "from managers.databaseManager import DatabaseManager; DatabaseManager
 
 ## API Endpoints
 
-### Connectors
-- `GET /api/connectors` - List all connectors
-- `POST /api/connector` - Create connector
-- `GET /api/connectors/{id}` - Get connector
-- `PUT /api/connectors/{id}` - Update connector
-- `DELETE /api/connectors/{name}` - Delete connector
+### Components
+A component is anything the console can deploy: a connector, a digital twin
+registry, a submodel server, ...
+
+- `GET /api/components` - List all deployed components
+- `POST /api/component` - Deploy one or more components
+- `GET /api/components/{id}` - Get one component
+- `PUT /api/components/{id}` - Upgrade one or more components
+- `DELETE /api/components/{name}` - Delete one component by name
+- `GET /api/components/health` - Health of every deployed component
+- `GET /api/components/{name}/health` - Health of one component by name
 
 ### System
 - `GET /health` - Backend health

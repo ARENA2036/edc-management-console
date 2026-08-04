@@ -45,14 +45,17 @@ export const edcClient = (name: string) => {
   }).get('/api/check/liveness')
 }
 
-export const connectorApi = {
-  getAll: () => apiClient.get('/connectors'),
-  getById: (id: string | number) => apiClient.get(`/connectors/${id}`),
-  create: (data: DeployRequest) => apiClient.post('/connector', data),
-  update: (id: string | number, data: DeployRequest) => apiClient.put(`/connectors/${id}`, data),
-  delete: (name: string) => apiClient.delete(`/connectors/${name}`),
-  checkHealth: (id: string | number) => apiClient.get(`/connector/${id}/health`),
-  getConnectorsHealth: () => apiClient.get('/connectors/health'),
+// Deployable components (connector, digital twin registry, submodel server, ...).
+// The backend endpoints are component-generic — they are not connector-specific.
+export const componentApi = {
+  getAll: () => apiClient.get('/components'),
+  getById: (id: string | number) => apiClient.get(`/components/${id}`),
+  create: (data: DeployRequest) => apiClient.post('/component', data),
+  update: (id: string | number, data: DeployRequest) => apiClient.put(`/components/${id}`, data),
+  delete: (name: string) => apiClient.delete(`/components/${name}`),
+  // Single-component health is keyed by name, matching the backend route.
+  checkHealth: (name: string) => apiClient.get(`/components/${name}/health`),
+  getComponentsHealth: () => apiClient.get('/components/health'),
 };
 
 export const healthApi = {

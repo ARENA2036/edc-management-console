@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Connector } from '../types';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 import { buildDeployRequest } from '../utils/deployment';
 
 interface Props {
@@ -20,7 +20,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
     e.preventDefault();
     setLoading(true);
     try {
-      await connectorApi.update(
+      await componentApi.update(
         connector.id,
         buildDeployRequest({
           connector: {

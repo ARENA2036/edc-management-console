@@ -7,7 +7,7 @@ import {
   Server,
   SquareActivity,
 } from 'lucide-react';
-import { activityApi, connectorApi, dataspaceApi } from './api/client';
+import { activityApi, componentApi, dataspaceApi } from './api/client';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
 import { getRuntimeConfigValue } from './runtime-config';
@@ -290,7 +290,7 @@ async function fetchDeploymentState() {
   const cached = getCachedDeployments();
 
   try {
-    const response = await connectorApi.getAll();
+    const response = await componentApi.getAll();
     const apiRows = Array.isArray(response.data.data)
       ? (response.data.data as DashboardConnector[])
       : [];
@@ -477,7 +477,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     setConnectors(updatedConnectors);
 
     try {
-      await connectorApi.create({
+      await componentApi.create({
         components: [
           {
             type: 'connector',
@@ -544,7 +544,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   const handleDeleteConnector = async (connector: DashboardConnector) => {
     try {
-      await connectorApi.delete(connector.name);
+      await componentApi.delete(connector.name);
       const synced = await fetchDeploymentState();
       setConnectors(synced.connectors);
       setComponents(synced.components);
@@ -573,7 +573,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     });
 
     try {
-      await connectorApi.create({
+      await componentApi.create({
         components: [
           {
             type: component.type,
@@ -602,7 +602,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
     try {
-      await connectorApi.delete(componentToDelete.name);
+      await componentApi.delete(componentToDelete.name);
       const synced = await fetchDeploymentState();
       setConnectors(synced.connectors);
       setComponents(synced.components);

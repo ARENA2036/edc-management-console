@@ -4,7 +4,7 @@ import type { Connector } from '../types';
 import DeleteModal from './DeleteModal';
 import EditModal from './EditModal';
 import YamlViewModal from './YamlViewModal';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 
 interface Props {
   connectors: Connector[];
@@ -22,7 +22,7 @@ export default function ConnectorTableNew({ connectors, onConnectorDeleted, onCo
   const handleDelete = async () => {
     if (!deleteModalConnector) return;
     try {
-      await connectorApi.delete(deleteModalConnector.name);
+      await componentApi.delete(deleteModalConnector.name);
     } catch (error) {
       console.error('Failed to delete connector:', error);
     }

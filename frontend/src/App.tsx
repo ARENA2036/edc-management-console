@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
-import { connectorApi, activityApi } from './api/client';
+import { componentApi, activityApi } from './api/client';
 import type { Connector, ActivityLog } from './types';
 import ConnectorTable from './components/ConnectorTable';
 import AddConnectorModal from './components/AddConnectorModal';
@@ -16,7 +16,7 @@ function App() {
   const loadConnectors = async () => {
     try {
       setLoading(true);
-      const response = await connectorApi.getAll();
+      const response = await componentApi.getAll();
       setConnectors(response.data.data || []);
     } catch (error) {
       console.error('Failed to load connectors:', error);

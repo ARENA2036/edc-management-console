@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, Edit, FileText, Info } from 'lucide-react';
 import type { Connector } from '../types';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 import DeleteModal from './DeleteModal';
 import EditModal from './EditModal';
 import YamlViewModal from './YamlViewModal';
@@ -22,7 +22,7 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
   const handleDelete = async () => {
     if (!deleteConnector) return;
     try {
-      await connectorApi.delete(deleteConnector.name);
+      await componentApi.delete(deleteConnector.name);
       onConnectorDeleted();
       setDeleteConnector(null);
     } catch (error) {
