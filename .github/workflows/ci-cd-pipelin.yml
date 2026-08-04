@@ -152,6 +152,7 @@ jobs:
             startsWith(github.ref_name, 'bugfix/') ||
             startsWith(github.ref_name, 'hotfix/') ||
             startsWith(github.ref_name, 'chore/') ||
+            startsWith(github.ref_name, 'feat/') ||
             startsWith(github.ref_name, 'docs/')
           )
         ) ||
@@ -240,6 +241,7 @@ jobs:
                   "${{ github.ref_name }}" == bugfix/* ||
                   "${{ github.ref_name }}" == hotfix/* ||
                   "${{ github.ref_name }}" == chore/* ||
+                  "${{ github.ref_name }}" == feat/* ||
                   "${{ github.ref_name }}" == docs/* ]]; then
 
             VALUES_FILE="charts/edc-management-console/values-dev.yaml"
@@ -324,6 +326,7 @@ jobs:
         startsWith(github.ref_name, 'bugfix/') ||
         startsWith(github.ref_name, 'hotfix/') ||
         startsWith(github.ref_name, 'chore/') ||
+        startsWith(github.ref_name, 'feat/') ||
         startsWith(github.ref_name, 'docs/')
       )
 
