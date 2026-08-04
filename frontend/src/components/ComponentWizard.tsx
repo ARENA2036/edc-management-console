@@ -282,10 +282,7 @@ export default function ComponentWizard({
 
           <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
             {step === 1 && (
-              <>
-                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                  {t('componentHelp')}
-                </div>
+              <>                
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   {t('componentGuidanceChoose')}
                 </div>
@@ -337,13 +334,9 @@ export default function ComponentWizard({
             )}
 
             {step === 2 && (
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-                  {t('componentHelp')}
-                </div>
+              <div className="space-y-5">              
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  <p>{t('componentGuidanceConfig')}</p>
-                  <p className="mt-2">{t('componentGuidanceWhere')}</p>
+                  <p>{t('componentGuidanceConfig')}</p>            
                 </div>
 
                 {selectedComponentTypes.map((type, index) => {

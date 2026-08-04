@@ -1377,7 +1377,7 @@ function Settings({
       fields: [
         { label: t('settingsLabelDataspace'), value: dataspaceDetails?.name },
         { label: t('settingsLabelBpn'), value: dataspaceDetails?.bpn },
-        { label: t('settingsLabelRealm'), value: dataspaceDetails?.realm },
+        { label: t('settingsLabelCompanyName'), value: dataspaceDetails?.realm },
         { label: t('settingsLabelReadonly'), value: dataspaceDetails?.readonly },
       ],
     },
@@ -1415,10 +1415,7 @@ function Settings({
       title: t('settingsSectionInfrastructure'),
       fields: [
         { label: t('settingsLabelDefaultEdcUrl'), value: dataspaceDetails?.edc?.default_url },
-        { label: t('settingsLabelClusterContext'), value: dataspaceDetails?.edc?.cluster_context },
-        { label: t('settingsLabelProviderEdc'), value: dataspaceDetails?.sde?.providerEDC },
-        { label: t('settingsLabelConsumerEdc'), value: dataspaceDetails?.sde?.consumerEDC },
-        { label: t('settingsLabelRegistryUrl'), value: dataspaceDetails?.sde?.registryUrl },
+        { label: t('settingsLabelClusterContext'), value: dataspaceDetails?.edc?.cluster_context }
       ],
     },
   ];
@@ -1431,9 +1428,7 @@ function Settings({
             <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{t('settingsTitle')}</h2>
             <p className="mt-2 max-w-3xl text-gray-500 dark:text-slate-400">{t('settingsDescription')}</p>
           </div>
-          <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-800 shadow-sm dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200">
-            {t('settingsReadonlyNotice')}
-          </div>
+          
         </div>
       </div>
 
