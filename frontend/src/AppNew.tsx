@@ -859,6 +859,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         deploying={connectorDeploymentInFlight}
         existingConnectorNames={connectors.map((connector) => connector.name)}
         defaultVersion={dataspaceDetails?.deployment?.connector?.defaultVersion}
+        availableVersions={dataspaceDetails?.deployment?.connector?.availableVersions}
         prefilledBpn={dataspaceBpn || sessionBpn}
         defaultApiEndpoint={
           dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
@@ -913,6 +914,12 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           connector: dataspaceDetails?.deployment?.connector?.defaultVersion,
           digitalTwinRegistry: dataspaceDetails?.deployment?.digitalTwinRegistry?.defaultVersion,
           submodelServer: dataspaceDetails?.deployment?.submodelServer?.defaultVersion,
+        }}
+        availableVersions={{
+          connector: dataspaceDetails?.deployment?.connector?.availableVersions,
+          digitalTwinRegistry:
+            dataspaceDetails?.deployment?.digitalTwinRegistry?.availableVersions,
+          submodelServer: dataspaceDetails?.deployment?.submodelServer?.availableVersions,
         }}
         allowMultipleTypes={componentWizardDefaults.allowMultipleTypes}
         initialSelectedTypes={componentWizardDefaults.initialSelectedTypes}

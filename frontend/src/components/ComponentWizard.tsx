@@ -17,6 +17,7 @@ interface Props {
   deploying?: boolean;
   existingNames: string[];
   defaultVersions?: Partial<Record<ManagedComponent['type'] | 'connector', string>>;
+  availableVersions?: Partial<Record<ManagedComponent['type'] | 'connector', string[]>>;
   allowMultipleTypes?: boolean;
   initialSelectedTypes?: ComponentType[];
   startAtConfiguration?: boolean;
@@ -35,6 +36,7 @@ type ComponentField = 'name';
 
 interface ComponentDraft {
   name: string;
+  version: string;
   touched: Partial<Record<ComponentField, boolean>>;
 }
 
@@ -54,18 +56,19 @@ function toManagedComponentType(type: ComponentType): ManagedComponent['type'] {
   return type === 'Digital Twin Registry' ? 'digitalTwinRegistry' : 'submodelServer';
 }
 
-function createEmptyDraft(): ComponentDraft {
+function createEmptyDraft(version = ''): ComponentDraft {
   return {
     name: '',
+    version,
     touched: {},
   };
 }
 
-function buildDrafts() {
+function buildDrafts(resolveVersion: (type: ComponentType) => string = () => '') {
   return componentTypes.reduce(
     (drafts, type) => ({
       ...drafts,
-      [type]: createEmptyDraft(),
+      [type]: createEmptyDraft(resolveVersion(type)),
     }),
     {} as Record<ComponentType, ComponentDraft>,
   );
@@ -78,6 +81,7 @@ export default function ComponentWizard({
   deploying = false,
   existingNames,
   defaultVersions,
+  availableVersions,
   allowMultipleTypes = true,
   initialSelectedTypes,
   startAtConfiguration = false,
@@ -98,6 +102,28 @@ export default function ComponentWizard({
   );
   const allTypesFull = availableTypes.length === 0;
 
+  const versionOptionsByType = useMemo(() => {
+    return componentTypes.reduce((options, type) => {
+      const managedType = toManagedComponentType(type);
+      const published = (availableVersions?.[managedType] ?? [])
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const fallback = defaultVersions?.[managedType]?.trim();
+      options[type] =
+        fallback && !published.includes(fallback) ? [fallback, ...published] : published;
+      return options;
+    }, {} as Record<ComponentType, string[]>);
+  }, [availableVersions, defaultVersions]);
+
+  const defaultVersionForType = useMemo(() => {
+    return componentTypes.reduce((defaults, type) => {
+      const managedType = toManagedComponentType(type);
+      defaults[type] =
+        defaultVersions?.[managedType]?.trim() || versionOptionsByType[type][0] || '';
+      return defaults;
+    }, {} as Record<ComponentType, string>);
+  }, [defaultVersions, versionOptionsByType]);
+
   const defaultSelectedTypes = useMemo<ComponentType[]>(() => {
     const requested = initialSelectedTypes?.length
       ? [...initialSelectedTypes]
@@ -110,7 +136,7 @@ export default function ComponentWizard({
   const [selectedComponentTypes, setSelectedComponentTypes] =
     useState<ComponentType[]>(defaultSelectedTypes);
   const [componentDrafts, setComponentDrafts] = useState<Record<ComponentType, ComponentDraft>>(
-    buildDrafts(),
+    () => buildDrafts((type) => defaultVersionForType[type]),
   );
   const [submittedStep1, setSubmittedStep1] = useState(false);
   const [submittedStep2, setSubmittedStep2] = useState(false);
@@ -127,11 +153,12 @@ export default function ComponentWizard({
 
     setStep(startAtConfiguration ? 2 : 1);
     setSelectedComponentTypes(defaultSelectedTypes);
-    setComponentDrafts(buildDrafts());
+    setComponentDrafts(buildDrafts((type) => defaultVersionForType[type]));
     setSubmittedStep1(false);
     setSubmittedStep2(false);
   }, [
     defaultSelectedTypes,
+    defaultVersionForType,
     open,
     startAtConfiguration,
   ]);
@@ -140,7 +167,8 @@ export default function ComponentWizard({
     onOpenChange(false);
   };
 
-  const getDraft = (type: ComponentType) => componentDrafts[type] ?? createEmptyDraft();
+  const getDraft = (type: ComponentType) =>
+    componentDrafts[type] ?? createEmptyDraft(defaultVersionForType[type]);
 
   const getComponentNamePlaceholder = (type: ComponentType) =>
     type === 'Digital Twin Registry'
@@ -229,7 +257,7 @@ export default function ComponentWizard({
         id: `comp-${type}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         name: normalizedName,
         type: managedType,
-        version: defaultVersions?.[managedType]?.trim() || '',
+        version: draft.version.trim() || defaultVersionForType[type] || '',
         status: 'Active',
         deployedAt: new Date().toISOString(),
         db_name: `${normalizedName}-db`,
@@ -397,6 +425,8 @@ export default function ComponentWizard({
                 {selectedComponentTypes.map((type, index) => {
                   const draft = getDraft(type);
                   const step2Errors = getStep2Errors(type);
+                  const managedType = toManagedComponentType(type);
+                  const versionOptions = versionOptionsByType[type] ?? [];
 
                   return (
                     <div
@@ -420,10 +450,14 @@ export default function ComponentWizard({
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
+                        <label
+                          htmlFor={`component-name-${managedType}`}
+                          className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300"
+                        >
                           {t('componentNameLabel')}
                         </label>
                         <input
+                          id={`component-name-${managedType}`}
                           type="text"
                           value={draft.name}
                           onChange={(event) =>
@@ -444,6 +478,44 @@ export default function ComponentWizard({
                             {step2Errors.name}
                           </p>
                         )}
+                      </div>
+
+                      <div className="mt-4">
+                        <label
+                          htmlFor={`component-version-${managedType}`}
+                          className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300"
+                        >
+                          {t('versionLabel')}
+                        </label>
+                        <select
+                          id={`component-version-${managedType}`}
+                          value={draft.version}
+                          onChange={(event) =>
+                            updateDraft(type, (current) => ({
+                              ...current,
+                              version: event.target.value,
+                            }))
+                          }
+                          disabled={deploying || versionOptions.length === 0}
+                          className={`${inputClass(false)} disabled:cursor-not-allowed disabled:bg-gray-50 dark:disabled:bg-slate-800`}
+                        >
+                          {versionOptions.length === 0 ? (
+                            <option value="">{t('versionUnavailable')}</option>
+                          ) : (
+                            versionOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option === defaultVersionForType[type]
+                                  ? t('versionOptionRecommended', { version: option })
+                                  : option}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                          {versionOptions.length === 0
+                            ? t('versionUnavailableHelp')
+                            : t('versionHelp')}
+                        </p>
                       </div>
                     </div>
                   );

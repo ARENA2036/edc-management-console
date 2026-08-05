@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
@@ -21,6 +21,7 @@ interface Props {
   deploying?: boolean;
   existingConnectorNames: string[];
   defaultVersion?: string;
+  availableVersions?: string[];
   prefilledBpn?: string;
   defaultApiEndpoint?: string;
   defaultDataPlaneUrl?: string;
@@ -52,6 +53,7 @@ export default function DeploymentWizard({
   deploying = false,
   existingConnectorNames,
   defaultVersion,
+  availableVersions,
   prefilledBpn,
   defaultApiEndpoint,
   defaultDataPlaneUrl,
@@ -64,10 +66,34 @@ export default function DeploymentWizard({
   const [touched, setTouched] = useState<Partial<Record<DeploymentField, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
 
+  const versionOptions = useMemo(() => {
+    const options = (availableVersions ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const fallback = defaultVersion?.trim();
+    if (fallback && !options.includes(fallback)) {
+      return [fallback, ...options];
+    }
+    return options;
+  }, [availableVersions, defaultVersion]);
+
+  const resolvedDefaultVersion = defaultVersion?.trim() || versionOptions[0] || '';
+  const [version, setVersion] = useState(resolvedDefaultVersion);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setVersion((current) =>
+      current && versionOptions.includes(current) ? current : resolvedDefaultVersion,
+    );
+  }, [open, resolvedDefaultVersion, versionOptions]);
+
   const resetState = () => {
     setName('');
     setTouched({});
     setSubmitted(false);
+    setVersion(resolvedDefaultVersion);
   };
 
   const closeDialog = () => {
@@ -166,7 +192,7 @@ export default function DeploymentWizard({
     name: normalizedConnectorName,
     url: connectorApiUrl,
     bpn: resolvedBpn,
-    version: defaultVersion?.trim() || undefined,
+    version: version.trim() || undefined,
     status: 'healthy',
     created_at: new Date().toISOString(),
     urls: [
@@ -184,7 +210,7 @@ export default function DeploymentWizard({
       hostname: generatedHostname,
       dataPlaneUrl: connectorDataPlaneUrl,
       bpn: resolvedBpn,
-      version: defaultVersion?.trim() || '',
+      version: version.trim(),
     },
     source: 'local',
   });
@@ -267,6 +293,37 @@ export default function DeploymentWizard({
                   {stepErrors.name}
                 </p>
               )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="connector-version"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300"
+              >
+                {t('versionLabel')}
+              </label>
+              <select
+                id="connector-version"
+                value={version}
+                onChange={(event) => setVersion(event.target.value)}
+                disabled={deploying || versionOptions.length === 0}
+                className={`${inputClass(false)} disabled:cursor-not-allowed disabled:bg-gray-50 dark:disabled:bg-slate-800`}
+              >
+                {versionOptions.length === 0 ? (
+                  <option value="">{t('versionUnavailable')}</option>
+                ) : (
+                  versionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option === resolvedDefaultVersion
+                        ? t('versionOptionRecommended', { version: option })
+                        : option}
+                    </option>
+                  ))
+                )}
+              </select>
+              <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                {versionOptions.length === 0 ? t('versionUnavailableHelp') : t('versionHelp')}
+              </p>
             </div>
 
             <div>
