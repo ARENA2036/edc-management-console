@@ -18,7 +18,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "latest-txcd"
+    tag: "06082026"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -177,7 +177,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "02-07-2026-emc01"
+    tag: "06082026"
   imagePullSecrets:
     - name: registry-creds
   env:
