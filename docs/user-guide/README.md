@@ -194,11 +194,14 @@ The SDE URL is read from runtime configuration or from the backend dataspace set
 The frontend primarily uses these backend endpoints:
 
 - `GET /health`: backend health check.
-- `GET /api/connectors`: list known connectors.
-- `POST /api/connector`: create or deploy a connector.
-- `GET /api/connectors/{id}`: get one connector.
-- `PUT /api/connectors/{id}`: update or upgrade a connector.
-- `DELETE /api/connectors/{name}`: delete a connector by name.
+- `GET /api/components`: list deployed components (connectors, digital twin
+  registries, submodel servers, ...).
+- `POST /api/component`: deploy one or more components.
+- `GET /api/components/{id}`: get one component.
+- `PUT /api/components/{id}`: upgrade one or more components.
+- `DELETE /api/components/{name}`: delete one component by name.
+- `GET /api/components/health`: health of every deployed component.
+- `GET /api/components/{name}/health`: health of one component by name.
 - `GET /api/config`: read application settings.
 - `GET /api/dataspace`: read dataspace settings for the UI.
 - `GET /api/logs?limit=50`: intended activity log endpoint, if enabled by the backend.

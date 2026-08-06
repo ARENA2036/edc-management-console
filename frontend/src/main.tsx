@@ -2,13 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import AppNew from './AppNew.tsx'
-import keycloak from './auth/keycloak'
+import keycloak, {
+  getKeycloakConfig,
+  isAuthDisabled,
+  validateKeycloakConfig,
+} from './auth/keycloak'
 import { I18nProvider } from './i18n'
 
-const root = createRoot(document.getElementById('root')!);
-
 const renderApp = () => {
-  root.render(
+  createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <I18nProvider>
         <AppNew />
@@ -18,7 +20,7 @@ const renderApp = () => {
 };
 
 const renderAuthStatus = (title: string, message: string, actionLabel?: string) => {
-  root.render(
+  createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col justify-center">
@@ -44,10 +46,32 @@ const renderAuthStatus = (title: string, message: string, actionLabel?: string) 
 };
 
 const initKeycloak = async () => {
+  if (isAuthDisabled()) {
+    localStorage.removeItem('token');
+    renderApp();
+    return;
+  }
+
+  renderAuthStatus(
+    'Connecting to Keycloak',
+    'Your login session is being prepared. If authentication is required, the application will redirect you to Keycloak automatically.',
+  );
+
+  const keycloakConfig = getKeycloakConfig();
+  const keycloakConfigValidation = validateKeycloakConfig(keycloakConfig);
+  if (!keycloakConfigValidation.valid) {
+    renderAuthStatus(
+      'Keycloak configuration incomplete',
+      `The login flow cannot start because these settings are missing: ${keycloakConfigValidation.missingFields.join(', ')}.`,
+    );
+    return;
+  }
+
   try {
     const authenticated = await keycloak.init({
       onLoad: 'login-required',
       checkLoginIframe: false,
+      pkceMethod: 'S256',
     });
 
     if (authenticated) {
@@ -63,16 +87,24 @@ const initKeycloak = async () => {
         });
       };
 
-      createRoot(document.getElementById('root')!).render(
-        <StrictMode>
-          <I18nProvider>
-            <AppNew />
-          </I18nProvider>
-        </StrictMode>,
-      );
+      renderApp();
+      return;
     }
+
+    renderAuthStatus(
+      'Login required',
+      'No authenticated Keycloak session was established. Start the login flow again to continue.',
+      'Open Keycloak login',
+    );
   } catch (error) {
     console.error('Failed to initialize Keycloak:', error);
+    const message =
+      error instanceof Error ? error.message : 'Unknown Keycloak initialization error';
+    renderAuthStatus(
+      'Keycloak login failed',
+      `The application could not complete the authentication handshake. Details: ${message}`,
+      'Retry login',
+    );
   }
 };
 

@@ -160,7 +160,7 @@
 			"response": []
 		},
 		{
-			"name": "Add New EDC",
+			"name": "Add New Components",
 			"request": {
 				"auth": {
 					"type": "apikey",
@@ -189,7 +189,7 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8001/api/connector",
+					"raw": "http://localhost:8001/api/component",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -197,14 +197,14 @@
 					"port": "8001",
 					"path": [
 						"api",
-						"connector"
+						"component"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "Get All EDCs",
+			"name": "Get All Components",
 			"protocolProfileBehavior": {
 				"disableBodyPruning": true
 			},
@@ -236,7 +236,7 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8001/api/connectors",
+					"raw": "http://localhost:8001/api/components",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -244,14 +244,14 @@
 					"port": "8001",
 					"path": [
 						"api",
-						"connectors"
+						"components"
 					]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "Update EDC",
+			"name": "Update Components",
 			"request": {
 				"auth": {
 					"type": "apikey",
@@ -280,7 +280,7 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8001/api/connectors/1",
+					"raw": "http://localhost:8001/api/components/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -288,7 +288,7 @@
 					"port": "8001",
 					"path": [
 						"api",
-						"connectors",
+						"components",
 						"1"
 					]
 				}
@@ -296,7 +296,7 @@
 			"response": []
 		},
 		{
-			"name": "Remove EDC",
+			"name": "Remove Component",
 			"request": {
 				"auth": {
 					"type": "apikey",
@@ -325,7 +325,7 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8001/api/connectors/1",
+					"raw": "http://localhost:8001/api/components/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -333,7 +333,7 @@
 					"port": "8001",
 					"path": [
 						"api",
-						"connectors",
+						"components",
 						"1"
 					]
 				}

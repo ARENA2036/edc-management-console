@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Connector } from '../types';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 import { buildDeployRequest } from '../utils/deployment';
 
 interface Props {
@@ -20,12 +20,12 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
     e.preventDefault();
     setLoading(true);
     try {
-      await connectorApi.update(
+      await componentApi.update(
         connector.id,
         buildDeployRequest({
           connector: {
             name,
-            version: connector.version || '0.11.2',
+            version: connector.version || '',
             url,
             bpn: bpn || '',
             dataPlaneUrl: connector.dp_hostname || '',
@@ -33,7 +33,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
           submodelServer: {
             enabled: false,
             name: '',
-            version: '0.1.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',
@@ -42,7 +42,7 @@ export default function EditModal({ connector, onClose, onUpdated }: Props) {
           digitalTwinRegistry: {
             enabled: false,
             name: '',
-            version: '0.12.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',

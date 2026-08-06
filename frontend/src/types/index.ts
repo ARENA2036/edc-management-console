@@ -10,7 +10,7 @@ export interface SubmodelServer {
 
 // Typisierung für config und urls
 export interface Connector {
-  id: number;
+  id: string | number;
   name: string;
   url: string;
   bpn?: string;
@@ -68,13 +68,11 @@ export interface ManagedComponent {
 
   status: "Active" | "Inactive" | "Deploying";
 
-  linkedConnector: string;
   deployedAt: string;
-
-  connectionMode: "new" | "existing";
 
   endpoint?: string;
   credentials?: string;
+  source?: 'api' | 'local';
 
   db_name: string;
 
@@ -98,6 +96,11 @@ export interface ConnectorCreate {
   name: string;
   url: string;
   bpn?: string;
+  version?: string;
+  db_username?: string;
+  db_password?: string;
+  registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
   config?: Record<string, unknown>; // Auch hier statt any Record
 }
 
@@ -105,6 +108,11 @@ export interface ConnectorUpdate {
   name?: string;
   url?: string;
   bpn?: string;
+  version?: string;
+  db_username?: string;
+  db_password?: string;
+  registry?: DigitalTwinRegistry;
+  submodel?: SubmodelServer;
   config?: Record<string, unknown>; // Auch hier statt any Record
   status?: string;
 }

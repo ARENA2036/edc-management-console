@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, Edit, FileText, Info } from 'lucide-react';
 import type { Connector } from '../types';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 import DeleteModal from './DeleteModal';
 import EditModal from './EditModal';
 import YamlViewModal from './YamlViewModal';
@@ -22,7 +22,7 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
   const handleDelete = async () => {
     if (!deleteConnector) return;
     try {
-      await connectorApi.delete(deleteConnector.name);
+      await componentApi.delete(deleteConnector.name);
       onConnectorDeleted();
       setDeleteConnector(null);
     } catch (error) {
@@ -68,16 +68,12 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                   <span
                     className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      connector.status === 'deployed' ||
-                      connector.status === 'active' ||
-                      connector.status === 'healthy'
+                      connector.status === 'deployed' || connector.status === 'unhealthy'
                         ? 'bg-green-100 text-green-800'
-                        : connector.status === 'unhealthy' || connector.status === 'unreachable'
-                        ? 'bg-red-100 text-red-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}
                   >
-                    {connector.status}
+                    {connector.status === 'unhealthy' ? 'Active' : connector.status}
                   </span>
                 </td>
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-gray-500">

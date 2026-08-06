@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useCallback,
   useRef,
   useState,
   type CSSProperties,
@@ -31,7 +32,7 @@ export default function Tooltip({
   const [isVisible, setIsVisible] = useState(false);
   const [style, setStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLDivElement>(null);
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current) {
       return;
     }
@@ -74,7 +75,7 @@ export default function Tooltip({
       top,
       width: tooltipWidth,
     });
-  };
+  }, [position]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -89,7 +90,7 @@ export default function Tooltip({
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
     };
-  }, [isVisible, position]);
+  }, [isVisible, updatePosition]);
 
   return (
     <div

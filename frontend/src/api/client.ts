@@ -10,32 +10,31 @@ const backendUrl = getRuntimeConfigValue(
 const apiKey = getRuntimeConfigValue(
   import.meta.env.VITE_API_KEY,
   window.__RUNTIME_CONFIG__?.apiKey,
-  'DEFAULT',
+  '',
 );
 const edcHost = getRuntimeConfigValue(
-  import.meta.env.VITE_EDC_HOST,
+  import.meta.env.VITE_EDC_HOSTNAME,
   window.__RUNTIME_CONFIG__?.edcHost,
-  '__EDC_HOST__',
-);
-
-const urlScheme = getRuntimeConfigValue(
-  import.meta.env.VITE_URL_SCHEME,
-  window.__RUNTIME_CONFIG__?.urlScheme,
-  'https',
+  '',
 );
 const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 
+const apiClientHeaders: Record<string, string> = {
+  'Content-Type': 'application/json',
+};
+
+if (apiKey) {
+  apiClientHeaders['X-Api-Key'] = apiKey;
+}
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Api-Key': apiKey,
-  },
+  headers: apiClientHeaders,
 });
 
 
 export const edcClient = (name: string) => {
-  const baseURL = `${urlScheme}://${name}-controlplane.${edcHost}`;
+  const baseURL = edcHost ? `https://${name}-controlplane.${edcHost}` : '';
   return axios.create({
     baseURL,
     headers: {
@@ -46,14 +45,17 @@ export const edcClient = (name: string) => {
   }).get('/api/check/liveness')
 }
 
-export const connectorApi = {
-  getAll: () => apiClient.get('/connectors'),
-  getById: (id: number) => apiClient.get(`/connectors/${id}`),
-  create: (data: DeployRequest) => apiClient.post('/connector', data),
-  update: (id: number, data: DeployRequest) => apiClient.put(`/connectors/${id}`, data),
-  delete: (name: string) => apiClient.delete(`/connectors/${name}`),
-  checkHealth: (id: number) => apiClient.get(`/connector/${id}/health`),
-  getConnectorsHealth: () => apiClient.get('/connectors/health'),
+// Deployable components (connector, digital twin registry, submodel server, ...).
+// The backend endpoints are component-generic — they are not connector-specific.
+export const componentApi = {
+  getAll: () => apiClient.get('/components'),
+  getById: (id: string | number) => apiClient.get(`/components/${id}`),
+  create: (data: DeployRequest) => apiClient.post('/component', data),
+  update: (id: string | number, data: DeployRequest) => apiClient.put(`/components/${id}`, data),
+  delete: (name: string) => apiClient.delete(`/components/${name}`),
+  // Single-component health is keyed by name, matching the backend route.
+  checkHealth: (name: string) => apiClient.get(`/components/${name}/health`),
+  getComponentsHealth: () => apiClient.get('/components/health'),
 };
 
 export const healthApi = {

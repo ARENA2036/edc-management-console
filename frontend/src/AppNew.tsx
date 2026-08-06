@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import {
   Activity,
+  Boxes,
   Database,
+  Layers,
   Plus,
   Server,
   SquareActivity,
 } from 'lucide-react';
-import { activityApi, connectorApi, dataspaceApi } from './api/client';
+import { activityApi, componentApi, dataspaceApi } from './api/client';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
-import { buildDeployRequest, buildStandaloneConnector, buildManagedComponentFromDraft, buildComponentPayload, type DeploymentDraft } from './utils/deployment';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -18,18 +19,32 @@ import StatsCard from './components/StatsCard';
 import DeploymentWizard from './components/DeploymentWizard';
 import AddComponentDialog from './components/AddComponentDialog';
 import ComponentWizard from './components/ComponentWizard';
+import type { ComponentType } from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
+import DeploymentStatusModal from './components/DeploymentStatusModal';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
-import keycloak from './auth/keycloak';
+import keycloak, { isAuthDisabled } from './auth/keycloak';
+import { resolveComponentLimit } from './utils/nameRules';
 
 const CONNECTORS_STORAGE_KEY = 'connectors';
 const COMPONENTS_STORAGE_KEY = 'components';
 const WELCOME_STORAGE_KEY = 'hasSeenWelcome';
 const THEME_STORAGE_KEY = 'dashboard_theme';
+const DEFAULT_COMPONENT_HOST_SUFFIX = getRuntimeConfigValue(
+  import.meta.env.VITE_EDC_HOSTNAME,
+  window.__RUNTIME_CONFIG__?.edcHost,
+  '',
+);
 
 type ThemeMode = 'light' | 'dark';
+type DeploymentFeedback = {
+  open: boolean;
+  status: 'deploying' | 'success' | 'error';
+  resource: 'connector' | 'component';
+  itemCount: number;
+};
 
 interface DataspaceSettingsPayload {
   name?: string;
@@ -62,7 +77,28 @@ interface DataspaceSettingsPayload {
   };
   edc?: {
     default_url?: string;
+    controlplane_url?: string;
+    dataplane_url?: string;
+    controlplane_host_suffix?: string;
+    dataplane_host_suffix?: string;
     cluster_context?: string;
+  };
+  deployment?: {
+    connector?: {
+      defaultVersion?: string;
+      availableVersions?: string[];
+      maxInstances?: number;
+    };
+    digitalTwinRegistry?: {
+      defaultVersion?: string;
+      availableVersions?: string[];
+      maxInstances?: number;
+    };
+    submodelServer?: {
+      defaultVersion?: string;
+      availableVersions?: string[];
+      maxInstances?: number;
+    };
   };
 }
 
@@ -165,6 +201,15 @@ function readSessionBpn(tokenParsed: unknown, rawToken?: string) {
   return getSessionBpnCandidates(tokenParsed, rawToken)[0]?.value ?? '';
 }
 
+function readDataspaceBpn(details: DataspaceSettingsPayload | null | undefined) {
+  const explicitBpn = details?.bpn?.trim().toUpperCase();
+  if (explicitBpn) {
+    return explicitBpn;
+  }
+
+  return collectBpnCandidates(details, 'dataspace')[0]?.value ?? '';
+}
+
 function getConnectorType(connector: DashboardConnector) {
   const connectorType = connector.config?.connectorType;
   return typeof connectorType === 'string' ? connectorType : 'EDC Connector';
@@ -182,179 +227,93 @@ function getConnectorEndpoint(connector: DashboardConnector) {
   return '';
 }
 
-function normalizeComponentIdentityPart(value: string | undefined) {
-  return (value ?? '').trim().toLowerCase();
-}
-
-function getManagedComponentIdentity(component: Pick<ManagedComponent, 'type' | 'name' | 'linkedConnector'>) {
-  const normalizedType = normalizeComponentIdentityPart(component.type);
-  const normalizedName = normalizeComponentIdentityPart(component.name);
-  if (normalizedName) {
-    return `${normalizedType}:${normalizedName}`;
-  }
-
-  return `${normalizedType}:${normalizeComponentIdentityPart(component.linkedConnector)}`;
-}
-
-function mergeManagedComponents(
-  localComponents: ManagedComponent[],
-  apiComponents: ManagedComponent[],
+function getManagedComponentLabel(
+  type: ManagedComponent['type'],
+  t: ReturnType<typeof useI18n>['t'],
 ) {
-  const merged = new Map<string, ManagedComponent>();
-
-  for (const component of localComponents) {
-    merged.set(getManagedComponentIdentity(component), component);
-  }
-
-  for (const component of apiComponents) {
-    const key = getManagedComponentIdentity(component);
-    const existing = merged.get(key);
-    merged.set(key, existing ? { ...existing, ...component } : component);
-  }
-
-  return Array.from(merged.values());
+  return type === 'digitalTwinRegistry' ? t('componentTypeTwin') : t('componentTypeSubmodel');
 }
 
-function isComponentLinkedToConnector(
-  component: Pick<ManagedComponent, 'name' | 'linkedConnector'>,
-  connectorName: string,
-) {
-  const normalizedConnectorName = normalizeComponentIdentityPart(connectorName);
-  if (!normalizedConnectorName) {
-    return false;
-  }
-
-  return (
-    normalizeComponentIdentityPart(component.linkedConnector) === normalizedConnectorName
-    || normalizeComponentIdentityPart(component.name).startsWith(`${normalizedConnectorName}-`)
-  );
-}
-
-/** Returns true only for rows that represent an EDC connector (not submodel/DTR). */
-function isEdcConnectorRow(row: DashboardConnector): boolean {
-  const configType = (row.config as Record<string, unknown> | undefined)?.type;
-  if (typeof configType === 'string') {
-    return configType === 'connector';
-  }
-  // Rows without a config.type originate from localStorage or the old schema —
-  // treat them as EDC connectors (the default).
-  return true;
-}
-
-/** Returns the component type for a non-EDC API row, or null for EDC rows. */
-function getComponentType(
-  row: DashboardConnector,
-): 'digitalTwinRegistry' | 'submodelServer' | null {
-  const configType = (row.config as Record<string, unknown> | undefined)?.type;
-  if (configType === 'digitalTwinRegistry') return 'digitalTwinRegistry';
-  if (configType === 'submodelServer') return 'submodelServer';
-  return null;
-}
-
-/**
- * Derives the linked EDC connector name for a component row using a name-prefix
- * heuristic (e.g. "beku-sms" → "beku", "beku-dtr" → "beku").
- */
-function inferLinkedConnector(
-  row: DashboardConnector,
-  edcConnectors: DashboardConnector[],
-): string {
-  const linkedFromConfig = (row.config as Record<string, unknown> | undefined)?.linkedConnector;
-  if (typeof linkedFromConfig === 'string' && linkedFromConfig.length > 0) {
-    return linkedFromConfig;
-  }
-
-  const componentName = row.name;
-  for (const connector of edcConnectors) {
-    if (
-      componentName.startsWith(connector.name + '-') ||
-      componentName === connector.name
-    ) {
-      return connector.name;
-    }
-  }
-  return '';
-}
-
-function mapComponentStatus(rawStatus?: string): ManagedComponent['status'] {
-  const normalized = rawStatus?.toLowerCase();
-  if (normalized === 'deploying') return 'Deploying';
-  if (normalized === 'active' || normalized === 'healthy') return 'Active';
-  return 'Inactive';
-}
-
-/** Build a ManagedComponent from an API component row (submodel/DTR). */
-function apiRowToManagedComponent(
-  row: DashboardConnector,
-  type: 'digitalTwinRegistry' | 'submodelServer',
-  linkedConnector: string,
-): ManagedComponent {
-  const status = mapComponentStatus(row.status);
-  return {
-    id: `${type}-${row.name}-api`,
-    type,
-    name: row.name,
-    version: row.version || (type === 'digitalTwinRegistry' ? '0.12.0' : '0.1.0'),
-    status,
-    linkedConnector,
-    deployedAt: row.created_at || new Date().toISOString(),
-    connectionMode: 'new',
-    endpoint: row.url || '',
-    db_name: row.db_username ? row.db_username.replace(/-username$/, '-db') : '',
-    auth: {
-      db_username: row.db_username || '',
-      db_password: row.db_password || '',
-    },
-  };
-}
-
-interface FetchConnectorsResult {
-  edcConnectors: DashboardConnector[];
-  apiComponents: ManagedComponent[];
-}
-
-async function fetchConnectors(): Promise<FetchConnectorsResult> {
+function getCachedDeployments() {
   const cachedConnectors = readLocalStorage<DashboardConnector[]>(
     CONNECTORS_STORAGE_KEY,
     [],
   );
+  const cachedComponents = readLocalStorage<ManagedComponent[]>(
+    COMPONENTS_STORAGE_KEY,
+    [],
+  );
 
-  try {
-    const response = await connectorApi.getAll();
-    const allApiRows = Array.isArray(response.data.data)
-      ? (response.data.data as DashboardConnector[])
-      : [];
-
-    // Split: EDC connector rows vs component (submodel/DTR) rows.
-    const apiEdcRows = allApiRows.filter(isEdcConnectorRow).map((row) => ({
-      ...row,
-      source: 'api' as const,
-    }));
-    const apiComponentRows = allApiRows.filter(
-      (row) => getComponentType(row) !== null,
-    );
-
-    const merged = mergeConnectors(apiEdcRows, cachedConnectors);
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, merged);
-
-    // Synthesize ManagedComponent entries from API component rows.
-    const apiComponents: ManagedComponent[] = apiComponentRows.flatMap((row) => {
-      const type = getComponentType(row);
-      if (!type) return [];
-      const linkedConnector = inferLinkedConnector(row, merged);
-      return [apiRowToManagedComponent(row, type, linkedConnector)];
-    });
-
-    return { edcConnectors: merged, apiComponents };
-  } catch (error) {
-    console.error('Failed to load connectors:', error);
-
-    return { edcConnectors: cachedConnectors, apiComponents: [] };
-  }
+  return {
+    connectors: cachedConnectors,
+    components: cachedComponents,
+  };
 }
 
-function fetchLocalComponents() {
-  return readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
+function getRecordType(record: DashboardConnector) {
+  const configuredType = record.config?.type;
+  return typeof configuredType === 'string' ? configuredType : 'connector';
+}
+
+function isManagedComponentType(
+  value: string,
+): value is ManagedComponent['type'] {
+  return value === 'digitalTwinRegistry' || value === 'submodelServer';
+}
+
+function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
+  const recordType = getRecordType(record);
+  if (!isManagedComponentType(recordType)) {
+    return null;
+  }
+
+  return {
+    id: String(record.id),
+    name: record.name,
+    type: recordType,
+    version: record.version || '',
+    status: record.status === 'inactive' ? 'Inactive' : 'Active',
+    deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
+    endpoint: record.url,
+    db_name: '',
+    auth: {
+      db_username: '',
+      db_password: '',
+    },
+    source: 'api',
+  };
+}
+
+function mapApiConnector(record: DashboardConnector): DashboardConnector {
+  return {
+    ...record,
+    source: 'api',
+  };
+}
+
+async function fetchDeploymentState() {
+  const cached = getCachedDeployments();
+
+  try {
+    const response = await componentApi.getAll();
+    const apiRows = Array.isArray(response.data.data)
+      ? (response.data.data as DashboardConnector[])
+      : [];
+    const connectors = apiRows
+      .filter((record) => getRecordType(record) === 'connector')
+      .map(mapApiConnector);
+    const components = apiRows
+      .filter((record) => getRecordType(record) !== 'connector')
+      .map(mapApiComponent)
+      .filter((component): component is ManagedComponent => component !== null);
+
+    saveLocalStorage(CONNECTORS_STORAGE_KEY, connectors);
+    saveLocalStorage(COMPONENTS_STORAGE_KEY, components);
+    return { connectors, components };
+  } catch (error) {
+    console.error('Failed to load deployments:', error);
+    return cached;
+  }
 }
 
 async function fetchActivityLogs() {
@@ -375,7 +334,7 @@ async function fetchDataspaceSummary(
     const data = (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
     return {
       name: data?.name || fallbackName,
-      bpn: data?.bpn || '',
+      bpn: readDataspaceBpn(data),
       details: data,
     };
   } catch (error) {
@@ -391,9 +350,10 @@ async function fetchDataspaceSummary(
 function formatTimestamp(
   value: string | undefined,
   language: 'de' | 'en',
+  fallbackLabel: string,
 ) {
   if (!value) {
-    return language === 'de' ? 'Noch kein Check' : 'No check yet';
+    return fallbackLabel;
   }
 
   try {
@@ -406,10 +366,18 @@ function formatTimestamp(
   }
 }
 
-function getHealthTone(status: string) {
-  if (status === 'healthy' || status === 'active' || status === 'Active') {
+function getHealthTone(
+  status: string,
+  labels: {
+    healthy: string;
+    warning: string;
+    critical: string;
+    unknown: string;
+  },
+) {
+  if (status === 'healthy' || status === 'Active') {
     return {
-      label: 'Healthy',
+      label: labels.healthy,
       badge:
         'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
     };
@@ -417,7 +385,7 @@ function getHealthTone(status: string) {
 
   if (status === 'warning') {
     return {
-      label: 'Warning',
+      label: labels.warning,
       badge:
         'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
     };
@@ -425,291 +393,270 @@ function getHealthTone(status: string) {
 
   if (status === 'inactive' || status === 'unhealthy' || status === 'critical') {
     return {
-      label: 'Critical',
+      label: labels.critical,
       badge:
         'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
     };
   }
 
   return {
-    label: 'Unknown',
+    label: labels.unknown,
     badge:
       'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   };
 }
 
-function mergeConnectors(
-  apiConnectors: DashboardConnector[],
-  cachedConnectors: DashboardConnector[],
-) {
-  const cachedByName = new Map(
-    cachedConnectors.map((connector) => [connector.name, connector]),
-  );
+function resolveComponentLimits(details: DataspaceSettingsPayload | null) {
+  return {
+    connector: resolveComponentLimit('connector', details?.deployment?.connector?.maxInstances),
+    digitalTwinRegistry: resolveComponentLimit(
+      'digitalTwinRegistry',
+      details?.deployment?.digitalTwinRegistry?.maxInstances,
+    ),
+    submodelServer: resolveComponentLimit(
+      'submodelServer',
+      details?.deployment?.submodelServer?.maxInstances,
+    ),
+  };
+}
 
-  const merged = apiConnectors.map((connector) => {
-    const cached = cachedByName.get(connector.name);
-    return {
-      ...cached,
-      ...connector,
-      config: cached?.config ?? connector.config,
-      urls: connector.urls.length > 0 ? connector.urls : cached?.urls ?? [],
-      cp_hostname: connector.cp_hostname ?? cached?.cp_hostname,
-      dp_hostname: connector.dp_hostname ?? cached?.dp_hostname,
-      source: 'api' as const,
-    };
-  });
-
-  const apiNames = new Set(apiConnectors.map((connector) => connector.name));
-  const localOnly = cachedConnectors
-    .filter((connector) => !apiNames.has(connector.name))
-    .map((connector) => ({
-      ...connector,
-      source: 'local' as const,
-    }));
-
-  return [...merged, ...localOnly];
+function countComponentsByType(components: ManagedComponent[]) {
+  return {
+    digitalTwinRegistry: components.filter(
+      (component) => component.type === 'digitalTwinRegistry',
+    ).length,
+    submodelServer: components.filter(
+      (component) => component.type === 'submodelServer',
+    ).length,
+  };
 }
 
 function Dashboard({ sessionBpn }: { sessionBpn: string }) {
-  const { language, t } = useI18n();
+  const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
-  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
+  const [components, setComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [dataspaceBpn, setDataspaceBpn] = useState('');
-  const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
+  const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
   const [showComponentWizard, setShowComponentWizard] = useState(false);
-  const [deploymentTarget, setDeploymentTarget] = useState<{
-    connector?: DashboardConnector;
-    mode: 'create' | 'edit';
-  }>({ mode: 'create' });
+  const [connectorDeploymentInFlight, setConnectorDeploymentInFlight] = useState(false);
+  const [componentDeploymentInFlight, setComponentDeploymentInFlight] = useState(false);
+  const [deploymentFeedback, setDeploymentFeedback] = useState<DeploymentFeedback>({
+    open: false,
+    status: 'deploying',
+    resource: 'connector',
+    itemCount: 1,
+  });
+  const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
+    allowMultipleTypes?: boolean;
+    initialSelectedTypes?: ComponentType[];
+    startAtConfiguration?: boolean;
+  }>({});
+  const componentLimits = useMemo(
+    () => resolveComponentLimits(dataspaceDetails),
+    [dataspaceDetails],
+  );
+  const componentCounts = useMemo(() => countComponentsByType(components), [components]);
+  const connectorLimitReached = connectors.length >= componentLimits.connector;
 
-  // Merge API-sourced components with local ones; API entries are skipped if
-  // a local entry already exists for the same persisted component identity.
-  const components = useMemo<ManagedComponent[]>(() => {
-    return mergeManagedComponents(localComponents, apiComponents);
-  }, [localComponents, apiComponents]);
-
-  const loadConnectors = async () => {
-    const result = await fetchConnectors();
-    setConnectors(result.edcConnectors);
-    setApiComponents(result.apiComponents);
-  };
-
-  const loadConnectorsHealth = async () => {
-    try {
-      await connectorApi.getConnectorsHealth();
-    } catch (error) {
-      console.error('Failed to load connectors health:', error);
-    }
-  };
-
-  const loadLocalComponents = () => {
-    setLocalComponents(fetchLocalComponents());
-  };
+  const loadDeployments = useCallback(async () => {
+    const deploymentState = await fetchDeploymentState();
+    setConnectors(deploymentState.connectors);
+    setComponents(deploymentState.components);
+  }, []);
 
   const loadActivityLogs = async () => {
     const logs = await fetchActivityLogs();
     setActivityLogs(logs);
   };
 
-  const loadDataspace = async () => {
+  const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
-    setDataspaceBpn(summary.bpn);
-  };
+    setDataspaceBpn(summary.bpn || sessionBpn);
+    setDataspaceDetails(summary.details);
+  }, [sessionBpn, t]);
 
   useEffect(() => {
-    loadConnectors();
-    loadLocalComponents();
+    loadDeployments();
     loadActivityLogs();
     loadDataspace();
-    loadConnectorsHealth();
 
     const interval = setInterval(() => {
-      loadConnectors();
+      loadDeployments();
       loadActivityLogs();
     }, 30000);
 
-    const connectorsHealthInterval = setInterval(() => {
-      loadConnectorsHealth();
-    }, 60000);
+    return () => clearInterval(interval);
+  }, [loadDataspace, loadDeployments, sessionBpn, t]);
 
-    return () => {
-      clearInterval(interval);
-      clearInterval(connectorsHealthInterval);
-    };
-  }, [t]);
+  const persistConnector = async (connector: DashboardConnector) => {
+    if (connectors.some((current) => current.name === connector.name)) {
+      return false;
+    }
 
-  const updateLocalConnectorState = (
-    connector: DashboardConnector,
-    draft: DeploymentDraft,
-  ) => {
-    const storedConnectors = readLocalStorage<DashboardConnector[]>(CONNECTORS_STORAGE_KEY, []);
-    const nextConnector = {
+    if (connectors.length >= componentLimits.connector) {
+      return false;
+    }
+
+    const deployingConnector = {
       ...connector,
-      name: draft.connector.name,
-      url: draft.connector.url,
-      bpn: draft.connector.bpn,
-      version: draft.connector.version,
-      cp_hostname: draft.connector.url,
-      dp_hostname: draft.connector.dataPlaneUrl,
-      db_username: `${draft.connector.name}-username`,
-      db_password: `${draft.connector.name}-password`,
-      config: {
-        ...(connector.config || {}),
-        connectorType: 'EDC Connector',
-        endpoint: draft.connector.url,
-        dataPlaneUrl: draft.connector.dataPlaneUrl,
-        bpn: draft.connector.bpn,
-        version: draft.connector.version,
-        dbName: `${draft.connector.name}-db`,
-      },
-      source: connector.source || 'local',
-    } as DashboardConnector;
+      status: 'deploying',
+      source: 'local' as const,
+    } satisfies DashboardConnector;
+    const updatedConnectors = [...connectors, deployingConnector];
+    saveLocalStorage(CONNECTORS_STORAGE_KEY, updatedConnectors);
+    setConnectors(updatedConnectors);
 
-    const nextConnectors = deploymentTarget.connector
-      ? storedConnectors.map((item) => (
-        item.id === connector.id || item.name === connector.name ? nextConnector : item
-      ))
-      : mergeConnectors([nextConnector], storedConnectors);
+    try {
+      await componentApi.create({
+        components: [
+          {
+            type: 'connector',
+            name: connector.name,
+            url: connector.url,
+            bpn: connector.bpn,
+            version: connector.version || '',
+            db_name: `${connector.name}-db`,
+            auth: {
+              db_username: connector.db_username || `${connector.name}-username`,
+              db_password: connector.db_password || `${connector.name}-password`,
+            },
+          },
+        ],
+      });
 
-    saveLocalStorage(CONNECTORS_STORAGE_KEY, nextConnectors);
-    setConnectors(nextConnectors);
-
-    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
-    const keptComponents = currentLocalComponents.filter((component) => {
-      return component.linkedConnector !== connector.name
-        && component.linkedConnector !== draft.connector.name;
-    });
-
-    const updatedComponents = [...keptComponents];
-    if (draft.submodelServer.enabled) {
-      updatedComponents.push(
-        buildManagedComponentFromDraft('submodelServer', draft.submodelServer, draft.connector.name),
-      );
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
+      if (!synced.connectors.some((current) => current.name === connector.name)) {
+        throw new Error(`Connector '${connector.name}' was not returned by the backend after deployment.`);
+      }
+    } catch (error) {
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
+      console.error('Failed to deploy connector:', error);
+      throw error;
     }
-    if (draft.digitalTwinRegistry.enabled) {
-      updatedComponents.push(
-        buildManagedComponentFromDraft('digitalTwinRegistry', draft.digitalTwinRegistry, draft.connector.name),
-      );
-    }
-
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setLocalComponents(updatedComponents);
+    return true;
   };
 
-  const handleDeployConnector = async (draft: DeploymentDraft) => {
-    const request = buildDeployRequest(draft);
-    const activeTarget = deploymentTarget.connector;
+  const handleDeployConnector = async (connector: DashboardConnector) => {
+    setConnectorDeploymentInFlight(true);
+    setDeploymentFeedback({
+      open: true,
+      status: 'deploying',
+      resource: 'connector',
+      itemCount: 1,
+    });
 
-    if (activeTarget) {
-      await connectorApi.update(activeTarget.id, request);
-      updateLocalConnectorState(activeTarget, draft);
-    } else {
-      await connectorApi.create(request);
-      updateLocalConnectorState(
-        buildStandaloneConnector(draft.connector),
-        draft,
-      );
+    try {
+      const deployed = await persistConnector(connector);
+      if (deployed) {
+        setShowDeploymentWizard(false);
+        setDeploymentFeedback({
+          open: true,
+          status: 'success',
+          resource: 'connector',
+          itemCount: 1,
+        });
+      }
+    } catch {
+      setDeploymentFeedback({
+        open: true,
+        status: 'error',
+        resource: 'connector',
+        itemCount: 1,
+      });
+    } finally {
+      setConnectorDeploymentInFlight(false);
     }
-
-    setShowDeploymentWizard(false);
-    setDeploymentTarget({ mode: 'create' });
-    await loadConnectors();
   };
 
   const handleDeleteConnector = async (connector: DashboardConnector) => {
-    const remaining = connectors.filter((item) => item.name !== connector.name);
-    const remainingLocalComponents = localComponents.filter(
-      (component) => !isComponentLinkedToConnector(component, connector.name),
-    );
-    const remainingApiComponents = apiComponents.filter(
-      (component) => !isComponentLinkedToConnector(component, connector.name),
-    );
-
     try {
-      if (connector.source !== 'local') {
-        await connectorApi.delete(connector.name);
-      }
-
-      setConnectors(remaining);
-      saveLocalStorage(CONNECTORS_STORAGE_KEY, remaining);
-      setLocalComponents(remainingLocalComponents);
-      saveLocalStorage(COMPONENTS_STORAGE_KEY, remainingLocalComponents);
-      setApiComponents(remainingApiComponents);
-
-      if (connector.source !== 'local') {
-        await loadConnectors();
-      }
+      await componentApi.delete(connector.name);
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
     } catch (error) {
       console.error('Failed to delete connector:', error);
     }
   };
 
-  const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
-    const updatedLocalComponents = localComponents.filter((component) => {
-      return component.id !== componentToDelete.id && component.name !== componentToDelete.name;
-    });
-    setLocalComponents(updatedLocalComponents);
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedLocalComponents);
-
-    const isApiComponent = componentToDelete.id.endsWith('-api');
-    if (isApiComponent) {
-      try {
-        await connectorApi.delete(componentToDelete.name);
-      } catch (error) {
-        console.error('Failed to delete component:', error);
-      }
-      await loadConnectors();
-    }
-  };
-
   const handleDeployComponent = async (component: ManagedComponent) => {
-    if (component.connectionMode === 'new') {
-      await connectorApi.create({
+    if (componentCounts[component.type] >= componentLimits[component.type]) {
+      throw new Error(
+        `Cannot deploy '${component.name}': the limit of ${componentLimits[component.type]} `
+        + `'${component.type}' components is already reached.`,
+      );
+    }
+
+    const generatedEndpoint = component.endpoint?.trim()
+      || (DEFAULT_COMPONENT_HOST_SUFFIX
+        ? `${component.name}.${DEFAULT_COMPONENT_HOST_SUFFIX}`
+        : component.name);
+
+    const deployingComponent = {
+      ...component,
+      endpoint: generatedEndpoint,
+      status: 'Deploying',
+      source: 'local' as const,
+    } satisfies ManagedComponent;
+
+    setComponents((current) => {
+      const updated = [deployingComponent, ...current];
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, updated);
+      return updated;
+    });
+
+    try {
+      await componentApi.create({
         components: [
-          buildComponentPayload(component.type, {
+          {
+            type: component.type,
             name: component.name,
             version: component.version,
-            url: component.endpoint ?? `${component.name}.txcd.arena2036-x.de`,
-            dbName: component.db_name,
-            username: component.auth.db_username,
-            password: component.auth.db_password,
-          }),
+            url: generatedEndpoint,
+            db_name: component.db_name,
+            auth: component.auth,
+          },
         ],
       });
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
+      if (!synced.components.some((current) => current.name === component.name)) {
+        throw new Error(`Component '${component.name}' was not returned by the backend after deployment.`);
+      }
+    } catch (error) {
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
+      console.error('Failed to deploy component:', error);
+      throw error;
     }
+  };
 
-    const currentLocalComponents = readLocalStorage<ManagedComponent[]>(COMPONENTS_STORAGE_KEY, []);
-    const updatedComponents = [...currentLocalComponents, component];
-    saveLocalStorage(COMPONENTS_STORAGE_KEY, updatedComponents);
-    setLocalComponents(updatedComponents);
-    setShowComponentWizard(false);
-
-    if (component.connectionMode === 'new') {
-      await loadConnectors();
+  const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
+    try {
+      await componentApi.delete(componentToDelete.name);
+      const synced = await fetchDeploymentState();
+      setConnectors(synced.connectors);
+      setComponents(synced.components);
+    } catch (error) {
+      console.error('Failed to delete component:', error);
     }
   };
 
-  const openConnectorWizard = (connector?: DashboardConnector) => {
-    setDeploymentTarget(connector ? { connector, mode: 'edit' } : { mode: 'create' });
-    setShowDeploymentWizard(true);
-  };
-
-  const openAddDialog = () => {
-    setShowAddDialog(true);
-  };
-
-  const handleAddEdcSelection = () => {
-    setShowAddDialog(false);
-    openConnectorWizard();
-  };
-
-  const handleAddComponentSelection = () => {
-    setShowAddDialog(false);
+  const openComponentWizard = () => {
+    setComponentWizardDefaults({
+      allowMultipleTypes: true,
+    });
     setShowComponentWizard(true);
   };
 
@@ -721,103 +668,76 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     [connectors],
   );
 
+  const activeComponentCounts = useMemo(() => {
+    const isActive = (component: ManagedComponent) =>
+      component.status !== 'Inactive';
+    return {
+      digitalTwinRegistry: components.filter(
+        (component) => component.type === 'digitalTwinRegistry' && isActive(component),
+      ).length,
+      submodelServer: components.filter(
+        (component) => component.type === 'submodelServer' && isActive(component),
+      ).length,
+    };
+  }, [components]);
+
   const activityValue = activityLogs.length > 0 ? t('statusActive') : t('statusHealthy');
-  const statsGuidance =
-    language === 'de'
-      ? {
-        dataSpace: {
-          title: 'Data Space Information',
-          content:
-            'Diese Karte zeigt den aktuell geladenen Dataspace-Namen und oft die wichtigste Kennung für Ihre Umgebung.',
-          footer:
-            'Wenn hier Werte fehlen, prüfen Sie die Dataspace Settings oder die zentrale Plattform-Konfiguration.',
-        },
-        health: {
-          title: 'System-Status verstehen',
-          content:
-            'Hier sehen Nutzer auf einen Blick, ob die Konsole und die verbundenen Funktionen grundsätzlich gesund erscheinen.',
-          footer:
-            'Nutzen Sie diese Karte als erste Orientierung, bevor Sie tiefer in Connectoren oder Services einsteigen.',
-        },
-        activity: {
-          title: 'Aktivitäten verfolgen',
-          content:
-            'Diese Karte hilft zu erkennen, ob im Hintergrund Logs, Synchronisierung oder andere Prozesse stattfinden.',
-          footer:
-            'Wenn etwas unerwartet wirkt, vergleichen Sie die Aktivität mit den Tabellen darunter.',
-        },
-        connectors: {
-          title: 'Connector-Übersicht',
-          content:
-            'Zeigt, wie viele EDC Connectoren aktuell bekannt sind und wie viele davon aktiv wirken.',
-          footer:
-            'Ein guter Startpunkt für Nutzer ohne Technik-Erfahrung: erst hier prüfen, dann über Add+ neue Connectoren anlegen.',
-        },
-        add: {
-          title: 'Neue Elemente anlegen',
-          content:
-            'Nach dem Klick wählen Sie zwischen EDC Connector und Component/Service. Danach führt Sie ein Wizard Schritt für Schritt durch die benötigten Angaben.',
-          items: [
-            'EDC Connector: sinnvoll, wenn Sie eine neue Datenaustausch-Instanz bereitstellen möchten.',
-            'Component / Service: sinnvoll, wenn Sie einen bestehenden Connector um einen Fachservice ergänzen möchten.',
-            'Benötigte Werte wie URLs oder Zugangsdaten kommen oft aus Plattform-Dokumentation, vom DevOps-Team oder vom Service-Verantwortlichen.',
-          ],
-          footer:
-            'Wenn Sie unsicher sind, starten Sie mit einem Connector und verknüpfen Sie Services erst danach.',
-        },
-      }
-      : {
-        dataSpace: {
-          title: 'Understand the data space',
-          content:
-            'This card shows the loaded dataspace name and often the main identifier for the environment you are working in.',
-          footer:
-            'If values are missing here, check Datasource Settings or the central platform configuration.',
-        },
-        health: {
-          title: 'Read system health',
-          content:
-            'Users can quickly see whether the console and its connected capabilities appear generally healthy.',
-          footer:
-            'Use this as a first orientation point before diving into connectors or services.',
-        },
-        activity: {
-          title: 'Follow activity',
-          content:
-            'This card helps users understand whether logs, synchronization or background processes are currently active.',
-          footer:
-            'If something looks unusual, compare the activity state with the tables below.',
-        },
-        connectors: {
-          title: 'Connector overview',
-          content:
-            'Shows how many EDC connectors are currently known and how many appear active.',
-          footer:
-            'A strong starting point for non-technical users: check this card first, then use Add+ if you need a new connector.',
-        },
-        add: {
-          title: 'Create something new',
-          content:
-            'After clicking, the app asks whether you want an EDC connector or a component/service, then guides you step by step through the required information.',
-          items: [
-            'EDC Connector: use when you want to deploy a new data exchange instance.',
-            'Component / Service: use when you want to attach a business or platform service to an existing connector.',
-            'Values such as URLs or credentials usually come from platform docs, the DevOps team, or the service owner.',
-          ],
-          footer:
-            'If you are unsure, start with a connector first and add components afterwards.',
-        },
-      };
+  const statsGuidance = {
+    dataSpace: {
+      title: t('statsDataSpaceTitle'),
+      content: t('statsDataSpaceContent'),
+      footer: t('statsDataSpaceFooter'),
+    },
+    health: {
+      title: t('statsHealthTitle'),
+      content: t('statsHealthContent'),
+      footer: t('statsHealthFooter'),
+    },
+    activity: {
+      title: t('statsActivityTitle'),
+      content: t('statsActivityContent'),
+      footer: t('statsActivityFooter'),
+    },
+    connectors: {
+      title: t('statsConnectorsTitle'),
+      content: t('statsConnectorsContent'),
+      footer: t('statsConnectorsFooter'),
+    },
+    digitalTwinRegistries: {
+      title: t('statsDigitalTwinRegistriesTitle'),
+      content: t('statsDigitalTwinRegistriesContent', {
+        max: String(componentLimits.digitalTwinRegistry),
+      }),
+      footer: t('statsDigitalTwinRegistriesFooter'),
+    },
+    submodelServices: {
+      title: t('statsSubmodelServicesTitle'),
+      content: t('statsSubmodelServicesContent', {
+        max: String(componentLimits.submodelServer),
+      }),
+      footer: t('statsSubmodelServicesFooter'),
+    },
+    add: {
+      title: t('statsAddTitle'),
+      content: t('statsAddContent'),
+      items: [
+        t('statsAddItemConnector'),
+        t('statsAddItemComponent'),
+        t('statsAddItemValues'),
+      ],
+      footer: t('statsAddFooter'),
+    },
+  };
 
   return (
     <>
-      <div className="p-4 md:p-6">
+      <div className="px-4 pb-12 pt-4 md:px-6 md:pb-16 md:pt-6">
         <div className="mb-6">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">{t('dashboard')}</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t('welcome')}</p>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatsCard
             icon={<Database size={22} />}
             title={t('dataSpace')}
@@ -850,12 +770,32 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           <StatsCard
             icon={<Server size={22} />}
             title={t('edcConnectors')}
-            value={connectors.length.toString()}
+            value={`${connectors.length}/${componentLimits.connector}`}
             subtitle={`${activeConnectors} ${t('activeShort')}`}
             variant="info"
             tooltipTitle={statsGuidance.connectors.title}
             tooltipContent={statsGuidance.connectors.content}
             tooltipFooter={statsGuidance.connectors.footer}
+          />
+          <StatsCard
+            icon={<Boxes size={22} />}
+            title={t('digitalTwinRegistries')}
+            value={`${componentCounts.digitalTwinRegistry}/${componentLimits.digitalTwinRegistry}`}
+            subtitle={`${activeComponentCounts.digitalTwinRegistry} ${t('activeShort')}`}
+            variant="info"
+            tooltipTitle={statsGuidance.digitalTwinRegistries.title}
+            tooltipContent={statsGuidance.digitalTwinRegistries.content}
+            tooltipFooter={statsGuidance.digitalTwinRegistries.footer}
+          />
+          <StatsCard
+            icon={<Layers size={22} />}
+            title={t('submodelServices')}
+            value={`${componentCounts.submodelServer}/${componentLimits.submodelServer}`}
+            subtitle={`${activeComponentCounts.submodelServer} ${t('activeShort')}`}
+            variant="info"
+            tooltipTitle={statsGuidance.submodelServices.title}
+            tooltipContent={statsGuidance.submodelServices.content}
+            tooltipFooter={statsGuidance.submodelServices.footer}
           />
         </div>
 
@@ -868,11 +808,11 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             position="left"
           >
             <button
-              onClick={openAddDialog}
+              onClick={() => setShowAddDialog(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-orange-600"
             >
               <Plus size={18} />
-              ADD
+              {t('addButtonLabel')}
             </button>
           </Tooltip>
         </div>
@@ -880,9 +820,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         <div className="space-y-6">
           <ConnectorsManager
             connectors={connectors}
-            components={components}
             onDelete={handleDeleteConnector}
-            onEditConnector={(connector) => openConnectorWizard(connector)}
+            onAddComponent={() => openComponentWizard()}
           />
           <ComponentsManager
             components={components}
@@ -891,39 +830,121 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         </div>
       </div>
 
-      <div className="bg-black px-6 py-4 text-center text-sm text-white dark:border-t dark:border-slate-800 dark:bg-slate-950">
-        {t('footerCopyright')}
-      </div>
-
-      <DeploymentWizard
-        open={showDeploymentWizard}
-        onOpenChange={(open) => {
-          setShowDeploymentWizard(open);
-          if (!open) {
-            setDeploymentTarget({ mode: 'create' });
-          }
-        }}
-        onSubmit={handleDeployConnector}
-        initialConnector={deploymentTarget.connector}
-        initialComponents={components.filter(
-          (component) =>
-            deploymentTarget.connector
-              ? component.linkedConnector === deploymentTarget.connector.name
-              : false,
-        )}
-        prefilledBpn={dataspaceBpn || sessionBpn}
-      />
       <AddComponentDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onSelectEDC={handleAddEdcSelection}
-        onSelectComponent={handleAddComponentSelection}
+        connectorCount={connectors.length}
+        connectorLimit={componentLimits.connector}
+        digitalTwinRegistryCount={componentCounts.digitalTwinRegistry}
+        digitalTwinRegistryLimit={componentLimits.digitalTwinRegistry}
+        submodelServiceCount={componentCounts.submodelServer}
+        submodelServiceLimit={componentLimits.submodelServer}
+        onSelectEDC={() => {
+          setShowAddDialog(false);
+          if (!connectorLimitReached) {
+            setShowDeploymentWizard(true);
+          }
+        }}
+        onSelectComponent={() => {
+          setShowAddDialog(false);
+          openComponentWizard();
+        }}
       />
+
+      <DeploymentWizard
+        open={showDeploymentWizard}
+        onOpenChange={setShowDeploymentWizard}
+        onDeploy={handleDeployConnector}
+        connectorCount={connectors.length}
+        deploying={connectorDeploymentInFlight}
+        existingConnectorNames={connectors.map((connector) => connector.name)}
+        defaultVersion={dataspaceDetails?.deployment?.connector?.defaultVersion}
+        availableVersions={dataspaceDetails?.deployment?.connector?.availableVersions}
+        prefilledBpn={dataspaceBpn || sessionBpn}
+        defaultApiEndpoint={
+          dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
+        }
+        defaultDataPlaneUrl={dataspaceDetails?.edc?.dataplane_url}
+        controlPlaneHostSuffix={dataspaceDetails?.edc?.controlplane_host_suffix}
+        dataPlaneHostSuffix={dataspaceDetails?.edc?.dataplane_host_suffix}
+      />
+
       <ComponentWizard
         open={showComponentWizard}
-        onOpenChange={setShowComponentWizard}
-        connectors={connectors}
-        onDeploy={handleDeployComponent}
+        onOpenChange={(open) => {
+          setShowComponentWizard(open);
+          if (!open) {
+            setComponentWizardDefaults({});
+          }
+        }}
+        onDeploy={async (component) => {
+          setComponentDeploymentInFlight(true);
+          setDeploymentFeedback({
+            open: true,
+            status: 'deploying',
+            resource: 'component',
+            itemCount: 1,
+          });
+          try {
+            await handleDeployComponent(component);
+            setShowComponentWizard(false);
+            setDeploymentFeedback({
+              open: true,
+              status: 'success',
+              resource: 'component',
+              itemCount: 1,
+            });
+          } catch {
+            setDeploymentFeedback({
+              open: true,
+              status: 'error',
+              resource: 'component',
+              itemCount: 1,
+            });
+          } finally {
+            setComponentDeploymentInFlight(false);
+          }
+        }}
+        deploying={componentDeploymentInFlight}
+        existingNames={[
+          ...connectors.map((connector) => connector.name),
+          ...components.map((component) => component.name),
+        ]}
+        defaultVersions={{
+          connector: dataspaceDetails?.deployment?.connector?.defaultVersion,
+          digitalTwinRegistry: dataspaceDetails?.deployment?.digitalTwinRegistry?.defaultVersion,
+          submodelServer: dataspaceDetails?.deployment?.submodelServer?.defaultVersion,
+        }}
+        availableVersions={{
+          connector: dataspaceDetails?.deployment?.connector?.availableVersions,
+          digitalTwinRegistry:
+            dataspaceDetails?.deployment?.digitalTwinRegistry?.availableVersions,
+          submodelServer: dataspaceDetails?.deployment?.submodelServer?.availableVersions,
+        }}
+        allowMultipleTypes={componentWizardDefaults.allowMultipleTypes}
+        initialSelectedTypes={componentWizardDefaults.initialSelectedTypes}
+        startAtConfiguration={componentWizardDefaults.startAtConfiguration}
+        typeCounts={{
+          digitalTwinRegistry: componentCounts.digitalTwinRegistry,
+          submodelServer: componentCounts.submodelServer,
+        }}
+        typeLimits={{
+          digitalTwinRegistry: componentLimits.digitalTwinRegistry,
+          submodelServer: componentLimits.submodelServer,
+        }}
+      />
+
+      <DeploymentStatusModal
+        open={deploymentFeedback.open}
+        status={deploymentFeedback.status}
+        resource={deploymentFeedback.resource}
+        itemCount={deploymentFeedback.itemCount}
+        onClose={() =>
+          setDeploymentFeedback((current) => ({
+            ...current,
+            open: false,
+          }))
+        }
       />
     </>
   );
@@ -932,8 +953,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 function Monitor() {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
-  const [localComponents, setLocalComponents] = useState<ManagedComponent[]>([]);
-  const [apiComponents, setApiComponents] = useState<ManagedComponent[]>([]);
+  const [components, setComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
@@ -941,28 +961,22 @@ function Monitor() {
     details: null,
   });
 
-  const components = useMemo<ManagedComponent[]>(() => {
-    return mergeManagedComponents(localComponents, apiComponents);
-  }, [localComponents, apiComponents]);
-
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      const [connectorsResult, loadedActivityLogs, loadedDataspace] = await Promise.all([
-        fetchConnectors(),
+      const [loadedConnectors, loadedActivityLogs, loadedDataspace] = await Promise.all([
+        fetchDeploymentState(),
         fetchActivityLogs(),
         fetchDataspaceSummary(t('dataspaceFallback')),
       ]);
-      const loadedLocalComponents = fetchLocalComponents();
 
       if (!active) {
         return;
       }
 
-      setConnectors(connectorsResult.edcConnectors);
-      setApiComponents(connectorsResult.apiComponents);
-      setLocalComponents(loadedLocalComponents);
+      setConnectors(loadedConnectors.connectors);
+      setComponents(loadedConnectors.components);
       setActivityLogs(loadedActivityLogs);
       setDataspace(loadedDataspace);
     };
@@ -976,59 +990,43 @@ function Monitor() {
     };
   }, [t]);
 
+  const healthLabels = useMemo(
+    () => ({
+      healthy: t('statusHealthy'),
+      warning: t('statusWarning'),
+      critical: t('statusCritical'),
+      unknown: t('statusUnknown'),
+    }),
+    [t],
+  );
+
   const connectorRows = useMemo(
     () =>
       connectors.map((connector) => {
-        const linkedComponents = components.filter(
-          (component) => component.linkedConnector === connector.name,
-        );
-        const tone = getHealthTone(connector.status);
+        const tone = getHealthTone(connector.status, healthLabels);
         return {
           ...connector,
-          connectorType: getConnectorType(connector),
+          connectorType:
+            getConnectorType(connector) === 'EDC Connector'
+              ? t('connectorTypeDefault')
+              : getConnectorType(connector),
           endpoint: getConnectorEndpoint(connector),
-          linkedComponents,
           tone,
         };
       }),
-    [components, connectors],
+    [connectors, healthLabels, t],
   );
 
   const componentRows = useMemo(
     () =>
-      components.map((component) => {
-        const linkedConnector = connectors.find(
-          (connector) => connector.name === component.linkedConnector,
-        );
-        const hasEndpoint = component.connectionMode !== 'existing' || Boolean(component.endpoint);
-        const status =
-          !linkedConnector
-            ? 'critical'
-            : linkedConnector.status === 'unhealthy'
-              ? 'warning'
-              : hasEndpoint
-                ? 'healthy'
-                : 'warning';
-
-        return {
-          ...component,
-          endpointLabel: component.endpoint || (language === 'de' ? 'Im Connector deployt' : 'Deployed inside connector'),
-          tone: getHealthTone(status),
-          statusLabel:
-            status === 'critical'
-              ? language === 'de'
-                ? 'Connector fehlt'
-                : 'Connector missing'
-              : status === 'warning'
-                ? language === 'de'
-                  ? 'Prüfung empfohlen'
-                  : 'Needs review'
-                : language === 'de'
-                  ? 'Bereit'
-                  : 'Ready',
-        };
-      }),
-    [components, connectors, language],
+      components.map((component) => ({
+        ...component,
+        endpointLabel: component.endpoint || t('standaloneDeployment'),
+        statusCode: 'healthy' as const,
+        tone: getHealthTone('healthy', healthLabels),
+        statusLabel: t('standaloneReady'),
+      })),
+    [components, healthLabels, t],
   );
 
   const derivedEvents = useMemo(() => {
@@ -1037,51 +1035,38 @@ function Monitor() {
         .slice(0, 8)
         .map((log) => ({
           id: `log-${log.id}`,
-          title: log.action || (language === 'de' ? 'Aktivität' : 'Activity'),
+          title: log.action || t('eventActivityTitle'),
           body:
             log.details ||
             log.connector_name ||
-            (language === 'de'
-              ? 'Backend-Aktivität wurde erfasst.'
-              : 'Backend activity was recorded.'),
+            t('eventBackendActivityRecorded'),
           timestamp: log.timestamp,
           severity:
             log.status === 'error' || log.status === 'failed'
               ? 'critical'
               : log.status === 'warning'
-                ? 'warning'
-                : 'healthy',
+              ? 'warning'
+              : 'healthy',
         }));
     }
 
     const connectorEvents = connectors.slice(0, 4).map((connector) => ({
       id: `connector-${connector.id}`,
-      title:
-        language === 'de'
-          ? `Connector bereit: ${connector.name}`
-          : `Connector available: ${connector.name}`,
+      title: t('eventConnectorAvailable', { name: connector.name }),
       body:
         connector.status === 'unhealthy'
-          ? language === 'de'
-            ? 'Der letzte bekannte Zustand ist kritisch. Prüfen Sie Endpoint und Plattform-Erreichbarkeit.'
-            : 'The last known state is critical. Check endpoint and platform reachability.'
-          : language === 'de'
-            ? 'Der Connector ist im Dashboard bekannt und kann für weitere Services genutzt werden.'
-            : 'The connector is known in the dashboard and can be used for additional services.',
+          ? t('eventConnectorAvailableUnhealthy')
+          : t('eventConnectorAvailableHealthy'),
       timestamp: connector.created_at,
       severity: connector.status === 'unhealthy' ? 'critical' : 'healthy',
     }));
 
     const componentEvents = components.slice(0, 4).map((component) => ({
       id: `component-${component.id}`,
-      title:
-        language === 'de'
-          ? `Komponente verknüpft: ${component.name}`
-          : `Component linked: ${component.name}`,
-      body:
-        language === 'de'
-          ? `${component.type} ist mit ${component.linkedConnector} verbunden.`
-          : `${component.type} is linked to ${component.linkedConnector}.`,
+      title: t('eventComponentDeployed', { name: component.name }),
+      body: t('eventComponentDeployedBody', {
+        type: getManagedComponentLabel(component.type, t),
+      }),
       timestamp: component.deployedAt,
       severity: 'healthy',
     }));
@@ -1089,75 +1074,65 @@ function Monitor() {
     return [...connectorEvents, ...componentEvents]
       .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
       .slice(0, 8);
-  }, [activityLogs, components, connectors, language]);
+  }, [activityLogs, components, connectors, t]);
 
   const recommendations = useMemo(() => {
     const items: string[] = [];
     const unhealthyConnectors = connectorRows.filter(
       (connector) => connector.status === 'unhealthy',
     );
-    const connectorsWithoutServices = connectorRows.filter(
-      (connector) => connector.linkedComponents.length === 0,
-    );
-    const detachedComponents = componentRows.filter(
-      (component) => component.statusLabel === (language === 'de' ? 'Connector fehlt' : 'Connector missing'),
-    );
-
     if (unhealthyConnectors.length > 0) {
       items.push(
-        language === 'de'
-          ? `${unhealthyConnectors.length} Connector(en) melden einen kritischen Zustand. Prüfen Sie Endpoint und Cluster-Erreichbarkeit zuerst.`
-          : `${unhealthyConnectors.length} connector(s) report a critical state. Check endpoint and cluster reachability first.`,
-      );
-    }
-
-    if (connectorsWithoutServices.length > 0) {
-      items.push(
-        language === 'de'
-          ? `${connectorsWithoutServices.length} Connector(en) haben noch keinen verknüpften Service. Falls Sie mit DTR oder Submodel Service arbeiten möchten, können Sie diese jetzt als Komponente hinzufügen oder einen bestehenden Service verbinden.`
-          : `${connectorsWithoutServices.length} connector(s) do not have a linked service yet. If you want to work with DTR or a Submodel Service, you can add a component now or connect an existing service.`,
-      );
-    }
-
-    if (detachedComponents.length > 0) {
-      items.push(
-        language === 'de'
-          ? `${detachedComponents.length} Komponente(n) verweisen auf einen fehlenden Connector. Bereinigen oder verknüpfen Sie diese erneut.`
-          : `${detachedComponents.length} component(s) reference a missing connector. Clean them up or relink them.`,
+        t('recommendationUnhealthyConnectors', {
+          count: String(unhealthyConnectors.length),
+        }),
       );
     }
 
     if (connectorRows.length === 0) {
-      items.push(
-        language === 'de'
-          ? 'Es gibt noch keine Connectoren. Beginnen Sie mit ADD und deployen Sie Ihren ersten EDC Connector.'
-          : 'There are no connectors yet. Start with ADD and deploy your first EDC connector.',
-      );
+      items.push(t('recommendationNoConnectors'));
     }
 
     if (items.length === 0) {
-      items.push(
-        language === 'de'
-          ? 'Ihre überwachten Ressourcen wirken aktuell stabil. Nutzen Sie Monitoring für regelmäßige Checks und Trendbeobachtung.'
-          : 'Your monitored resources currently look stable. Use monitoring for regular checks and trend observation.',
-      );
+      items.push(t('recommendationStable'));
     }
 
     return items;
-  }, [componentRows, connectorRows, language]);
+  }, [connectorRows, t]);
+
+  const componentLimits = useMemo(
+    () => resolveComponentLimits(dataspace.details),
+    [dataspace.details],
+  );
+  const componentCounts = useMemo(() => countComponentsByType(components), [components]);
+  // Total capacity across the non-connector types, so the Services card reads
+  // "deployed / total slots" rather than "healthy / deployed".
+  const componentCapacity =
+    componentLimits.digitalTwinRegistry + componentLimits.submodelServer;
+  const serviceCapacityBadges = [
+    {
+      key: 'digitalTwinRegistry' as const,
+      label: t('componentTypeTwin'),
+      count: componentCounts.digitalTwinRegistry,
+      limit: componentLimits.digitalTwinRegistry,
+    },
+    {
+      key: 'submodelServer' as const,
+      label: t('componentTypeSubmodel'),
+      count: componentCounts.submodelServer,
+      limit: componentLimits.submodelServer,
+    },
+  ];
 
   const healthyConnectors = connectorRows.filter(
     (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
   ).length;
-  const healthyComponents = componentRows.filter(
-    (component) => component.statusLabel === (language === 'de' ? 'Bereit' : 'Ready'),
-  ).length;
   const overallHealth =
     connectorRows.some((connector) => connector.status === 'unhealthy')
-      ? getHealthTone('critical')
+      ? getHealthTone('critical', healthLabels)
       : recommendations.length > 1 || connectorRows.length === 0
-        ? getHealthTone('warning')
-        : getHealthTone('healthy');
+      ? getHealthTone('warning', healthLabels)
+      : getHealthTone('healthy', healthLabels);
 
   return (
     <div className="p-4 md:p-6">
@@ -1167,9 +1142,7 @@ function Monitor() {
             {t('monitorTitle')}
           </h2>
           <p className="mt-2 max-w-3xl text-gray-500 dark:text-slate-400">
-            {language === 'de'
-              ? 'Überwachen Sie Connectoren, verknüpfte Services, letzte Aktivitäten und empfohlene nächste Schritte in einer Betriebsansicht.'
-              : 'Monitor connectors, linked services, recent activity and recommended next steps in one operational view.'}
+            {t('monitorDescription')}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -1185,44 +1158,39 @@ function Monitor() {
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            title: language === 'de' ? 'Gesamtstatus' : 'Overall health',
+            title: t('statusOverallHealthTitle'),
             value: overallHealth.label,
-            subtitle:
-              language === 'de'
-                ? 'Kombiniert Connector-, Service- und Warnungsstatus'
-                : 'Combines connector, service and warning state',
+            subtitle: t('statusOverallHealthSubtitle'),
             tone: overallHealth.badge,
           },
           {
-            title: language === 'de' ? 'Aktive Connectoren' : 'Healthy connectors',
+            title: t('statusHealthyConnectorsTitle'),
             value: `${healthyConnectors}/${connectorRows.length}`,
-            subtitle:
-              language === 'de'
-                ? 'Connectoren mit gesundem oder aktivem Zustand'
-                : 'Connectors in healthy or active state',
-            tone: getHealthTone('healthy').badge,
+            subtitle: t('statusHealthyConnectorsSubtitle'),
+            tone: getHealthTone('healthy', healthLabels).badge,
           },
           {
-            title: language === 'de' ? 'Verknüpfte Services' : 'Linked services',
-            value: `${healthyComponents}/${componentRows.length}`,
-            subtitle:
-              language === 'de'
-                ? 'Services mit vorhandenem Connector und nutzbarer Konfiguration'
-                : 'Services with an available connector and usable setup',
-            tone: getHealthTone(componentRows.length === 0 ? 'warning' : 'healthy').badge,
+            title: t('statusLinkedServicesTitle'),
+            value: `${componentRows.length}/${componentCapacity}`,
+            subtitle: serviceCapacityBadges
+              .map((badge) => `${badge.label} ${badge.count}/${badge.limit}`)
+              .join(' · '),
+            tone: getHealthTone(
+              componentRows.length === 0 ? 'warning' : 'healthy',
+              healthLabels,
+            ).badge,
           },
           {
-            title: language === 'de' ? 'Letzte Ereignisse' : 'Recent events',
+            title: t('statusRecentEventsTitle'),
             value: `${derivedEvents.length}`,
             subtitle:
               activityLogs.length > 0
-                ? language === 'de'
-                  ? 'Direkt aus dem Backend-Log geladen'
-                  : 'Loaded directly from backend activity logs'
-                : language === 'de'
-                  ? 'Aus bekannten Connector- und Komponenten-Daten abgeleitet'
-                  : 'Derived from known connector and component data',
-            tone: getHealthTone(activityLogs.length > 0 ? 'healthy' : 'warning').badge,
+                ? t('statusRecentEventsSubtitleBackend')
+                : t('statusRecentEventsSubtitleDerived'),
+            tone: getHealthTone(
+              activityLogs.length > 0 ? 'healthy' : 'warning',
+              healthLabels,
+            ).badge,
           },
         ].map((card) => (
           <div
@@ -1247,12 +1215,10 @@ function Monitor() {
           <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-gray-100 px-5 py-4 dark:border-slate-800">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                {language === 'de' ? 'Connector Health' : 'Connector health'}
+                {t('monitorConnectorHealthTitle')}
               </h3>
               <p className="text-sm text-gray-500 dark:text-slate-400">
-                {language === 'de'
-                  ? 'Status, Reaktionsfähigkeit und Abhängigkeiten Ihrer EDC Connectoren.'
-                  : 'Status, responsiveness and dependencies of your EDC connectors.'}
+                {t('monitorConnectorHealthDescription')}
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -1262,9 +1228,8 @@ function Monitor() {
                     <th className="px-5 py-3">{t('tableName')}</th>
                     <th className="px-5 py-3">{t('tableType')}</th>
                     <th className="px-5 py-3">{t('tableStatus')}</th>
-                    <th className="px-5 py-3">{language === 'de' ? 'Letzter Stand' : 'Last check'}</th>
+                    <th className="px-5 py-3">{t('tableLastCheck')}</th>
                     <th className="px-5 py-3">{t('tableEndpoint')}</th>
-                    <th className="px-5 py-3">{language === 'de' ? 'Services' : 'Services'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -1279,27 +1244,21 @@ function Monitor() {
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connector.tone.badge}`}>
                           {connector.status === 'unhealthy'
-                            ? language === 'de'
-                              ? 'Kritisch'
-                              : 'Critical'
-                            : language === 'de'
-                              ? 'Aktiv'
-                              : 'Active'}
+                            ? t('monitorConnectorCritical')
+                            : t('monitorConnectorActive')}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {formatTimestamp(
                           connector.updated_at || connector.created_at,
                           language,
+                          t('statusNoCheckYet'),
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className="block max-w-[260px] truncate">
                           {connector.endpoint || t('noValue')}
                         </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {connector.linkedComponents.length}
                       </td>
                     </tr>
                   ))}
@@ -1309,9 +1268,7 @@ function Monitor() {
                         colSpan={6}
                         className="px-5 py-8 text-center text-sm text-gray-500 dark:text-slate-400"
                       >
-                        {language === 'de'
-                          ? 'Noch keine Connectoren vorhanden.'
-                          : 'No connectors available yet.'}
+                        {t('tableNoConnectors')}
                       </td>
                     </tr>
                   )}
@@ -1323,13 +1280,29 @@ function Monitor() {
           <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-gray-100 px-5 py-4 dark:border-slate-800">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-                {language === 'de' ? 'Service Health' : 'Service health'}
+                {t('monitorServiceHealthTitle')}
               </h3>
               <p className="text-sm text-gray-500 dark:text-slate-400">
-                {language === 'de'
-                  ? 'Überblick über DTR- und Submodel-Services sowie deren Verknüpfung zum Connector.'
-                  : 'Overview of DTR and submodel services and how they are linked to connectors.'}
+                {t('monitorServiceHealthDescription')}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-500">
+                  {t('monitorServiceCapacityLabel')}
+                </span>
+                {serviceCapacityBadges.map((badge) => {
+                  const full = badge.count >= badge.limit;
+                  return (
+                    <span
+                      key={badge.key}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        getHealthTone(full ? 'warning' : 'healthy', healthLabels).badge
+                      }`}
+                    >
+                      {badge.label} {badge.count}/{badge.limit}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full">
@@ -1337,7 +1310,6 @@ function Monitor() {
                   <tr>
                     <th className="px-5 py-3">{t('tableName')}</th>
                     <th className="px-5 py-3">{t('tableType')}</th>
-                    <th className="px-5 py-3">{t('tableLinkedTo')}</th>
                     <th className="px-5 py-3">{t('tableStatus')}</th>
                     <th className="px-5 py-3">{t('tableEndpoint')}</th>
                   </tr>
@@ -1349,10 +1321,7 @@ function Monitor() {
                         {component.name}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {component.type}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        {component.linkedConnector}
+                        {getManagedComponentLabel(component.type, t)}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${component.tone.badge}`}>
@@ -1372,9 +1341,7 @@ function Monitor() {
                         colSpan={5}
                         className="px-5 py-8 text-center text-sm text-gray-500 dark:text-slate-400"
                       >
-                        {language === 'de'
-                          ? 'Noch keine verknüpften Services vorhanden.'
-                          : 'No linked services available yet.'}
+                        {t('tableNoServices')}
                       </td>
                     </tr>
                   )}
@@ -1387,7 +1354,7 @@ function Monitor() {
         <div className="space-y-6">
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-              {language === 'de' ? 'Empfehlungen' : 'Recommendations'}
+              {t('recommendationsTitle')}
             </h3>
             <div className="mt-4 space-y-3">
               {recommendations.map((item) => (
@@ -1403,7 +1370,7 @@ function Monitor() {
 
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
-              {language === 'de' ? 'Letzte Aktivitäten' : 'Recent activity'}
+              {t('recentActivityTitle')}
             </h3>
             <div className="mt-4 space-y-4">
               {derivedEvents.map((event) => (
@@ -1420,30 +1387,26 @@ function Monitor() {
                         {event.body}
                       </p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${getHealthTone(event.severity).badge}`}>
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                        getHealthTone(event.severity, healthLabels).badge
+                      }`}
+                    >
                       {event.severity === 'critical'
-                        ? language === 'de'
-                          ? 'Kritisch'
-                          : 'Critical'
+                        ? t('statusCritical')
                         : event.severity === 'warning'
-                          ? language === 'de'
-                            ? 'Hinweis'
-                            : 'Notice'
-                          : language === 'de'
-                            ? 'Okay'
-                            : 'OK'}
+                        ? t('statusNotice')
+                        : t('statusOkay')}
                     </span>
                   </div>
                   <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
-                    {formatTimestamp(event.timestamp, language)}
+                    {formatTimestamp(event.timestamp, language, t('statusNoCheckYet'))}
                   </p>
                 </div>
               ))}
               {derivedEvents.length === 0 && (
                 <p className="text-sm text-gray-500 dark:text-slate-400">
-                  {language === 'de'
-                    ? 'Noch keine Aktivitätsdaten vorhanden.'
-                    : 'No activity data available yet.'}
+                  {t('monitorNoActivity')}
                 </p>
               )}
             </div>
@@ -1469,65 +1432,44 @@ function AppPlaceholder({
   );
 }
 
-function SDE({ sdeUrl }: { sdeUrl: string }) {
+function ExternalAppRedirect({
+  url,
+  title,
+  description,
+}: {
+  url: string;
+  title: string;
+  description: string;
+}) {
+  const { t } = useI18n();
+
   useEffect(() => {
-    if (sdeUrl) {
-      window.open(sdeUrl, '_blank');
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
-  }, [sdeUrl]);
+  }, [url]);
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-slate-100">
-            Redirecting to SDE Application...
+            {title}
           </h2>
           <p className="text-gray-500 dark:text-slate-400">
-            You will be redirected to the Simple Data Exchanger application.
+            {description}
           </p>
           <p className="mt-4 text-sm text-gray-400 dark:text-slate-500">
-            If you are not redirected,{' '}
-            <a href={sdeUrl} className="text-orange-500 hover:underline">
-              click here
-            </a>
-            .
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PortalRedirect() {
-  const portalUrl = import.meta.env.VITE_PORTAL_URL;
-  useEffect(() => {
-    if (portalUrl) {
-      window.open(portalUrl, "_blank", "noopener,noreferrer");
-    }
-  }, [portalUrl]);
-
-  return (
-    <div className="p-6">
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-slate-100">
-            Redirecting to Portal...
-          </h2>
-          <p className="text-gray-500 dark:text-slate-400">
-            You will be redirected to the Portal application in a new tab.
-          </p>
-          <p className="mt-4 text-sm text-gray-400 dark:text-slate-500">
-            If the Portal does not open automatically,{" "}
+            {t('sdeRedirectLinkPrefix')}{' '}
             <a
-              href={portalUrl}
+              href={url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-orange-500 hover:underline"
             >
-              click here
+              {t('sdeRedirectLinkLabel')}
             </a>
-            .
+            {t('sdeRedirectLinkSuffix')}
           </p>
         </div>
       </div>
@@ -1535,8 +1477,14 @@ function PortalRedirect() {
   );
 }
 
-function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
-  const { language, t } = useI18n();
+function Settings({
+  onOpenGuide,
+  sessionBpn,
+}: {
+  onOpenGuide: () => void;
+  sessionBpn: string;
+}) {
+  const { t } = useI18n();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
 
@@ -1544,7 +1492,16 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
     const loadSettings = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        setDataspaceDetails((response.data?.data as DataspaceSettingsPayload) ?? null);
+        const details =
+          (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
+        setDataspaceDetails(
+          details
+            ? {
+                ...details,
+                bpn: readDataspaceBpn(details) || sessionBpn,
+              }
+            : null,
+        );
       } catch (error) {
         console.error('Failed to load dataspace settings:', error);
       } finally {
@@ -1553,86 +1510,62 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
     };
 
     loadSettings();
-  }, []);
+  }, [sessionBpn]);
 
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
-      return value
-        ? language === 'de'
-          ? 'Ja'
-          : 'Yes'
-        : language === 'de'
-          ? 'Nein'
-          : 'No';
+      return value ? t('yes') : t('no');
     }
 
     return value && value.trim().length > 0 ? value : t('noValue');
   };
 
-  const sectionTitle = (key: string) => {
-    if (language === 'de') {
-      return {
-        dataspace: 'Dataspace Übersicht',
-        access: 'Zugangs- und Identitätsdaten',
-        apps: 'Verbundene Anwendungen',
-        discovery: 'Discovery & Semantik',
-        infrastructure: 'Infrastruktur',
-      }[key];
-    }
-
-    return {
-      dataspace: 'Dataspace overview',
-      access: 'Access and identity',
-      apps: 'Connected applications',
-      discovery: 'Discovery and semantics',
-      infrastructure: 'Infrastructure',
-    }[key];
-  };
-
   const sections = [
     {
       key: 'dataspace',
+      title: t('settingsSectionDataspace'),
       fields: [
-        { label: 'Dataspace', value: dataspaceDetails?.name },
-        { label: 'BPNL', value: dataspaceDetails?.bpn },
-        { label: 'Realm', value: dataspaceDetails?.realm },
-        { label: language === 'de' ? 'Schreibgeschützt' : 'Read only', value: dataspaceDetails?.readonly },
+        { label: t('settingsLabelDataspace'), value: dataspaceDetails?.name },
+        { label: t('settingsLabelBpn'), value: dataspaceDetails?.bpn },
+        { label: t('settingsLabelCompanyName'), value: dataspaceDetails?.realm },
+        { label: t('settingsLabelReadonly'), value: dataspaceDetails?.readonly },
       ],
     },
     {
       key: 'access',
+      title: t('settingsSectionAccess'),
       fields: [
-        { label: language === 'de' ? 'Standard-Benutzer' : 'Default username', value: dataspaceDetails?.username },
-        { label: language === 'de' ? 'Central IDP URL' : 'Central IDP URL', value: dataspaceDetails?.centralidp?.url },
-        { label: language === 'de' ? 'Central IDP Realm' : 'Central IDP realm', value: dataspaceDetails?.centralidp?.realm },
-        { label: language === 'de' ? 'SSI Wallet URL' : 'SSI wallet URL', value: dataspaceDetails?.ssi_wallet?.url },
+        { label: t('settingsLabelDefaultUsername'), value: dataspaceDetails?.username },
+        { label: t('settingsLabelCentralIdpUrl'), value: dataspaceDetails?.centralidp?.url },
+        { label: t('settingsLabelCentralIdpRealm'), value: dataspaceDetails?.centralidp?.realm },
+        { label: t('settingsLabelSsiWalletUrl'), value: dataspaceDetails?.ssi_wallet?.url },
       ],
     },
     {
       key: 'apps',
+      title: t('settingsSectionApps'),
       fields: [
-        { label: 'Portal URL', value: dataspaceDetails?.portal?.url },
-        { label: 'SDE URL', value: dataspaceDetails?.sde?.url },
-        { label: 'SDE Client ID', value: dataspaceDetails?.sde?.client_id },
-        { label: language === 'de' ? 'Hersteller-ID' : 'Manufacturer ID', value: dataspaceDetails?.sde?.manufacturerId },
+        { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
+        { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
+        { label: t('settingsLabelSdeClientId'), value: dataspaceDetails?.sde?.client_id },
+        { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
     {
       key: 'discovery',
+      title: t('settingsSectionDiscovery'),
       fields: [
-        { label: language === 'de' ? 'Semantik-URL' : 'Semantics URL', value: dataspaceDetails?.discovery?.semantics_url },
-        { label: language === 'de' ? 'Discovery Finder' : 'Discovery finder', value: dataspaceDetails?.discovery?.discovery_finder },
-        { label: language === 'de' ? 'BPN Discovery' : 'BPN discovery', value: dataspaceDetails?.discovery?.bpn_discovery },
+        { label: t('settingsLabelSemanticsUrl'), value: dataspaceDetails?.discovery?.semantics_url },
+        { label: t('settingsLabelDiscoveryFinder'), value: dataspaceDetails?.discovery?.discovery_finder },
+        { label: t('settingsLabelBpnDiscovery'), value: dataspaceDetails?.discovery?.bpn_discovery },
       ],
     },
     {
       key: 'infrastructure',
+      title: t('settingsSectionInfrastructure'),
       fields: [
-        { label: language === 'de' ? 'Standard EDC URL' : 'Default EDC URL', value: dataspaceDetails?.edc?.default_url },
-        { label: language === 'de' ? 'Cluster-Kontext' : 'Cluster context', value: dataspaceDetails?.edc?.cluster_context },
-        { label: language === 'de' ? 'Provider EDC' : 'Provider EDC', value: dataspaceDetails?.sde?.providerEDC },
-        { label: language === 'de' ? 'Consumer EDC' : 'Consumer EDC', value: dataspaceDetails?.sde?.consumerEDC },
-        { label: language === 'de' ? 'Registry URL' : 'Registry URL', value: dataspaceDetails?.sde?.registryUrl },
+        { label: t('settingsLabelDefaultEdcUrl'), value: dataspaceDetails?.edc?.default_url },
+        { label: t('settingsLabelClusterContext'), value: dataspaceDetails?.edc?.cluster_context }
       ],
     },
   ];
@@ -1645,11 +1578,7 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{t('settingsTitle')}</h2>
             <p className="mt-2 max-w-3xl text-gray-500 dark:text-slate-400">{t('settingsDescription')}</p>
           </div>
-          <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-800 shadow-sm dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200">
-            {language === 'de'
-              ? 'Diese Werte dienen als Referenz für Ihren Dataspace. Die Seite ist bewusst schreibgeschützt, damit zentrale Plattform-Einstellungen nicht versehentlich geändert werden.'
-              : 'These values are shown as a reference for your dataspace. The page is intentionally read-only so central platform settings cannot be changed accidentally.'}
-          </div>
+          
         </div>
       </div>
 
@@ -1671,10 +1600,10 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
             >
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
-                  {sectionTitle(section.key)}
+                  {section.title}
                 </h3>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  {language === 'de' ? 'Nur anzeigen' : 'Read only'}
+                  {t('viewOnly')}
                 </span>
               </div>
 
@@ -1703,28 +1632,36 @@ function Settings({ onOpenGuide }: { onOpenGuide: () => void }) {
 
 function AppShell() {
   const { t } = useI18n();
+  const authDisabled = isAuthDisabled();
   const firstName = keycloak.tokenParsed?.given_name || '';
   const lastName = keycloak.tokenParsed?.family_name || '';
   const fullName =
     `${firstName} ${lastName}`.trim() ||
     keycloak.tokenParsed?.preferred_username ||
-    'User';
-  const sessionBpnCandidates = useMemo(
-    () => getSessionBpnCandidates(keycloak.tokenParsed, keycloak.token),
-    [keycloak.token, keycloak.tokenParsed],
+    t('userFallback');
+  const sessionBpnCandidates = getSessionBpnCandidates(
+    keycloak.tokenParsed,
+    keycloak.token,
   );
-  const sessionBpn = useMemo(
-    () => readSessionBpn(keycloak.tokenParsed, keycloak.token),
-    [keycloak.token, keycloak.tokenParsed],
+  const sessionBpn = readSessionBpn(keycloak.tokenParsed, keycloak.token);
+
+  // Explicit env / runtime-config values take precedence over the dataspace
+  // config, so a deployment can point these entries somewhere else without
+  // changing backend configuration.yml. Backend values are the fallback for
+  // when nothing is set here.
+  const envSdeUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_SDE_URL,
+    window.__RUNTIME_CONFIG__?.sdeUrl,
+    '',
+  );
+  const envPortalUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_PORTAL_URL,
+    window.__RUNTIME_CONFIG__?.portalUrl,
+    '',
   );
 
-  const [sdeUrl, setSdeUrl] = useState(
-    getRuntimeConfigValue(
-      import.meta.env.VITE_SDE_URL,
-      window.__RUNTIME_CONFIG__?.sdeUrl,
-      '',
-    ),
-  );
+  const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
+  const [portalUrl, setPortalUrl] = useState(envPortalUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1752,18 +1689,23 @@ function AppShell() {
   }, [sessionBpnCandidates]);
 
   useEffect(() => {
-    const loadSdeUrl = async () => {
+    const loadAppUrls = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        if (response.data?.data?.sde?.url) {
+        // Only fill in from the dataspace config when the deployment has not set
+        // an explicit value; otherwise the env setting would be silently ignored.
+        if (!envSdeUrl && response.data?.data?.sde?.url) {
           setSdeUrl(response.data.data.sde.url);
         }
+        if (!envPortalUrl && response.data?.data?.portal?.url) {
+          setPortalUrl(response.data.data.portal.url);
+        }
       } catch (error) {
-        console.error('Failed to load SDE URL:', error);
+        console.error('Failed to load external app URLs:', error);
       }
     };
 
-    loadSdeUrl();
+    loadAppUrls();
 
     const hasSeenWelcome = localStorage.getItem(WELCOME_STORAGE_KEY);
     if (!hasSeenWelcome) {
@@ -1779,7 +1721,7 @@ function AppShell() {
   return (
     <>
       <BrowserRouter>
-        <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950">
+        <div className="flex h-[100dvh] overflow-hidden bg-gray-50 dark:bg-slate-950">
           <Sidebar
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
@@ -1791,7 +1733,7 @@ function AppShell() {
                 name: fullName,
                 role: t('userAdministrator'),
               }}
-              onLogout={() => keycloak.logout()}
+              onLogout={authDisabled ? undefined : () => keycloak.logout()}
               onMenuToggle={() => setIsSidebarOpen((current) => !current)}
               onHelpClick={() => setShowGuide(true)}
               theme={theme}
@@ -1800,25 +1742,62 @@ function AppShell() {
               }
             />
             <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-slate-950">
-              <Routes>
-                <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
-                <Route path="/monitor" element={<Monitor />} />
-                <Route path="/sde" element={<SDE sdeUrl={sdeUrl} />} />
-                <Route path="/portal" element={<PortalRedirect />} />
-                <Route
-                  path="/dataspace-os"
-                  element={
-                    <AppPlaceholder
-                      title="Dataspace OS"
-                      description="This application entry is reserved for future dataspace operations and platform-oriented workflows."
+              <div className="flex min-h-full flex-col">
+                <div className="flex-1">
+                  <Routes>
+                    <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
+                    <Route path="/monitor" element={<Monitor />} />
+                    <Route
+                      path="/sde"
+                      element={(
+                        <ExternalAppRedirect
+                          url={sdeUrl}
+                          title={t('sdeRedirectTitle')}
+                          description={t('sdeRedirectDescription')}
+                        />
+                      )}
                     />
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={<Settings onOpenGuide={() => setShowGuide(true)} />}
-                />
-              </Routes>
+                    <Route
+                      path="/portal"
+                      element={
+                        portalUrl ? (
+                          <ExternalAppRedirect
+                            url={portalUrl}
+                            title={t('portalRedirectTitle')}
+                            description={t('portalRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('portalNavLabel')}
+                            description={t('portalPlaceholderDescription')}
+                          />
+                        )
+                      }
+                    />
+                    <Route
+                      path="/ich"
+                      element={
+                        <AppPlaceholder
+                          title={t('ichNavLabel')}
+                          description={t('ichPlaceholderDescription')}
+                        />
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={(
+                        <Settings
+                          onOpenGuide={() => setShowGuide(true)}
+                          sessionBpn={sessionBpn}
+                        />
+                      )}
+                    />
+                  </Routes>
+                </div>
+                <footer className="mt-8 bg-black px-6 py-4 text-center text-sm text-white dark:border-t dark:border-slate-800 dark:bg-slate-950">
+                  {t('footerCopyright')}
+                </footer>
+              </div>
             </main>
           </div>
         </div>

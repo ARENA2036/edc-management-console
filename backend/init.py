@@ -108,6 +108,36 @@ logger.info("[INIT] All managers initialized successfully!")
 # API ROUTES
 # ------------------------------------------------------------
 
+DEFAULT_MAX_COMPONENT_INSTANCES = 3
+
+
+class ComponentLimitExceeded(Exception):
+    """A deploy request would push a component type past its configured cap.
+
+    Distinct from a generic failure so the deploy endpoints can answer 409
+    (the request conflicts with current state) instead of 500.
+    """
+
+
+def _component_instance_limit(component_type: str) -> int:
+    """Resolve the per-type instance cap, falling back to the default.
+
+    A missing, non-numeric or non-positive ``maxInstances`` is treated as "not
+    configured" rather than "unlimited" — an accidental ``maxInstances: 0`` should
+    not silently disable the cap.
+    """
+    configured = (
+        app_configuration.get("components", {})
+        .get(component_type, {})
+        .get("maxInstances")
+    )
+    try:
+        limit = int(configured)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_COMPONENT_INSTANCES
+
+    return limit if limit > 0 else DEFAULT_MAX_COMPONENT_INSTANCES
+
 
 def _record_type(record: ConnectorDB) -> str:
     config_type = (record.config or {}).get("type")
@@ -117,23 +147,6 @@ def _record_type(record: ConnectorDB) -> str:
         return "connector"
     return ""
 
-
-def _linked_connector_name(record: ConnectorDB) -> str:
-    config = record.config or {}
-    linked = config.get("linkedConnector")
-    if isinstance(linked, str) and linked:
-        return linked
-    if _record_type(record) == "connector":
-        return record.name
-    return ""
-
-
-def _is_linked_to_connector(record: ConnectorDB, connector_name: str) -> bool:
-    linked = _linked_connector_name(record)
-    if linked:
-        return linked == connector_name
-    # Backward compatibility for rows created before linkedConnector was persisted.
-    return record.name.startswith(connector_name + "-")
 
 @app.get("/health")
 def get_health():
@@ -180,13 +193,17 @@ async def _reconcile_and_get_release_name(record: ConnectorDB, default_namespace
     return None
 
 
-@app.get("/api/connectors", tags=["EDC"])
-async def list_connectors(request: Request):
+@app.get("/api/components", tags=["Components"])
+async def list_components(request: Request):
     """
-    Retrieves list of connectors the user is allowed to see
+    Retrieves the list of deployed components the user is allowed to see.
+
+    A component is anything this console can deploy — a connector, a digital twin
+    registry, a submodel server, ... — so the payload is intentionally not
+    connector-specific.
 
     Returns:
-        response: :obj:`data object with the list of connectors`
+        response: :obj:`data object with the list of components`
     """
     try:
         ## Check if the api key is present and if it is authenticated
@@ -196,32 +213,32 @@ async def list_connectors(request: Request):
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         existingDeployments = databaseManager.get_all_connectors()
         json_list: list = []
-        for cnctor in existingDeployments:
+        for component in existingDeployments:
             # Drop rows whose Helm release no longer exists before showing them.
-            if not await _reconcile_and_get_release_name(cnctor, namespace):
+            if not await _reconcile_and_get_release_name(component, namespace):
                 continue
 
             url_list = []
-            # Only connector rows carry a control-plane host to health-check / build URLs from.
-            if cnctor.cp_hostname:
-                health = edcManager.check_health(f'{URL_SCHEME}://' + cnctor.cp_hostname)
+            # Only connector components carry a control-plane host to health-check / build URLs from.
+            if component.cp_hostname:
+                health = edcManager.check_health(f'{URL_SCHEME}://' + component.cp_hostname)
                 logger.info("Health check status %s", health)
-                cnctor.status = "active" if health.get("healthy") else "unreachable"
-                databaseManager.update_connector(cnctor)
+                component.status = "active" if health.get("healthy") else "unreachable"
+                databaseManager.update_connector(component)
                 for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
                     url_list.append(
-                        f'{URL_SCHEME}://' + cnctor.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
+                        f'{URL_SCHEME}://' + component.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
                     )
-            if cnctor.registry:
-                url_list.append(f'{URL_SCHEME}://{cnctor.registry}/semantics/registry/')
-            if cnctor.submodel:
-                url_list.append(f'{URL_SCHEME}://{cnctor.submodel}/')
+            if component.registry:
+                url_list.append(f'{URL_SCHEME}://{component.registry}/semantics/registry/')
+            if component.submodel:
+                url_list.append(f'{URL_SCHEME}://{component.submodel}/')
 
-            connector_dict = cnctor.to_dict()
-            connector_dict["urls"] = url_list
-            logger.info("Fetching all connectors %s", connector_dict)
+            component_dict = component.to_dict()
+            component_dict["urls"] = url_list
+            logger.info("Fetching all components %s", component_dict)
             json_list.append(
-                connector_dict
+                component_dict
             )
 
         return HttpUtils.response(
@@ -232,7 +249,7 @@ async def list_connectors(request: Request):
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.get("/api/connectors/health", tags=["EDC"])
+@app.get("/api/components/health", tags=["Components"])
 async def all_components_health(request: Request):
     """Health of every deployed component — for continuous polling from the
     frontend. Each component is probed by type (connector -> EDC liveness/
@@ -256,15 +273,15 @@ async def all_components_health(request: Request):
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.get("/api/connectors/{connector_name}/health", tags=["EDC"])
-async def get_component_health(connector_name: str, request: Request):
+@app.get("/api/components/{component_name}/health", tags=["Components"])
+async def get_component_health(component_name: str, request: Request):
     """Health of a single deployed component (by name) — for continuous polling
     from the frontend. Refreshes and returns the component's health + status."""
     try:
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        record = databaseManager.get_connector_by_name(name=connector_name)
+        record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
@@ -280,26 +297,30 @@ async def get_component_health(connector_name: str, request: Request):
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.get("/api/connectors/{connector_id}", tags=["EDC"])
-async def get_connector(connector_id: int, user=Depends(keycloak_openid.get_current_user)):
+@app.get("/api/components/{component_id}", tags=["Components"])
+async def get_component(component_id: str, user=Depends(keycloak_openid.get_current_user)):
+    """Retrieves a single deployed component by its id."""
     try:
-        connector = databaseManager.get_connector_by_id(connector_id)
-        if not connector:
-            return HttpUtils.get_error_response(status=404, message="Connector not found")
+        component = databaseManager.get_connector_by_id(component_id)
+        if not component:
+            return HttpUtils.get_error_response(status=404, message="Component not found")
         return {
             "user": user["preferred_username"],
-            "data": connector.to_dict()
+            "data": component.to_dict()
         }
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-def _upsert_component_row(comp, plan, namespace, linked_connector):
+def _upsert_component_row(comp, plan, namespace):
     """Create or refresh the ConnectorDB row for one deployed component.
 
     Each component is persisted as its own row keyed by its `name`; `config`
     records its type + release. cp/dp hostnames are only meaningful for the
     connector itself (used by the health probe), so they stay None for others.
+
+    Components are independent: nothing records a relationship to a connector,
+    and deleting one never affects another.
     """
     cp_host = app_configuration.get("connector", {}).get("hostname", {}).get("controlplane")
     dp_host = app_configuration.get("connector", {}).get("hostname", {}).get("dataplane")
@@ -308,7 +329,6 @@ def _upsert_component_row(comp, plan, namespace, linked_connector):
         "type": comp.type,
         "release": plan["release_name"],
         "chart": plan["chart"],
-        "linkedConnector": linked_connector,
     }
 
     record = databaseManager.get_connector_by_name(comp.name)
@@ -344,15 +364,49 @@ def _upsert_component_row(comp, plan, namespace, linked_connector):
     return databaseManager.update_connector(record)
 
 
+def _assert_within_component_limits(components):
+    """Reject the whole request if it would push any component type past its cap.
+
+    Runs as a pre-flight check before any Helm work, so an over-limit request
+    changes nothing at all rather than deploying the first few components and then
+    failing part-way through.
+
+    Re-deploying a name that already exists is an in-place upgrade (Helm
+    install-or-upgrade), not a new instance, so it is deliberately not counted
+    against the cap — otherwise upgrading a component while at the limit would be
+    impossible.
+    """
+    existing = databaseManager.get_all_connectors()
+    existing_names = {record.name for record in existing}
+
+    counts: dict = {}
+    for record in existing:
+        record_type = _record_type(record)
+        if record_type:
+            counts[record_type] = counts.get(record_type, 0) + 1
+
+    for comp in components:
+        if not comp.type or not comp.name:
+            continue
+        if comp.name in existing_names:
+            continue
+
+        limit = _component_instance_limit(comp.type)
+        counts[comp.type] = counts.get(comp.type, 0) + 1
+        if counts[comp.type] > limit:
+            raise ComponentLimitExceeded(
+                f"Cannot deploy '{comp.name}': at most {limit} component(s) of type "
+                f"'{comp.type}' may exist at a time and that limit is already reached. "
+                "Delete an existing one before deploying another."
+            )
+
+
 async def _deploy_components(components, namespace):
     """Install-or-upgrade every component in the request (config-driven) and
     persist one DB row per component. A component with no `type`/`name` is an
     empty/optional slot and is skipped. Shared by POST (create) and PUT (upgrade)
     since Helm install-or-upgrade is the same operation either way."""
     deployed = []
-    connector_name = next((comp.name for comp in components if comp.type == "connector"), "")
-    desired_component_names = {comp.name for comp in components if comp.type != "connector"}
-
     named_components = [comp.name for comp in components if comp.type and comp.name]
     seen_names = set()
     for dup_name in named_components:
@@ -363,6 +417,8 @@ async def _deploy_components(components, namespace):
                 "needs its own unique name."
             )
         seen_names.add(dup_name)
+
+    _assert_within_component_limits(components)
 
     for comp in components:
         if not comp.type or not comp.name:
@@ -378,29 +434,21 @@ async def _deploy_components(components, namespace):
             values=plan["values"],
             namespace=namespace,
         )
-        linked_connector = connector_name if comp.type != "connector" else comp.name
-        _upsert_component_row(comp, plan, namespace, linked_connector)
+        _upsert_component_row(comp, plan, namespace)
         deployed.append({"type": comp.type, "name": comp.name,
                          "release": plan["release_name"], "version": plan["version"]})
-
-    if connector_name:
-        existing_rows = databaseManager.get_all_connectors()
-        rows_to_remove = [
-            row for row in existing_rows
-            if _record_type(row) != "connector"
-            and _is_linked_to_connector(row, connector_name)
-            and row.name not in desired_component_names
-        ]
-        for row in rows_to_remove:
-            release_name = (row.config or {}).get("release") or row.name
-            await edcService.uninstall(release_name=release_name, namespace=row.namespace or namespace)
-            databaseManager.delete_connector(connector_id=row.id)
 
     return deployed
 
 
-@app.post("/api/connector", tags=["EDC"])
-async def add_connector(payload: DeploymentRequest, request: Request):
+@app.post("/api/component", tags=["Components"])
+async def add_components(payload: DeploymentRequest, request: Request):
+    """Deploy the components in the request.
+
+    The payload is a list of components, each selected by its `type`
+    (connector, digitalTwinRegistry, submodelServer, ...), so this endpoint is
+    not connector-specific.
+    """
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
@@ -410,12 +458,16 @@ async def add_connector(payload: DeploymentRequest, request: Request):
         deployed = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, data={"deployed": deployed})
 
+    except ComponentLimitExceeded as e:
+        ## Expected, caller-correctable state — not a server fault, so no stack trace.
+        logger.warning("[deploy] %s", e)
+        return HttpUtils.get_error_response(status=409, message=str(e))
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.put("/api/connectors/{connector_id}", tags=["EDC"])
-async def upgrade_connector(connector_id: str, payload: DeploymentRequest, request: Request):
+@app.put("/api/components/{component_id}", tags=["Components"])
+async def upgrade_components(component_id: str, payload: DeploymentRequest, request: Request):
     """Upgrade (or install) the components in the request. Same array payload and
     config-driven path as POST — Helm install-or-upgrade is the same operation, so
     this re-renders each component's values and rolls the release forward."""
@@ -429,42 +481,38 @@ async def upgrade_connector(connector_id: str, payload: DeploymentRequest, reque
         return HttpUtils.response(status=200, message="Components upgraded",
                                   data={"upgraded": upgraded})
 
+    except ComponentLimitExceeded as e:
+        logger.warning("[upgrade] %s", e)
+        return HttpUtils.get_error_response(status=409, message=str(e))
     except Exception as e:
         logger.exception(str(e))
         return HttpUtils.get_error_response(status=500, message=str(e))
 
-@app.delete("/api/connectors/{connector_name}", tags=["EDC"])
-async def delete_connector(connector_name: str, request: Request):
-    """Delete one row by name; if it is an EDC connector, delete linked components too."""
+@app.delete("/api/components/{component_name}", tags=["Components"])
+async def delete_component(component_name: str, request: Request):
+    """Delete exactly one component by name and uninstall its Helm release.
+
+    Components are independent, so deleting a connector never touches a digital
+    twin registry or submodel server, even if they were deployed together.
+    """
     try:
         ## Check if the api key is present and if it is authenticated
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
 
-        record = databaseManager.get_connector_by_name(name=connector_name)
+        record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
             return HttpUtils.get_error_response(status=404, message="Component not found")
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        targets = [record]
-        if _record_type(record) == "connector":
-            linked = [
-                row for row in databaseManager.get_all_connectors()
-                if _record_type(row) != "connector" and _is_linked_to_connector(row, record.name)
-            ]
-            targets.extend(linked)
+        release_name = (record.config or {}).get("release") or record.name
+        await edcService.uninstall(
+            release_name=release_name,
+            namespace=record.namespace or namespace,
+        )
+        databaseManager.delete_connector(connector_id=record.id)
 
-        for target in targets:
-            release_name = (target.config or {}).get("release") or target.name
-            await edcService.uninstall(
-                release_name=release_name,
-                namespace=target.namespace or namespace,
-            )
-            databaseManager.delete_connector(connector_id=target.id)
-
-        return HttpUtils.response(
-            status=200,
-            message=f"Deleted '{record.name}' and {len(targets) - 1} linked component(s)")
+        return HttpUtils.response(status=200, message=f"Deleted '{record.name}'")
 
     except Exception as e:
         logger.exception(str(e))
@@ -589,6 +637,48 @@ async def get_config(user=Depends(keycloak_openid.get_current_user)):
         "data": settings
     }
 
+def _configured_url(value):
+    """Normalise a configured hostname into an absolute URL.
+
+    Values in configuration.yml are bare hostnames (e.g. ``controlplane.example.de``),
+    but the frontend expects browser-usable URLs, so prefix a scheme when missing.
+    """
+    if not value:
+        return ""
+
+    if isinstance(value, str) and (
+        value.startswith("http://") or value.startswith("https://")
+    ):
+        return value
+
+    return f"https://{value}"
+
+
+def _component_versions(component_key: str):
+    """Expose the Helm chart versions and the instance cap for a component type.
+
+    The deployment wizard in the frontend populates its version dropdown from this,
+    and sends the chosen value back on POST /api/component. Keeping it sourced from
+    the same ``components.<key>.versions`` block that edcManager validates against
+    means the UI can never offer a version the backend would reject.
+
+    ``maxInstances`` is published for the same reason: the dashboard renders "x/max"
+    counters and disables full component types from it, so the number the user sees
+    is the number ``_assert_within_component_limits`` actually enforces.
+    """
+    component_config = app_configuration.get("components", {}).get(component_key, {})
+    versions = [
+        entry.get("version")
+        for entry in (component_config.get("versions") or [])
+        if entry.get("version")
+    ]
+    return {
+        "defaultVersion": versions[0] if versions else "",
+        "availableVersions": versions,
+        "maxInstances": _component_instance_limit(component_key),
+    }
+
+
 @app.get("/api/dataspace", tags=["Dataspace"])
 async def get_dataspace_settings(request: Request):
     """
@@ -634,7 +724,26 @@ async def get_dataspace_settings(request: Request):
             },
             "edc": {
                 "default_url": edc_config.get("default_url", ""),
+                "controlplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("controlplane")
+                ) or edc_config.get("default_url", ""),
+                "dataplane_url": _configured_url(
+                    edc_config.get("hostname", {}).get("dataplane")
+                ),
+                # Bare host suffixes, exactly as consumed by the `cp_hostname` /
+                # `dp_hostname` derive templates ("{name}-{controlplane_hostname}").
+                # The wizard prefixes the user's connector name to these, so the
+                # hostname it previews matches the Ingress the backend will create.
+                # Sent separately from the *_url fields so the UI never has to infer
+                # a suffix by string-splitting a URL.
+                "controlplane_host_suffix": edc_config.get("hostname", {}).get("controlplane", ""),
+                "dataplane_host_suffix": edc_config.get("hostname", {}).get("dataplane", ""),
                 "cluster_context": dataspace_config.get("clusterConfig", {}).get("context", "")
+            },
+            "deployment": {
+                "connector": _component_versions("connector"),
+                "digitalTwinRegistry": _component_versions("digitalTwinRegistry"),
+                "submodelServer": _component_versions("submodelServer"),
             },
             "readonly": True
         }

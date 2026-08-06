@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import type { Connector } from '../types';
+import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
   connector: Connector;
@@ -22,8 +23,11 @@ export default function DeleteModal({
   cancelLabel = 'Cancel',
   confirmLabel = 'Delete',
 }: Props) {
+  useLockBodyScroll(true);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black bg-opacity-50 px-4 py-6">
+      <div className="flex min-h-full items-center justify-center">
       <div className="w-full max-w-md rounded-lg bg-white p-6 dark:bg-slate-900">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-red-600">{title}</h2>
@@ -52,6 +56,7 @@ export default function DeleteModal({
             {confirmLabel}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

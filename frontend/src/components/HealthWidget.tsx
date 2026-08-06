@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
-import { healthApi, connectorApi } from '../api/client';
+import { healthApi, componentApi } from '../api/client';
+
+interface HealthStatus {
+  healthy: boolean;
+  liveness?: string;
+  readiness?: string;
+}
 
 export default function HealthWidget() {
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   const checkHealth = async () => {
@@ -20,7 +26,7 @@ export default function HealthWidget() {
 
   const checkConnectorsHealth = async () => {
     try {
-      await connectorApi.getConnectorsHealth();
+      await componentApi.getComponentsHealth();
     } catch (error) {
       console.error('Failed to check connectors health:', error);
     }

@@ -49,7 +49,7 @@ class ConnectorDB(Base):
     url = Column(String(512), nullable=False)
     bpn = Column(String(255), nullable=False)
     chart = Column(String(50), nullable=True)
-    version = Column(String(50), default="0.9.0", nullable=True)
+    version = Column(String(50), nullable=True)
     namespace = Column(String(50), nullable=False)
     status = Column(String(50), default="unknown")
     config = Column(JSON, nullable=True,  default=lambda: {})

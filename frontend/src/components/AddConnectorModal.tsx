@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { connectorApi } from '../api/client';
+import { componentApi } from '../api/client';
 import { buildDeployRequest } from '../utils/deployment';
 
 interface Props {
@@ -21,11 +21,11 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
     e.preventDefault();
     setLoading(true);
     try {
-      await connectorApi.create(
+      await componentApi.create(
         buildDeployRequest({
           connector: {
             name,
-            version: '0.11.2',
+            version: '',
             url,
             bpn: bpn || '',
             dataPlaneUrl: '',
@@ -33,7 +33,7 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
           submodelServer: {
             enabled: false,
             name: '',
-            version: '0.1.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',
@@ -42,7 +42,7 @@ export default function AddConnectorModal({ isOpen, onClose, onConnectorAdded }:
           digitalTwinRegistry: {
             enabled: false,
             name: '',
-            version: '0.12.0',
+            version: '',
             url: '',
             dbName: '',
             username: '',

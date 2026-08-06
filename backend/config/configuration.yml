@@ -113,6 +113,7 @@ components:
   # array (with type+name). Each field below reads from THAT component's object.
   connector:
     releaseName: "{name}"         # the component's own name
+    maxInstances: 3
     version: "{version}"          # the component's own version, validated against `versions`
     chart:
       name: tractusx-connector
@@ -223,6 +224,7 @@ components:
   # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
   submodelServer:
     releaseName: "{name}"             # the component's own name
+    maxInstances: 3
     version: "{version}"              # the component's own version
     healthPath: "/actuator/health/liveness"                   # reachability probe path appended to the ingress url
     chart:
@@ -275,6 +277,7 @@ components:
   # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
   digitalTwinRegistry:
     releaseName: "{name}"             # the component's own name
+    maxInstances: 3
     version: "{version}"             # the component's own version
     healthPath: "/semantics/registry/"   # reachability probe path appended to the ingress url
     chart:
