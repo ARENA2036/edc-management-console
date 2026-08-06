@@ -18,7 +18,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "06082026"
+    tag: "06082026-bpn"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -177,7 +177,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "06082026"
+    tag: "06082026-bpn"
   imagePullSecrets:
     - name: registry-creds
   env:
