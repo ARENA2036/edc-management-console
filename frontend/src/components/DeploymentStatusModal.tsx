@@ -1,5 +1,7 @@
 import { AlertTriangle, CheckCircle2, LoaderCircle, X } from 'lucide-react';
 import { useEffect } from 'react';
+import type { ApiError } from '../api/errors';
+import ErrorDetails from './ErrorDetails';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
@@ -11,6 +13,7 @@ interface Props {
   status: DeploymentStatus;
   resource: DeploymentResource;
   itemCount?: number;
+  error?: ApiError | null;
   onClose: () => void;
 }
 
@@ -19,6 +22,7 @@ export default function DeploymentStatusModal({
   status,
   resource,
   itemCount = 1,
+  error = null,
   onClose,
 }: Props) {
   const { t } = useI18n();
@@ -109,12 +113,18 @@ export default function DeploymentStatusModal({
           </div>
 
           <div className="space-y-4 px-6 py-6">
-            <p className="text-sm leading-7 text-gray-700 dark:text-slate-300">
-              {body}
-            </p>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-              {t('deploymentStatusDashboardHint')}
-            </div>
+            {status === 'error' && error ? (
+              <ErrorDetails error={error} intro={body} />
+            ) : (
+              <p className="text-sm leading-7 text-gray-700 dark:text-slate-300">
+                {body}
+              </p>
+            )}
+            {status !== 'error' && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                {t('deploymentStatusDashboardHint')}
+              </div>
+            )}
           </div>
 
           {status !== 'deploying' && (

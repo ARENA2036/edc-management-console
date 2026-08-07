@@ -10,6 +10,7 @@ import {
   SquareActivity,
 } from 'lucide-react';
 import { activityApi, componentApi, dataspaceApi } from './api/client';
+import { ApiError, toApiError } from './api/errors';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
 import { getRuntimeConfigValue } from './runtime-config';
@@ -23,6 +24,7 @@ import type { ComponentType } from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import DeploymentStatusModal from './components/DeploymentStatusModal';
+import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
 import keycloak, { isAuthDisabled } from './auth/keycloak';
@@ -44,6 +46,8 @@ type DeploymentFeedback = {
   status: 'deploying' | 'success' | 'error';
   resource: 'connector' | 'component';
   itemCount: number;
+  /** Set when status is 'error', so the modal can name the cause and stage. */
+  error?: ApiError | null;
 };
 
 interface DataspaceSettingsPayload {
@@ -291,7 +295,11 @@ function mapApiConnector(record: DashboardConnector): DashboardConnector {
   };
 }
 
-async function fetchDeploymentState() {
+async function fetchDeploymentState(): Promise<{
+  connectors: DashboardConnector[];
+  components: ManagedComponent[];
+  error?: ApiError | null;
+}> {
   const cached = getCachedDeployments();
 
   try {
@@ -309,10 +317,11 @@ async function fetchDeploymentState() {
 
     saveLocalStorage(CONNECTORS_STORAGE_KEY, connectors);
     saveLocalStorage(COMPONENTS_STORAGE_KEY, components);
-    return { connectors, components };
+    return { connectors, components, error: null };
   } catch (error) {
-    console.error('Failed to load deployments:', error);
-    return cached;
+    const apiError = toApiError(error, 'The list of deployed components could not be loaded.');
+    console.error('Failed to load deployments:', apiError);
+    return { ...cached, error: apiError };
   }
 }
 
@@ -321,7 +330,7 @@ async function fetchActivityLogs() {
     const response = await activityApi.getRecentLogs(20);
     return response.data.data || [];
   } catch (error) {
-    console.error('Failed to load activity logs:', error);
+    console.error('Failed to load activity logs:', toApiError(error));
     return [];
   }
 }
@@ -338,7 +347,7 @@ async function fetchDataspaceSummary(
       details: data,
     };
   } catch (error) {
-    console.error('Failed to load dataspace:', error);
+    console.error('Failed to load dataspace:', toApiError(error));
     return {
       name: fallbackName,
       bpn: '',
@@ -450,6 +459,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     resource: 'connector',
     itemCount: 1,
   });
+  const [loadError, setLoadError] = useState<ApiError | null>(null);
+  const [actionError, setActionError] = useState<ApiError | null>(null);
   const [componentWizardDefaults, setComponentWizardDefaults] = useState<{
     allowMultipleTypes?: boolean;
     initialSelectedTypes?: ComponentType[];
@@ -466,6 +477,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     const deploymentState = await fetchDeploymentState();
     setConnectors(deploymentState.connectors);
     setComponents(deploymentState.components);
+    setLoadError(deploymentState.error ?? null);
   }, []);
 
   const loadActivityLogs = async () => {
@@ -565,12 +577,13 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           itemCount: 1,
         });
       }
-    } catch {
+    } catch (error) {
       setDeploymentFeedback({
         open: true,
         status: 'error',
         resource: 'connector',
         itemCount: 1,
+        error: toApiError(error, 'The connector could not be deployed.'),
       });
     } finally {
       setConnectorDeploymentInFlight(false);
@@ -578,22 +591,31 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   };
 
   const handleDeleteConnector = async (connector: DashboardConnector) => {
+    setActionError(null);
     try {
       await componentApi.delete(connector.name);
       const synced = await fetchDeploymentState();
       setConnectors(synced.connectors);
       setComponents(synced.components);
+      setLoadError(synced.error ?? null);
     } catch (error) {
-      console.error('Failed to delete connector:', error);
+      const apiError = toApiError(error, `'${connector.name}' could not be deleted.`);
+      console.error('Failed to delete connector:', apiError);
+      setActionError(apiError);
     }
   };
 
   const handleDeployComponent = async (component: ManagedComponent) => {
     if (componentCounts[component.type] >= componentLimits[component.type]) {
-      throw new Error(
-        `Cannot deploy '${component.name}': the limit of ${componentLimits[component.type]} `
-        + `'${component.type}' components is already reached.`,
-      );
+      throw new ApiError({
+        status: 409,
+        code: 'COMPONENT_LIMIT_REACHED',
+        stage: 'request',
+        message:
+          `Cannot deploy '${component.name}': the limit of `
+          + `${componentLimits[component.type]} '${component.type}' components is already reached.`,
+        hint: 'Delete an existing component of this type, then deploy again.',
+      });
     }
 
     const generatedEndpoint = component.endpoint?.trim()
@@ -643,13 +665,17 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   };
 
   const handleDeleteComponent = async (componentToDelete: ManagedComponent) => {
+    setActionError(null);
     try {
       await componentApi.delete(componentToDelete.name);
       const synced = await fetchDeploymentState();
       setConnectors(synced.connectors);
       setComponents(synced.components);
+      setLoadError(synced.error ?? null);
     } catch (error) {
-      console.error('Failed to delete component:', error);
+      const apiError = toApiError(error, `'${componentToDelete.name}' could not be deleted.`);
+      console.error('Failed to delete component:', apiError);
+      setActionError(apiError);
     }
   };
 
@@ -736,6 +762,18 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">{t('dashboard')}</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">{t('welcome')}</p>
         </div>
+
+        <ErrorBanner
+          error={actionError}
+          title={t('errorActionFailedTitle')}
+          onDismiss={() => setActionError(null)}
+        />
+        <ErrorBanner
+          error={loadError}
+          tone="warning"
+          title={t('errorStaleDataTitle')}
+          onDismiss={() => setLoadError(null)}
+        />
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatsCard
@@ -894,12 +932,13 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
               resource: 'component',
               itemCount: 1,
             });
-          } catch {
+          } catch (error) {
             setDeploymentFeedback({
               open: true,
               status: 'error',
               resource: 'component',
               itemCount: 1,
+              error: toApiError(error, 'The component could not be deployed.'),
             });
           } finally {
             setComponentDeploymentInFlight(false);
@@ -939,6 +978,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         status={deploymentFeedback.status}
         resource={deploymentFeedback.resource}
         itemCount={deploymentFeedback.itemCount}
+        error={deploymentFeedback.error}
         onClose={() =>
           setDeploymentFeedback((current) => ({
             ...current,
