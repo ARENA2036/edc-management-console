@@ -229,13 +229,13 @@ components:
     healthPath: "/actuator/health/liveness"                   # reachability probe path appended to the ingress url
     chart:
       # This config would be used for local deployment without Docker
-      name: simple-data-backend
-      repo: tractusx-dev
+      # name: simple-data-backend
+      # repo: tractusx-dev
 
       # Deploy from the LOCAL chart copy in config/ (patched with probe enable
       # toggles) instead of pulling simple-data-backend from the repo. Having path issues on windows, 
       # but should be working inside container
-      # directory: config/simple-data-backend
+      directory: config/simple-data-backend
     # Base values come from config/submodelserver-templates (NOT the chart default).
     templatesDir: config/submodelserver-templates
     versions:
