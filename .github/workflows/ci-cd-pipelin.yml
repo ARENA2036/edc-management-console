@@ -294,6 +294,173 @@ jobs:
           git pull --rebase origin "${{ github.ref_name }}"
           git push origin "HEAD:${{ github.ref_name }}"
 
+  # =================================================================
+  # Create Harbor image pull secret and Vault token secret
+  # in the target application cluster.
+  # =================================================================
+  create-application-secrets:
+    name: Create Harbor Image Pull and Vault Secrets
+    needs: update-image-tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install kubectl and Vault
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+          curl -sSL \
+            https://releases.hashicorp.com/vault/1.21.2/vault_1.21.2_linux_amd64.zip \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/
+
+      - name: Resolve target cluster and namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ENVIRONMENT="${{ github.event.inputs.environment }}"
+          BRANCH="${{ github.ref_name }}"
+
+          if [[ "$ENVIRONMENT" == "dev-ap6" && "$BRANCH" == "develop" ]]; then
+            VAULT_SECRET_PATH="staging/infra/cluster-int"
+            TARGET_NAMESPACE="edc-management-console"
+
+          elif [[ "$ENVIRONMENT" == "dev-ap6" ]]; then
+            VAULT_SECRET_PATH="staging/infra/cluster-int"
+
+            BRANCH_SLUG="$(printf '%s' "$BRANCH" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's#[^a-z0-9-]#-#g' \
+              | sed 's/--*/-/g' \
+              | sed 's/^-//' \
+              | sed 's/-$//' \
+              | cut -c1-35)"
+
+            if [[ -z "$BRANCH_SLUG" ]]; then
+              echo "Could not generate a valid branch slug"
+              exit 1
+            fi
+
+            BRANCH_HASH="$(printf '%s' "$BRANCH" | sha256sum | cut -c1-7)"
+            SAFE_BRANCH="${BRANCH_SLUG}-${BRANCH_HASH}"
+
+            TARGET_NAMESPACE="emc-${SAFE_BRANCH}"
+
+          elif [[ "$ENVIRONMENT" == "staging" ]]; then
+            VAULT_SECRET_PATH="staging/infra/cluster-staging"
+            TARGET_NAMESPACE="edc-management-console"
+
+          elif [[ "$ENVIRONMENT" == "prod" ]]; then
+            VAULT_SECRET_PATH="staging/infra/cluster-prod"
+            TARGET_NAMESPACE="edc-management-console"
+
+          else
+            echo "Unsupported deployment environment: $ENVIRONMENT"
+            exit 1
+          fi
+
+          {
+            echo "VAULT_SECRET_PATH=$VAULT_SECRET_PATH"
+            echo "TARGET_NAMESPACE=$TARGET_NAMESPACE"
+          } >> "$GITHUB_ENV"
+
+          echo "Vault cluster path: $VAULT_SECRET_PATH"
+          echo "Target namespace: $TARGET_NAMESPACE"
+
+      - name: Connect to target application cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
+
+          vault kv get \
+            -field=config \
+            "$VAULT_SECRET_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          kubectl config current-context
+          kubectl cluster-info
+
+      - name: Create Harbor registry secret
+        env:
+          HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
+          HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
+            echo "HBR_USERNAME or HBR_PASSWORD is missing"
+            exit 1
+          fi
+
+          if [[ -z "$TARGET_NAMESPACE" ]]; then
+            echo "Target namespace is empty"
+            exit 1
+          fi
+
+          kubectl create namespace "$TARGET_NAMESPACE" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
+
+          kubectl create secret docker-registry registry-creds \
+            --docker-server="harbor-hub-shared.arena.3ascloud.de" \
+            --docker-username="$HBR_USERNAME" \
+            --docker-password="$HBR_PASSWORD" \
+            --namespace="$TARGET_NAMESPACE" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
+
+          kubectl get secret registry-creds \
+            --namespace="$TARGET_NAMESPACE"
+
+      - name: Create Vault token secret
+        env:
+          APPLICATION_VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$APPLICATION_VAULT_TOKEN" ]]; then
+            echo "VAULT_TOKEN_PROD is missing"
+            exit 1
+          fi
+
+          if [[ -z "$TARGET_NAMESPACE" ]]; then
+            echo "Target namespace is empty"
+            exit 1
+          fi
+
+          kubectl create secret generic vault-token \
+            --namespace="$TARGET_NAMESPACE" \
+            --from-literal=token="$APPLICATION_VAULT_TOKEN" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
+
+          kubectl get secret vault-token \
+            --namespace="$TARGET_NAMESPACE"
+
   # ------------------------------------------------------------
   # Developer preview environments on the AP6 Dev cluster
   #
@@ -314,7 +481,9 @@ jobs:
   # ------------------------------------------------------------
   deploy-preview:
     name: Deploy Developer Preview via Central Argo CD to AP6
-    needs: update-image-tag
+    needs:
+      - update-image-tag
+      - create-application-secrets
     runs-on: ubuntu-latest
 
     if: |
@@ -491,8 +660,6 @@ jobs:
             exit 1
           fi
 
-          kubectl apply --dry-run=client --validate=false -f "$GENERATED"
-
           echo "Generated preview Argo CD Application:"
           cat "$GENERATED"
 
@@ -532,7 +699,9 @@ jobs:
   # ------------------------------------------------------------
   deploy-shared-dev:
     name: Deploy Shared Development via Central Argo CD to AP6
-    needs: update-image-tag
+    needs:
+      - update-image-tag
+      - create-application-secrets
     runs-on: ubuntu-latest
 
     if: |
@@ -628,8 +797,6 @@ jobs:
             exit 1
           fi
 
-          kubectl apply --dry-run=client --validate=false -f "$GENERATED"
-
           echo "Generated Shared Dev Argo CD Application:"
           cat "$GENERATED"
 
@@ -694,7 +861,9 @@ jobs:
   # ------------------------------------------------------------
   deploy-staging:
     name: Deploy Staging via Central Argo CD
-    needs: update-image-tag
+    needs:
+      - update-image-tag
+      - create-application-secrets
     runs-on: ubuntu-latest
 
     if: |
@@ -849,7 +1018,9 @@ jobs:
   # ------------------------------------------------------------
   deploy-production:
     name: Deploy Production via Central Argo CD
-    needs: update-image-tag
+    needs:
+      - update-image-tag
+      - create-application-secrets
     runs-on: ubuntu-latest
 
     if: |
