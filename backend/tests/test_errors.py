@@ -204,3 +204,44 @@ def test_success_response_shape_is_untouched():
     response = HttpUtils.response(data=[1, 2], status=200, message="ok")
     assert response.status_code == 200
     assert body(response) == {"message": "ok", "data": [1, 2]}
+
+def test_every_error_envelope_carries_an_error_id():
+    """Including the plain two-argument calls used for 404s and 400s."""
+    payload = body(HttpUtils.get_error_response(status=404, message="Component not found"))
+    assert payload["errorId"]
+    assert len(payload["errorId"]) == 12
+
+
+def test_minting_an_id_also_logs_it(caplog):
+    with caplog.at_level("WARNING"):
+        payload = body(HttpUtils.get_error_response(
+            status=404, message="Component not found", code="COMPONENT_NOT_FOUND"))
+
+    records = [r for r in caplog.records if payload["errorId"] in r.getMessage()]
+    assert len(records) == 1, "the id in the response must appear in exactly one log line"
+    assert "COMPONENT_NOT_FOUND" in records[0].getMessage()
+
+
+def test_a_caller_supplied_id_is_preserved_and_not_logged_twice(caplog):
+    """`error_response` has already logged; re-logging here would double every
+    5xx entry and break log-based error counts."""
+    with caplog.at_level("WARNING"):
+        payload = body(HttpUtils.get_error_response(
+            status=409, message="At the cap", error_id="deadbeef1234"))
+
+    assert payload["errorId"] == "deadbeef1234"
+    assert [r for r in caplog.records if "deadbeef1234" in r.getMessage()] == []
+
+
+def test_error_response_logs_the_same_id_it_returns(caplog):
+    with caplog.at_level("WARNING"):
+        payload = body(HttpUtils.error_response(
+            Exception("Error: release: not found"), stage=Stage.HELM))
+
+    records = [r for r in caplog.records if payload["errorId"] in r.getMessage()]
+    assert len(records) == 1
+
+
+def test_from_error_without_an_id_still_gets_one():
+    payload = body(HttpUtils.from_error(errors.ComponentLimitExceeded("at the cap")))
+    assert payload["errorId"]

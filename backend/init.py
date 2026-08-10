@@ -48,7 +48,8 @@ from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
 from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
                               DuplicateComponentName, EmcError, Stage,
-                              UnknownComponentType, UnsupportedVersion, classify)
+                              UnknownComponentType, UnsupportedVersion, classify,
+                              new_error_id)
 from utilities.operators import op
 from utilities.auth_utils import get_oauth2_token
 
@@ -119,7 +120,9 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
         )
         for item in exc.errors()
     ]
-    logger.warning("[VALIDATION_FAILED][stage=%s] %s", Stage.REQUEST, "; ".join(fields))
+    error_id = new_error_id()
+    logger.warning("[VALIDATION_FAILED][stage=%s][id=%s] %s",
+                   Stage.REQUEST, error_id, "; ".join(fields))
     return HttpUtils.get_error_response(
         status=422,
         message="The request payload is not valid.",
@@ -127,6 +130,7 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
         stage=Stage.REQUEST,
         detail="\n".join(fields),
         hint="Correct the listed fields and send the request again.",
+        error_id=error_id,
     )
 
 

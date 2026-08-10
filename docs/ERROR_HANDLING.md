@@ -20,9 +20,12 @@ Additive — `error` and `status` are unchanged, so existing clients keep workin
 }
 ```
 
-`errorId` is minted when an error is reported and written to both the response
-and `backend/logs/<date>/*.log`, so a user can quote one string and an operator
-can grep the exact entry.
+`errorId` is on **every** error response, and each one appears in exactly one
+line of `backend/logs/<date>/*.log`, so a user can quote one string and an
+operator can grep the exact entry. It is minted by `HttpUtils.get_error_response`
+whenever the caller has not already reported the error, and the minting path
+emits the matching log line — so no call site can return an id that was never
+logged, and no error is logged twice.
 
 **Redaction is best effort.** `errors.redact` masks `key: value` / `key=value`
 shapes and URL userinfo — what Helm and SQLAlchemy actually emit. It cannot

@@ -38,24 +38,39 @@ class HttpUtils:
     @staticmethod
     def get_error_response(status: int, message: str, code: Optional[str] = None,
                            stage: Optional[str] = None, detail: Optional[str] = None,
-                           hint: Optional[str] = None, error_id: Optional[str] = None):
+                           hint: Optional[str] = None, error_id: Optional[str] = None,
+                           log: Optional[logging.Logger] = None):
         """Build the error envelope.
 
         ``error`` and ``status`` are unchanged from the original shape, so every
         existing two-argument call site keeps working; the rest is additive.
+
+        An ``error_id`` is minted here when the caller does not supply one, and
+        the minting path also emits the matching log line. That pairing is the
+        point: an id in a response that appears in no log entry is worse than no
+        id at all, because a user quotes it and the operator finds nothing.
+        Callers that already reported the error (``error_response``) pass their
+        id in, which suppresses the duplicate log line.
         """
+        code = code or _default_code(status)
+        stage = stage or _default_stage(status)
+
+        if error_id is None:
+            error_id = new_error_id()
+            (log or logger).warning("[%s][stage=%s][id=%s] %s",
+                                    code, stage, error_id, message)
+
         payload: Dict[str, Any] = {
             "error": message,
             "status": status,
-            "code": code or _default_code(status),
-            "stage": stage or _default_stage(status),
+            "code": code,
+            "stage": stage,
+            "errorId": error_id,
         }
         if detail:
             payload["detail"] = redact(detail)
         if hint:
             payload["hint"] = hint
-        if error_id:
-            payload["errorId"] = error_id
         return JSONResponse(content=payload, status_code=status)
 
     @staticmethod

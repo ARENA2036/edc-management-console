@@ -42,12 +42,20 @@ export default function ErrorDetails({ error, intro, className }: Props) {
   const messageKey = MESSAGE_KEYS[error.code];
   const message = messageKey ? t(messageKey as TranslateKey) : error.message;
 
-  const rows: Array<[string, string]> = [
-    [t('errorFieldCode'), error.code],
-    [t('errorFieldStatus'), error.status === null ? t('errorNoResponse') : String(error.status)],
+  const rows: Array<{ id: string; label: string; value: string }> = [
+    { id: 'code', label: t('errorFieldCode'), value: error.code },
+    {
+      id: 'status',
+      label: t('errorFieldStatus'),
+      value: error.status === null ? t('errorNoResponse') : String(error.status),
+    },
   ];
-  if (error.endpoint) rows.push([t('errorFieldEndpoint'), error.endpoint]);
-  if (error.errorId) rows.push([t('errorFieldErrorId'), error.errorId]);
+  if (error.endpoint) {
+    rows.push({ id: 'endpoint', label: t('errorFieldEndpoint'), value: error.endpoint });
+  }
+  if (error.errorId) {
+    rows.push({ id: 'errorId', label: t('errorFieldErrorId'), value: error.errorId });
+  }
 
   return (
     <div className={className}>
@@ -82,10 +90,12 @@ export default function ErrorDetails({ error, intro, className }: Props) {
         {expanded ? (
           <div className="border-t border-gray-200 px-3 py-3 dark:border-slate-700">
             <dl className="space-y-1 text-xs">
-              {rows.map(([label, value]) => (
-                <div key={label} className="flex gap-2">
-                  <dt className="w-24 shrink-0 text-gray-500 dark:text-slate-500">{label}</dt>
-                  <dd className="break-all font-mono text-gray-800 dark:text-slate-200">{value}</dd>
+              {rows.map((row) => (
+                <div key={row.id} className="flex gap-2">
+                  <dt className="w-24 shrink-0 text-gray-500 dark:text-slate-500">{row.label}</dt>
+                  <dd className="break-all font-mono text-gray-800 dark:text-slate-200">
+                    {row.value}
+                  </dd>
                 </div>
               ))}
             </dl>
