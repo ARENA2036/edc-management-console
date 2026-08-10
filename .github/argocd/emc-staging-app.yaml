@@ -25,7 +25,7 @@ spec:
     path: charts/edc-management-console
 
     helm:
-      releaseName: emc
+      releaseName: emc-staging
 
       valueFiles:
         - values-staging.yaml
