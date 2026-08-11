@@ -55,9 +55,6 @@ export function useSessionIdentity() {
 
       setIdentity(resolved);
       if (!resolved.bpn) {
-        // Not an error — a realm may simply not map it. Each Keycloak client
-        // needs its own mappers, so this is the first thing to check when a
-        // different environment shows no company.
         console.warn(
           '[EMC] No BPN in the session. Add "bpn" and "organisation" User Attribute ' +
             'mappers to this application\'s client in the identity provider.',

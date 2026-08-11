@@ -84,7 +84,6 @@ class KeycloakOpenID:
     def add_swagger_config(self, app):
         return None
 
-    # ------------------------------------------------------------------
     def _fetch_jwks(self) -> Optional[dict]:
         try:
             response = requests.get(self.jwks_uri, timeout=10)
