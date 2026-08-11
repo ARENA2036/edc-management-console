@@ -65,15 +65,15 @@ spec:
           value: REPLACE_FRONTEND_IMAGE_TAG
           forceString: true
 
-        # Developer Preview backend URL
+        # Developer Preview frontend backend URL.
         # VITE_BACKEND_URL is the first item in frontend.env.
         - name: frontend.env[0].value
-          value: https://REPLACE_BACKEND_HOST
+          value: "https://REPLACE_BACKEND_HOST"
           forceString: true
 
-        # Runtime backend URL
+        # Developer Preview runtime backend URL.
         - name: frontend.backendUrl
-          value: https://REPLACE_BACKEND_HOST
+          value: "https://REPLACE_BACKEND_HOST"
           forceString: true
 
         # Backend ingress
