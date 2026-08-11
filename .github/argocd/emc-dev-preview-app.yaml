@@ -50,6 +50,16 @@ spec:
                   url: http://REPLACE_PREVIEW_NAME-loki-gateway
                   editable: false
 
+        frontend:
+          env:
+            - name: VITE_BACKEND_URL
+              value: https://REPLACE_BACKEND_HOST
+
+          configuration: |-
+            window.__RUNTIME_CONFIG__ = {
+              apiUrl: https://REPLACE_BACKEND_HOST,
+            };
+
       parameters:
         # Unique resource names
         - name: fullnameOverride
