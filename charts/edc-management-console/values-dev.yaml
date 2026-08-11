@@ -589,7 +589,7 @@ frontend:
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: EMC,
+    clientId: EMC-1,
     sdeUrl: https://sde.txcd.arena2036.app,
     portalUrl: https://portal.txcd.arena2036-x.de
     };
