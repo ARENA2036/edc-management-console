@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
+import keycloak, { isAuthDisabled } from '../auth/keycloak';
 import type { DeployRequest } from '../types';
 
 const backendUrl = getRuntimeConfigValue(
@@ -30,6 +31,31 @@ if (apiKey) {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: apiClientHeaders,
+});
+
+apiClient.interceptors.request.use(async (config) => {
+  if (isAuthDisabled()) {
+    return config;
+  }
+
+  if (keycloak.authenticated) {
+    try {
+      const refreshed = await keycloak.updateToken(30);
+      if (refreshed) {
+        localStorage.setItem('token', keycloak.token || '');
+      }
+    } catch (error) {
+
+      console.warn('Failed to refresh the Keycloak token', error);
+    }
+  }
+
+  const token = keycloak.token || localStorage.getItem('token') || '';
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  return config;
 });
 
 

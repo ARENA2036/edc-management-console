@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from typing import Optional
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth.keycloak_config import keycloak_openid
@@ -401,6 +401,46 @@ def _assert_within_component_limits(components):
             )
 
 
+def _session_bpn_enforcement_enabled() -> bool:
+    identity_config = app_configuration.get("dataspaceConfig", {}).get("identity", {}) or {}
+    return bool(identity_config.get("enforceSessionBpn", False))
+
+
+def _apply_session_bpn(components, user: Optional[dict]):
+    if not user:
+        return
+
+    session_bpn = (user.get("bpn") or "").strip().upper()
+    connectors = [comp for comp in components if comp.type == "connector"]
+
+    if not session_bpn:
+        if connectors and _session_bpn_enforcement_enabled():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Your login does not provide a BPN, so a connector cannot be given a "
+                    "dataspace identity. Add a 'bpn' claim mapper for this client in the "
+                    "identity provider, or set identity.enforceSessionBpn: false."
+                ),
+            )
+        logger.warning("[deploy] No BPN in the caller's token; leaving the requested BPN as-is.")
+        return
+
+    for comp in connectors:
+        requested = (getattr(comp, "bpn", "") or "").strip().upper()
+        if requested and requested != session_bpn and _session_bpn_enforcement_enabled():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Connector '{comp.name}' was requested with BPN {requested}, but your "
+                    f"account belongs to {session_bpn}. A connector can only be deployed "
+                    "under your own BPN."
+                ),
+            )
+
+        comp.bpn = session_bpn
+
+
 async def _deploy_components(components, namespace):
     """Install-or-upgrade every component in the request (config-driven) and
     persist one DB row per component. A component with no `type`/`name` is an
@@ -454,10 +494,14 @@ async def add_components(payload: DeploymentRequest, request: Request):
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
         logger.info(payload)
+        _apply_session_bpn(payload.components, keycloak_openid.get_optional_user(request))
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         deployed = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, data={"deployed": deployed})
 
+    except HTTPException as e:
+        logger.warning("[deploy] %s", e.detail)
+        return HttpUtils.get_error_response(status=e.status_code, message=str(e.detail))
     except ComponentLimitExceeded as e:
         ## Expected, caller-correctable state — not a server fault, so no stack trace.
         logger.warning("[deploy] %s", e)
@@ -476,11 +520,15 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest, requ
         if not authManager.is_authenticated(request=request):
             return HttpUtils.get_not_authorized()
         logger.info(payload)
+        _apply_session_bpn(payload.components, keycloak_openid.get_optional_user(request))
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         upgraded = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, message="Components upgraded",
                                   data={"upgraded": upgraded})
 
+    except HTTPException as e:
+        logger.warning("[upgrade] %s", e.detail)
+        return HttpUtils.get_error_response(status=e.status_code, message=str(e.detail))
     except ComponentLimitExceeded as e:
         logger.warning("[upgrade] %s", e)
         return HttpUtils.get_error_response(status=409, message=str(e))
@@ -690,14 +738,16 @@ async def get_dataspace_settings(request: Request):
     try:
         dataspace_config = app_configuration.get("dataspaceConfig", {})
         edc_config = app_configuration.get("connector", {})
+        user = keycloak_openid.get_optional_user(request) or {}
 
         dataspace_name = dataspace_config.get("name", "Your Dataspace")
-        bpn = dataspace_config.get("authority_id", "BPNL000000000000")
+        authority_bpn = dataspace_config.get("authority_id", "BPNL000000000000")
 
         dataspace_settings = {
             "name": dataspace_name,
-            "bpn": bpn,
-            "realm": dataspace_config.get("name", "CX-Central"),
+            "authority_bpn": authority_bpn,
+            "bpn": authority_bpn,
+            "realm": dataspace_config.get("centralidp", {}).get("realm", ""),
             "username": dataspace_config.get("preferred_username", "user"),
             "centralidp": {
                 "url": dataspace_config.get("centralidp", {}).get("url", ""),
@@ -740,6 +790,13 @@ async def get_dataspace_settings(request: Request):
                 "dataplane_host_suffix": edc_config.get("hostname", {}).get("dataplane", ""),
                 "cluster_context": dataspace_config.get("clusterConfig", {}).get("context", "")
             },
+            "session": {
+                "username": user.get("preferred_username", ""),
+                "name": user.get("name", ""),
+                "bpn": user.get("bpn", ""),
+                "company": user.get("company", ""),
+                "enforceSessionBpn": _session_bpn_enforcement_enabled(),
+            },
             "deployment": {
                 "connector": _component_versions("connector"),
                 "digitalTwinRegistry": _component_versions("digitalTwinRegistry"),
@@ -770,6 +827,16 @@ def init_app(host: str, port: int, log_level: str = "info"):
         api_key: dict = auth_config.get("apiKey", {"key": "X-Api-Key", "value": "password"})
         authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
                                 configured_api_key=api_key.get("value", "password"), auth_enabled=True)
+
+    dataspace_config: dict = app_configuration.get("dataspaceConfig", {})
+    centralidp_config: dict = dataspace_config.get("centralidp", {}) or {}
+    identity_config: dict = dataspace_config.get("identity", {}) or {}
+    keycloak_openid.configure(
+        url=identity_config.get("url"),
+        realm=identity_config.get("realm"),
+        fallback_url=centralidp_config.get("url"),
+        fallback_realm=centralidp_config.get("realm"),
+    )
 
     ## Get environment specific configurations
     connector_config: dict = app_configuration.get("connector", {})

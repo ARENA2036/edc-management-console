@@ -158,9 +158,9 @@
   "sdeRedirectLinkPrefix": "If you are not redirected,",
   "sdeRedirectLinkLabel": "click here",
   "sdeRedirectLinkSuffix": ".",
-  "bpnLabel": "BPNL",
+  "bpnLabel": "Business Partner Number (BPNL)",
   "bpnPlaceholder": "BPNL000000000000",
-  "bpnHelp": "Use a valid business partner number in BPNL format.",
+  "bpnHelp": "The connector is registered in the dataspace under this BPN and it cannot be changed here.",
   "bpnPrefilledHelp": "This BPNL was detected automatically from your login or dataspace information. You can still adjust it if needed.",
   "versionLabel": "Version",
   "versionHelp": "Stable Tractus-X releases only. The newest version is preselected; pick an older one if you need to match an existing deployment.",
@@ -351,5 +351,12 @@
   "componentTypeLimitReached": "A maximum of {max} {type} instances can be deployed.",
   "componentAllLimitsReached": "Every component type has reached its deployment limit.",
   "componentLimitBlockedHint": "Delete an existing one on the dashboard to free up a slot.",
-  "monitorServiceCapacityLabel": "Capacity per type"
+  "monitorServiceCapacityLabel": "Capacity per type",
+  "settingsSectionCompany": "Your company",
+  "settingsLabelCompanyBpn": "Company BPNL",
+  "settingsLabelAuthorityBpn": "Dataspace authority BPNL",
+  "settingsLabelIdpRealm": "Identity provider realm",
+  "bpnUnavailablePlaceholder": "Not provided by your identity provider",
+  "bpnMissingWarning": "Your login does not contain a BPN, so this connector will be deployed without a business partner number. Ask your operator to add a BPN claim mapper for this application.",
+  "bpnMissingBlocking": "Your login does not contain a BPN, so a connector cannot be deployed. Ask your operator to add a BPN claim mapper for this application in the identity provider."
 }
