@@ -50,16 +50,6 @@ spec:
                   url: http://REPLACE_PREVIEW_NAME-loki-gateway
                   editable: false
 
-        frontend:
-          env:
-            - name: VITE_BACKEND_URL
-              value: https://REPLACE_BACKEND_HOST
-
-          configuration: |-
-            window.__RUNTIME_CONFIG__ = {
-              apiUrl: https://REPLACE_BACKEND_HOST,
-            };
-
       parameters:
         # Unique resource names
         - name: fullnameOverride
@@ -73,6 +63,17 @@ spec:
 
         - name: frontend.image.tag
           value: REPLACE_FRONTEND_IMAGE_TAG
+          forceString: true
+
+        # Developer Preview backend URL
+        # VITE_BACKEND_URL is the first item in frontend.env.
+        - name: frontend.env[0].value
+          value: https://REPLACE_BACKEND_HOST
+          forceString: true
+
+        # Runtime backend URL
+        - name: frontend.backendUrl
+          value: https://REPLACE_BACKEND_HOST
           forceString: true
 
         # Backend ingress
