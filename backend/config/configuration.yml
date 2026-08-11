@@ -23,16 +23,9 @@ dataspaceConfig:
     realm: "CX-Central"
     client_id: "${CENTRALIDP_CLIENT_ID}"
     client_secret: "${CENTRALIDP_CLIENT_SECRET}"
-  # Token verification and the caller's company identity. This realm is the one
-  # the BROWSER logs into (frontend VITE_KEYCLOAK_*), which is not necessarily
-  # `centralidp` above - that is the backend's own OAuth2 client for the discovery
-  # services and may point at another instance. Falls back to `centralidp` when
-  # unset; KEYCLOAK_URL / KEYCLOAK_REALM override it.
   identity:
     url: "https://centralidp.txcd.arena2036-x.de/auth/"
     realm: "CX-Central"
-    # Hold every connector deployment to the caller's own BPN. Requires the
-    # realm's client to have a `bpn` claim mapper; off unless set here.
     enforceSessionBpn: true
   ssi_wallet:
     url: "https://ssi-dim-wallet-stub.arena2036-x.de"
