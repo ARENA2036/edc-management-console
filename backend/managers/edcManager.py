@@ -200,14 +200,16 @@ class EdcManager:
         """
         cfg = self.components.get(component)
         if not cfg:
-            return {"error": f"No component named '{component}' is configured"}
+            return {"error": f"No component named '{component}' is configured",
+                    "error_code": "COMPONENT_TYPE_UNKNOWN"}
 
         # A chart is either a local directory (`chart.directory`) or a named chart
         # pulled from a repo (`chart.name` + `chart.repo`).
         chart = cfg.get("chart") or {}
         chart_directory = chart.get("directory")
         if not chart_directory and not chart.get("name"):
-            return {"error": f"Component '{component}' needs chart.directory or chart.name"}
+            return {"error": f"Component '{component}' needs chart.directory or chart.name",
+                    "error_code": "COMPONENT_CONFIG_INVALID"}
 
         # Render source = the request's own fields overlaid with the derived ones.
         render_source = {**self._as_dict(source), **self._derive(cfg.get("derive", {}), source)}
@@ -224,7 +226,8 @@ class EdcManager:
         entry = resolve_version_entry(version, versions) if versions else None
         if versions and entry is None:
             supported = [e.get("version") for e in versions]
-            return {"error": f"Unsupported {component} version '{version}'. Supported: {supported}"}
+            return {"error": f"Unsupported {component} version '{version}'. Supported: {supported}",
+                    "error_code": "VERSION_UNSUPPORTED"}
 
         values_yaml = (entry or cfg).get("valuesYaml", "")
         template_path = (cfg.get("templatesDir", "") + values_yaml) if values_yaml else None

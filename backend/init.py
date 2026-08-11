@@ -32,7 +32,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import FastAPI, Depends, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth.keycloak_config import keycloak_openid
@@ -45,6 +46,10 @@ from managers.edcManager import EdcManager, URL_SCHEME
 from managers.databaseManager import DatabaseManager
 from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
+from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
+                              DuplicateComponentName, EmcError, Stage,
+                              UnknownComponentType, UnsupportedVersion, classify,
+                              new_error_id)
 from utilities.operators import op
 from utilities.auth_utils import get_oauth2_token
 
@@ -94,6 +99,47 @@ app = FastAPI(title="EMC Backend")
 keycloak_openid.add_swagger_config(app)
 logger.info("[INIT] Starting EMC Backend...")
 
+@app.exception_handler(EmcError)
+async def handle_emc_error(request: Request, exc: EmcError):
+    """A failure raised deliberately - it already carries its own status."""
+    return HttpUtils.error_response(exc, stage=exc.stage, log=logger)
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request: Request, exc: RequestValidationError):
+    """422 naming the offending fields.
+
+    FastAPI already answers 422; what it does not do is use this envelope or
+    report the fields in a form a client can show without understanding
+    pydantic's error format.
+    """
+    fields = [
+        "{}: {}".format(
+            ".".join(str(part) for part in item.get("loc", ()) if part != "body") or "body",
+            item.get("msg", "invalid value"),
+        )
+        for item in exc.errors()
+    ]
+    error_id = new_error_id()
+    logger.warning("[VALIDATION_FAILED][stage=%s][id=%s] %s",
+                   Stage.REQUEST, error_id, "; ".join(fields))
+    return HttpUtils.get_error_response(
+        status=422,
+        message="The request payload is not valid.",
+        code="VALIDATION_FAILED",
+        stage=Stage.REQUEST,
+        detail="\n".join(fields),
+        hint="Correct the listed fields and send the request again.",
+        error_id=error_id,
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request: Request, exc: Exception):
+    """Last resort. Anything here is a bug: logged with a traceback and reported
+    as 500, never downgraded to a 4xx that would look like the caller's fault."""
+    return HttpUtils.error_response(exc, stage=Stage.INTERNAL, log=logger)
+
 # ------------------------------------------------------------
 # Initialize Managers
 # ------------------------------------------------------------
@@ -109,14 +155,6 @@ logger.info("[INIT] All managers initialized successfully!")
 # ------------------------------------------------------------
 
 DEFAULT_MAX_COMPONENT_INSTANCES = 3
-
-
-class ComponentLimitExceeded(Exception):
-    """A deploy request would push a component type past its configured cap.
-
-    Distinct from a generic failure so the deploy endpoints can answer 409
-    (the request conflicts with current state) instead of 500.
-    """
 
 
 def _component_instance_limit(component_type: str) -> int:
@@ -176,10 +214,11 @@ async def _reconcile_and_get_release_name(record: ConnectorDB, default_namespace
     namespace = record.namespace or default_namespace
     try:
         exists = await edcService.release_exists(release_name=release_name, namespace=namespace)
-    except Exception as e:
+    except Exception as exc:
+        error = classify(exc, stage=Stage.CLUSTER)
         logger.warning(
-            "[reconcile] Could not verify release '%s' in namespace '%s' (%s); keeping row",
-            release_name, namespace, e,
+            "[reconcile][%s][stage=%s] Could not verify release '%s' in namespace '%s': %s; keeping row",
+            error.code, error.stage, release_name, namespace, error.message,
         )
         return release_name
 
@@ -245,9 +284,8 @@ async def list_components(request: Request):
             status=200,
             data=json_list
         )
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.DATABASE, log=logger)
 
 @app.get("/api/components/health", tags=["Components"])
 async def all_components_health(request: Request):
@@ -269,9 +307,8 @@ async def all_components_health(request: Request):
             results.append(health)
 
         return HttpUtils.response(status=200, data=results)
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 @app.get("/api/components/{component_name}/health", tags=["Components"])
 async def get_component_health(component_name: str, request: Request):
@@ -283,19 +320,23 @@ async def get_component_health(component_name: str, request: Request):
 
         record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
-            return HttpUtils.get_error_response(status=404, message="Component not found")
+            return HttpUtils.get_error_response(
+                status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
+                message=f"No component named '{component_name}' is known to this console.")
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         if not await _reconcile_and_get_release_name(record, namespace):
-            return HttpUtils.get_error_response(status=404, message="Component not found")
+            return HttpUtils.get_error_response(
+                status=404, code="COMPONENT_NOT_FOUND", stage=Stage.CLUSTER,
+                message=f"Component '{component_name}' no longer exists in the cluster.",
+                hint="Refresh the dashboard - the component list has changed.")
 
         health = edcManager.component_health(record)
         record.status = "active" if health.get("healthy") else "unreachable"
         databaseManager.update_connector(record)
         return HttpUtils.response(status=200, data=health)
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 @app.get("/api/components/{component_id}", tags=["Components"])
 async def get_component(component_id: str, user=Depends(keycloak_openid.get_current_user)):
@@ -303,14 +344,15 @@ async def get_component(component_id: str, user=Depends(keycloak_openid.get_curr
     try:
         component = databaseManager.get_connector_by_id(component_id)
         if not component:
-            return HttpUtils.get_error_response(status=404, message="Component not found")
+            return HttpUtils.get_error_response(
+                status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
+                message=f"No component with id '{component_id}' is known to this console.")
         return {
             "user": user["preferred_username"],
             "data": component.to_dict()
         }
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.DATABASE, log=logger)
 
 def _upsert_component_row(comp, plan, namespace):
     """Create or refresh the ConnectorDB row for one deployed component.
@@ -397,7 +439,8 @@ def _assert_within_component_limits(components):
             raise ComponentLimitExceeded(
                 f"Cannot deploy '{comp.name}': at most {limit} component(s) of type "
                 f"'{comp.type}' may exist at a time and that limit is already reached. "
-                "Delete an existing one before deploying another."
+                "Delete an existing one before deploying another.",
+                hint="Delete an existing component of this type, then deploy again.",
             )
 
 
@@ -415,13 +458,12 @@ def _apply_session_bpn(components, user: Optional[dict]):
 
     if not session_bpn:
         if connectors and _session_bpn_enforcement_enabled():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Your login does not provide a BPN, so a connector cannot be given a "
-                    "dataspace identity. Add a 'bpn' claim mapper for this client in the "
-                    "identity provider, or set identity.enforceSessionBpn: false."
-                ),
+            raise EmcError(
+                "Your login does not provide a BPN, so a connector cannot be given a "
+                "dataspace identity.",
+                status=403, code="SESSION_BPN_MISSING", stage=Stage.AUTH,
+                hint="Add a 'bpn' claim mapper for this client in the identity provider, "
+                     "or set identity.enforceSessionBpn: false.",
             )
         logger.warning("[deploy] No BPN in the caller's token; leaving the requested BPN as-is.")
         return
@@ -429,16 +471,40 @@ def _apply_session_bpn(components, user: Optional[dict]):
     for comp in connectors:
         requested = (getattr(comp, "bpn", "") or "").strip().upper()
         if requested and requested != session_bpn and _session_bpn_enforcement_enabled():
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Connector '{comp.name}' was requested with BPN {requested}, but your "
-                    f"account belongs to {session_bpn}. A connector can only be deployed "
-                    "under your own BPN."
-                ),
+            raise EmcError(
+                f"Connector '{comp.name}' was requested with BPN {requested}, but your "
+                f"account belongs to {session_bpn}.",
+                status=403, code="SESSION_BPN_MISMATCH", stage=Stage.AUTH,
+                hint="A connector can only be deployed under your own BPN.",
             )
 
         comp.bpn = session_bpn
+
+
+def _plan_error(plan) -> EmcError:
+    """Map a ``prepare_deployment`` refusal onto the right status.
+
+    An unknown type or an unsupported version is the caller's mistake (400); a
+    component whose chart block is incomplete is this console's own
+    misconfiguration (500). ``prepare_deployment`` tags each refusal with
+    ``error_code`` so this never has to sniff the message text.
+    """
+    message = plan.get("error", "The deployment could not be prepared.")
+    by_code = {
+        "VERSION_UNSUPPORTED": (
+            UnsupportedVersion,
+            "Choose one of the versions published on /api/dataspace for this component type."),
+        "COMPONENT_TYPE_UNKNOWN": (
+            UnknownComponentType,
+            "Only types configured under `components` in configuration.yml can be deployed."),
+        "COMPONENT_CONFIG_INVALID": (
+            ComponentMisconfigured,
+            "An operator must fix this component's `chart` block in configuration.yml."),
+    }
+    error_class, hint = by_code.get(plan.get("error_code"), (None, None))
+    if error_class is None:
+        return EmcError(message, stage=Stage.CONFIG)
+    return error_class(message, hint=hint)
 
 
 async def _deploy_components(components, namespace):
@@ -451,10 +517,11 @@ async def _deploy_components(components, namespace):
     seen_names = set()
     for dup_name in named_components:
         if dup_name in seen_names:
-            raise Exception(
+            raise DuplicateComponentName(
                 f"Component name '{dup_name}' is used more than once in this request. "
                 "Each component (connector, submodel server, digital twin registry) "
-                "needs its own unique name."
+                "needs its own unique name.",
+                hint="Rename one of the duplicates and submit again.",
             )
         seen_names.add(dup_name)
 
@@ -465,7 +532,7 @@ async def _deploy_components(components, namespace):
             continue
         plan = edcManager.prepare_deployment(comp.type, comp)
         if "error" in plan:
-            raise Exception(plan["error"])
+            raise _plan_error(plan)
         await edcService.install_or_upgrade(
             release_name=plan["release_name"],
             chart_name=plan["chart"],
@@ -499,16 +566,8 @@ async def add_components(payload: DeploymentRequest, request: Request):
         deployed = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, data={"deployed": deployed})
 
-    except HTTPException as e:
-        logger.warning("[deploy] %s", e.detail)
-        return HttpUtils.get_error_response(status=e.status_code, message=str(e.detail))
-    except ComponentLimitExceeded as e:
-        ## Expected, caller-correctable state — not a server fault, so no stack trace.
-        logger.warning("[deploy] %s", e)
-        return HttpUtils.get_error_response(status=409, message=str(e))
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 @app.put("/api/components/{component_id}", tags=["Components"])
 async def upgrade_components(component_id: str, payload: DeploymentRequest, request: Request):
@@ -526,15 +585,8 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest, requ
         return HttpUtils.response(status=200, message="Components upgraded",
                                   data={"upgraded": upgraded})
 
-    except HTTPException as e:
-        logger.warning("[upgrade] %s", e.detail)
-        return HttpUtils.get_error_response(status=e.status_code, message=str(e.detail))
-    except ComponentLimitExceeded as e:
-        logger.warning("[upgrade] %s", e)
-        return HttpUtils.get_error_response(status=409, message=str(e))
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 @app.delete("/api/components/{component_name}", tags=["Components"])
 async def delete_component(component_name: str, request: Request):
@@ -550,7 +602,10 @@ async def delete_component(component_name: str, request: Request):
 
         record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
-            return HttpUtils.get_error_response(status=404, message="Component not found")
+            return HttpUtils.get_error_response(
+                status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
+                message=f"No component named '{component_name}' is known to this console.",
+                hint="It may already have been deleted - refresh the dashboard.")
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         release_name = (record.config or {}).get("release") or record.name
@@ -562,9 +617,8 @@ async def delete_component(component_name: str, request: Request):
 
         return HttpUtils.response(status=200, message=f"Deleted '{record.name}'")
 
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 
 @app.post("/api/submodel", tags=["Submodel"])
@@ -588,7 +642,9 @@ async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_curr
         }
 
         if not url:
-            return HttpUtils.get_error_response(status=400, message="URL is required")
+            return HttpUtils.get_error_response(
+                status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
+                message="A submodel service URL is required.")
 
         database_manager.log_activity(
             action="DEPLOY_SUBMODEL",
@@ -605,9 +661,8 @@ async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_curr
                 "status": "deployed"
             }
         }
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 @app.post("/api/submodel/{submodel_service_id}", tags=["Submodel"])
 async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
@@ -635,7 +690,9 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
             headers["Authorization"] = f"Bearer {token}"
 
         if not url or not bpn:
-            return HttpUtils.get_error_response(status=400, message="URL and BPN are required")
+            return HttpUtils.get_error_response(
+                status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
+                message="Both a submodel service URL and a BPN are required.")
 
         import requests
         health_url = f"{url.rstrip('/')}/api/health"
@@ -662,9 +719,8 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
             }
         }
 
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 # @app.get("/api/logs", tags=["Logs"])
 # async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
@@ -810,9 +866,8 @@ async def get_dataspace_settings(request: Request):
             "user": dataspace_config.get("preferred_username", "user"),
             "data": dataspace_settings
         }
-    except Exception as e:
-        logger.exception(str(e))
-        return HttpUtils.get_error_response(status=500, message=str(e))
+    except Exception as exc:
+        return HttpUtils.error_response(exc, stage=Stage.CONFIG, log=logger)
 
 
 def init_app(host: str, port: int, log_level: str = "info"):

@@ -8,12 +8,15 @@ import keycloak, {
   validateKeycloakConfig,
 } from './auth/keycloak'
 import { I18nProvider } from './i18n'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const renderApp = () => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <I18nProvider>
-        <AppNew />
+        <ErrorBoundary>
+          <AppNew />
+        </ErrorBoundary>
       </I18nProvider>
     </StrictMode>,
   );

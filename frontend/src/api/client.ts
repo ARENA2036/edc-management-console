@@ -2,6 +2,7 @@ import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
 import keycloak, { isAuthDisabled } from '../auth/keycloak';
 import type { DeployRequest } from '../types';
+import { toApiError } from './errors';
 
 const backendUrl = getRuntimeConfigValue(
   import.meta.env.VITE_BACKEND_URL,
@@ -31,7 +32,13 @@ if (apiKey) {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: apiClientHeaders,
+  timeout: 120_000,
 });
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(toApiError(error)),
+);
 
 apiClient.interceptors.request.use(async (config) => {
   if (isAuthDisabled()) {
