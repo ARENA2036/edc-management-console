@@ -1,4 +1,4 @@
-# ARENA2036 EDC Management Console
+# EDC Management Console
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Stargazers][stars-shield]][stars-url]
