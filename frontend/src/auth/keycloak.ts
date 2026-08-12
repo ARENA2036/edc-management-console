@@ -19,8 +19,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
-import Keycloak from 'keycloak-js';
-import { getRuntimeConfigValue } from '../runtime-config';
+import Keycloak, { type KeycloakConfig } from 'keycloak-js';
+import { getRuntimeConfigBoolean, getRuntimeConfigValue } from '../runtime-config';
 
 export function getKeycloakConfig(): KeycloakConfig {
   return {

@@ -19,6 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
+import logging
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Any, Dict, Optional
 import io

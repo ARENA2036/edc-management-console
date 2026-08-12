@@ -19,7 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import {
   Activity,

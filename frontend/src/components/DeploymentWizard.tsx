@@ -19,8 +19,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
-import { Plus, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';

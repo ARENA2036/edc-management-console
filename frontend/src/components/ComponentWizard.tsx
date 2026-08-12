@@ -19,9 +19,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
-import { CheckCircle2, ChevronDown, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { DashboardConnector, ManagedComponent } from '../types';
+import { CheckCircle2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 import {
