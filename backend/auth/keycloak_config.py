@@ -2,7 +2,7 @@ import logging
 import os
 import threading
 import time
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import requests
 from fastapi import Depends, HTTPException, Request, status
