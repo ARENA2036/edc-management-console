@@ -1,8 +1,26 @@
-# EDC Management Console
+# ARENA2036 EDC Management Console
 
-EDC management platform for Tractus-X EDC (Eclipse Dataspace Connector) instances with Keycloak authentication.
+[![Contributors][contributors-shield]][contributors-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Apache 2.0 License][license-shield]][license-url]
 
-## Features
+[![Latest Release][release-shield]][release-url]
+[![Latest Snapshot][snapshot-shield]]()
+
+<!-- [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=eclipse-tractusx_tractusx-edc&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=eclipse-tractusx_tractusx-edc) -->
+
+EDC Management Console (EMC) is a platform designed to manage the deployment and lifecycle of various Eclipse ecosystem components. In its current version, EMC provides streamlined support for provisioning and operating Tractus-X EDC (Eclipse Dataspace Connector) instances, including full integration with Keycloak for authentication and access control. This allows users to deploy secure, compliant, and configurable EDC runtimes with minimal manual setup.
+
+Please refer to:
+
+- [Our docs](docs/README.md)
+- [Our Releases]()
+- [Report Bug / Request Feature](https://github.com/ARENA2036/edc-management-console/issues)
+
+## About The Project
+The project provides pre-built backend and frontend [docker](https://www.docker.com/) images and [helm](https://helm.sh/) charts of the EMC application.
+
+### Features
 
 - 🔐 **Keycloak Authentication** - Secure OAuth2/OIDC authentication
 - 📊 **Dashboard** - Real-time monitoring with statistics cards
@@ -10,173 +28,35 @@ EDC management platform for Tractus-X EDC (Eclipse Dataspace Connector) instance
 - 📋 **Connector Management** - Full CRUD operations for EDC connectors
 - 📈 **Activity Logging** - Track all system activities
 
-## Documentation Paths
+### Technology Stack
 
-Choose the path that matches your role:
-
-- Workshop participant or first-time user: start with the [user guide](docs/user-guide/README.md). It explains login, dashboard navigation, connector deployment, component setup, dataspace settings, and SDE handoff.
-- Workshop coach or tutorial organizer: use the [end-to-end workshop guide](docs/README.md) for onboarding context and the overall EMC-to-SDE flow.
-- Developer or operator: continue with the setup sections below for local execution, configuration, and deployment prerequisites.
-
-## Technology Stack
-
-### Backend
+#### Backend
 - **Python 3.11** with FastAPI
-- **SQLite by default** with SQLAlchemy ORM
-- **API Key and Keycloak Authentication** depending on endpoint
+- **PostgreSQL** database with SQLAlchemy ORM
+- **API Key Authentication** (Keycloak integration ready)
 
-### Frontend
+#### Frontend
 - **React 18** with TypeScript
 - **Tailwind CSS** for styling
 - **Keycloak-js** for authentication
 - **React Router** for navigation
 
-## Local Setup
-
-### Prerequisites
-
-For local development:
-
-- Python 3.11+
-- Node.js 20+
-- Keycloak 23+ or a compatible configured Keycloak instance
-
-For containerized or Kubernetes-based deployment:
-
-- [Docker](https://docs.docker.com/get-docker/) for building and running backend/frontend images.
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) for interacting with the target Kubernetes cluster.
-- [Helm v3+](https://helm.sh/docs/intro/install/) for installing and upgrading chart-based deployments.
-- Cloud or platform CLI access, if your target Kubernetes environment requires it.
-- Access to the container registry used by your organization.
-- Access to a Kubernetes cluster or another supported runtime environment for deploying the backend, frontend, and connector-related services.
-- Deployment-specific configuration values for the backend and frontend, including authentication settings, dataspace settings, SDE URL, connector hostnames, cluster context, namespace, and registry credentials.
-
-Before deploying to a shared environment, confirm that `kubectl` points to the correct cluster and namespace, and that your registry credentials allow the cluster to pull the EMC images.
-
-### 1. Clone Repository
-```bash
-git clone <repository-url>
-cd edc-management-console
-```
-
-### 2. Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create environment variables or configure backend/config/configuration.yml values:
-# - API_KEY (your secure API key)
-# - Keycloak credentials
-```
-
-**Environment Variables (.env):**
-```env
-# API Authentication
-API_KEY=your-secure-api-key-here
-
-# Keycloak
-KEYCLOAK_URL=http://localhost:8080
-KEYCLOAK_REALM=CX-Central
-KEYCLOAK_CLIENT_ID=CX-EDC
-CENTRALIDP_CLIENT_ID=your-client-id
-CENTRALIDP_CLIENT_SECRET=your-client-secret
-```
-
-**Run Backend:**
-```bash
-python init.py --host 0.0.0.0 --port 8001
-```
-
-Backend will be available at: `http://localhost:8001`  
-API Documentation: `http://localhost:8001/docs`
-
-> Note: the backend managers are initialized by the `init_app()` path. If you start the backend with `uvicorn init:app`, make sure startup/lifespan initialization has been wired first.
-
-### 3. Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Configure environment
-# Create frontend/.env and set your values:
-```
-
-**Frontend Environment (.env):**
-```env
-VITE_BACKEND_URL=http://localhost:8001
-VITE_API_KEY=your-secure-api-key-here
-
-# Keycloak Configuration
-VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=CX-Central
-VITE_KEYCLOAK_CLIENT_ID=CX-EDC
-
-# Optional companion app
-VITE_SDE_URL=https://sde.example.com
-```
-
-**Run Frontend:**
-```bash
-npm run dev
-```
-
-Frontend will be available at: `http://localhost:5000`
-
-### 4. Keycloak Setup
-
-The frontend starts with Keycloak login, so a working Keycloak configuration is required unless the application code is changed for local development.
-
-1. **Install Keycloak:**
-```bash
-# Using Docker
-docker run -p 8080:8080 \
-  -e KEYCLOAK_ADMIN=admin \
-  -e KEYCLOAK_ADMIN_PASSWORD=admin \
-  quay.io/keycloak/keycloak:latest start-dev
-```
-
-2. **Configure Keycloak:**
-- Access Keycloak admin console: `http://localhost:8080`
-- Create realm: `CX-Central`
-- Create client: `CX-EDC`
-  - Client Protocol: `openid-connect`
-  - Access Type: `public`
-  - Valid Redirect URIs: `http://localhost:5000/*`
-  - Web Origins: `http://localhost:5000`
-- Create users and assign roles
-
-### 5. Database Migration
-
-The application automatically creates SQLite tables on startup. For manual migration:
-
-```bash
-cd backend
-python -c "from managers.databaseManager import DatabaseManager; DatabaseManager('sqlite:///edc_manager.db').create_tables()"
-```
-
-## Usage
+## Getting Started
+Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ### Deploying an EDC Connector
 
-1. Click **ADD** on the dashboard.
-2. Choose **EDC Connector**.
-3. Enter connector name, BPNL, version, API/control-plane endpoint, and data-plane endpoint.
-4. Deploy the connector, or deploy and continue into the component wizard when available.
+1. Click **"Add EDC"** button on dashboard
+2. Follow the 4-step wizard:
+   - **Step 1:** Configure Submodel Service (URL, API Key)
+   - **Step 2:** EDC Configuration (Name, URL)
+   - **Step 3:** Business Partner Number (BPN)
+   - **Step 4:** Review and Deploy
 
 ### Managing Connectors
 
 - **View YAML:** Click the YAML button to see connector configuration
-- **Add Component:** Link a Submodel Service or Digital Twin Registry to a connector
+- **Edit:** Modify connector settings
 - **Delete:** Remove connector (confirmation required)
 - **Monitor Health:** View real-time health status
 
@@ -189,26 +69,22 @@ python -c "from managers.databaseManager import DatabaseManager; DatabaseManager
 
 ## API Endpoints
 
-### Components
-A component is anything the console can deploy: a connector, a digital twin
-registry, a submodel server, ...
-
-- `GET /api/components` - List all deployed components
-- `POST /api/component` - Deploy one or more components
-- `GET /api/components/{id}` - Get one component
-- `PUT /api/components/{id}` - Upgrade one or more components
-- `DELETE /api/components/{name}` - Delete one component by name
-- `GET /api/components/health` - Health of every deployed component
-- `GET /api/components/{name}/health` - Health of one component by name
+### Connectors
+- `GET /api/connectors` - List all connectors
+- `POST /api/connectors` - Create connector
+- `GET /api/connectors/{id}` - Get connector
+- `PUT /api/connectors/{id}` - Update connector
+- `DELETE /api/connectors/{id}` - Delete connector
+- `GET /api/connectors/{id}/health` - Check health
 
 ### System
-- `GET /health` - Backend health
-- `GET /api/config` - Application configuration
-- `GET /api/dataspace` - Dataspace settings
-- `GET /api/logs` - Activity logs, when enabled by the backend
+- `GET /api/health` - System health
+- `GET /api/edc/health` - Default EDC health
+- `GET /api/activity-logs` - Activity logs
 
-### Companion Applications
-- SDE opens from the frontend using `VITE_SDE_URL` or the configured SDE URL returned by `/api/dataspace`.
+### EDC Operations
+- `POST /api/data/get` - EDC GET request with policies
+- `POST /api/data/post` - EDC POST request with policies
 
 ## Architecture
 
@@ -234,11 +110,10 @@ registry, a submodel server, ...
 │   │   │   ├── Header.tsx
 │   │   │   ├── StatsCard.tsx
 │   │   │   ├── DeploymentWizard.tsx
-│   │   │   ├── ConnectorsManager.tsx
-│   │   │   └── ComponentsManager.tsx
+│   │   │   └── ConnectorTableNew.tsx
 │   │   ├── api/             # API client
 │   │   ├── types/           # TypeScript types
-│   │   ├── auth/keycloak.ts # Keycloak integration
+│   │   ├── keycloak.ts      # Keycloak integration
 │   │   └── AppNew.tsx       # Main application
 ```
 
@@ -246,7 +121,7 @@ registry, a submodel server, ...
 
 ### Production Deployment
 
-1. **Change default API key** in configuration
+1. **Change default API key** in `.env`
 2. **Use strong database credentials**
 3. **Enable HTTPS** for all connections
 4. **Configure CORS** properly
@@ -256,9 +131,7 @@ registry, a submodel server, ...
 
 ### Environment Variables
 
-Never commit `.env` files to version control. Create them locally and keep real values outside the repository.
-
-## Development
+Never commit `.env` files to version control. Use `.env.example` as template.
 
 ### Running Tests
 ```bash
@@ -283,41 +156,30 @@ cd frontend
 npm run lint
 ```
 
-## Troubleshooting
-
-### Backend Issues
-
-**Database initialization failed:**
-- Ensure the backend can write `edc_manager.db`
-- Ensure backend startup initialization runs before API requests
-
-**API key authentication failed:**
-- Check API_KEY in backend .env
-- Ensure frontend sends correct header (X-Api-Key)
-- Verify VITE_API_KEY in frontend .env
-
-### Frontend Issues
-
-**Blank screen:**
-- Check browser console for errors
-- Verify API connection (`VITE_BACKEND_URL`)
-- Ensure backend is running
-
-**Keycloak redirect loop:**
-- Check Keycloak client configuration
-- Verify redirect URIs
-- Ensure realm and client ID match
-
-### Network Issues
-
-**CORS errors:**
-- Backend CORS middleware is configured for all origins in development
-- For production, restrict origins in init.py
 
 
 ## License
 
-- Code: Apache-2.0
-- Non-code: CC-BY-4.0
-- Notice: see `NOTICE` when present in the repository
-- Source URL: https://github.com/eclipse-tractusx/edc-management-console
+Distributed under the Apache 2.0 License. See [LICENSE](/LICENSE) for more information.
+
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+
+[contributors-shield]: https://img.shields.io/github/contributors/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[contributors-url]: https://github.com/ARENA2036/edc-management-console/graphs/contributors
+
+[stars-shield]: https://img.shields.io/github/stars/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[stars-url]: https://github.com/ARENA2036/edc-management-console/stargazers
+
+[license-shield]: https://img.shields.io/github/license/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[license-url]: LICENSE
+
+[release-shield]: https://img.shields.io/github/v/release/eclipse-tractusx/tractusx-edc.svg?style=for-the-badge
+
+[release-url]: https://github.com/ARENA2036/edc-management-console/releases
+
+[snapshot-shield]: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Feclipse-tractusx%2Ftractusx-edc%2Frefs%2Fheads%2Fgh-pages%2Fmisc%2Flatest-versioned-snapshot.txt&search=.*&style=for-the-badge&label=Latest-Snapshot
