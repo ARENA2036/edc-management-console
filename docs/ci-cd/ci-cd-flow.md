@@ -331,3 +331,12 @@ After the Production deployment succeeds, the pipeline packages and releases the
 * Integrated Grafana, Prometheus, and Loki observability.
 * Production remains isolated from development environments.
 * Helm chart packaging and release after successful Production deployment.
+
+## NOTICE
+
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+- Copyright (c) 2026 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2026 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console

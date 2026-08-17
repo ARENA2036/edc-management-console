@@ -201,3 +201,12 @@ The Grafana dashboard sidecar also searches the preview namespace for dashboard 
 * The same Helm chart and `values-dev.yaml` are reused.
 * Developer previews are deployed to the AP6 development cluster.
 * Shared Dev and Production remain separate from developer preview deployments.
+
+## NOTICE
+
+This work is licensed under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+- Copyright (c) 2026 ARENA2036 e.V.
+- SPDX-License-Identifier: CC-BY-4.0
+- SPDX-FileCopyrightText: 2026 Contributors to the Eclipse Foundation
+- Source URL: https://github.com/eclipse-tractusx/edc-management-console
