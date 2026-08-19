@@ -40,7 +40,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "fc3056aa085f4b061a495e8b61f46811e6a3fbb1"
+    tag: "6a75ed03a931be0861d9629d3751028421daffae"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -389,7 +389,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "fc3056aa085f4b061a495e8b61f46811e6a3fbb1"
+    tag: "6a75ed03a931be0861d9629d3751028421daffae"
   imagePullSecrets:
     - name: registry-creds
   env:
