@@ -97,7 +97,7 @@
   "monitorComingSoon": "System-Monitoring folgt in Kürze...",
   "settingsTitle": "Datenraum-Einstellungen",
   "settingsLoading": "Einstellungen werden geladen...",
-  "settingsDescription": "Diese Datenraum und Plattform-Einstellungen werden hier nur zur Referenz angezeigt und können nicht bearbeitet werden.",
+  "settingsDescription": "Diese Datenraum- und Plattform-Einstellungen werden hier nur zur Referenz angezeigt und können nicht bearbeitet werden.",
   "footerCopyright": "Lizenzen: Apache-2.0 (Code) | CC-BY-4.0 (Nicht-Code)",
   "deleteConnectorTitle": "Connector löschen",
   "deleteConnectorMessage": "Möchten Sie \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",

@@ -132,10 +132,14 @@ class KeycloakOpenID:
 
     def decode_token(self, token: str) -> dict:
         """Return the token's verified claims, or raise 401."""
-        if not self.verify_signature or not self.is_configured:
-            logger.warning("[Keycloak] Signature verification is disabled; token is untrusted.")
+        if not self.verify_signature:
+            logger.warning("[Keycloak] KEYCLOAK_VERIFY_SIGNATURE is off; token is untrusted.")
             return jwt.decode(token, key="", options={"verify_signature": False,
                                                       "verify_aud": False})
+
+        if not self.is_configured:
+            logger.error("[Keycloak] No identity provider configured; rejecting bearer tokens.")
+            raise _unauthorized("Identity provider is not configured; the token cannot be trusted.")
 
         try:
             kid = jwt.get_unverified_header(token).get("kid")

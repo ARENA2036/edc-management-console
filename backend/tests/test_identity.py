@@ -1,10 +1,24 @@
-"""Bearer-token verification and the company identity read from it.
-
-The case worth protecting is the one the previous implementation got wrong: it
-decoded tokens with ``verify_signature: False``, so any self-made JWT was
-believed — and its BPN is what a deployed connector gets stamped with.
-``test_rejects_token_signed_by_another_key`` is that attack.
-"""
+###############################################################
+# Tractus-X - EDC Management Console
+#
+# Copyright (c) 2026 ARENA2036 e.V.
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+###############################################################
 
 import base64
 import os
@@ -192,3 +206,50 @@ def test_optional_user_ignores_a_bad_or_absent_token(keycloak, monkeypatch):
 
     assert keycloak.get_optional_user(Broken()) is None
     assert keycloak.get_optional_user(Absent()) is None
+
+
+def test_fails_closed_when_no_identity_provider_is_configured(monkeypatch):
+    """A missing URL/realm is a misconfiguration, not permission to trust the
+    caller. Without an issuer there is nothing to verify against, so anyone
+    could self-sign a token carrying whatever `bpn` they liked."""
+    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_VERIFY_SIGNATURE"):
+        monkeypatch.delenv(name, raising=False)
+
+    unconfigured = KeycloakOpenID()
+    assert not unconfigured.is_configured
+
+    pem, _ = _generate_key("kid-1")
+    forged = _sign(pem, "kid-1", {"bpn": "BPNL000000000042", "organisation": "Someone Else"})
+
+    with pytest.raises(HTTPException) as error:
+        unconfigured.decode_token(forged)
+    assert error.value.status_code == 401
+
+
+def test_optional_user_reports_no_identity_when_unconfigured(monkeypatch):
+    """The fail-closed path must stay invisible to API-key callers: no identity
+    rather than a 401 on an otherwise working request."""
+    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_VERIFY_SIGNATURE"):
+        monkeypatch.delenv(name, raising=False)
+
+    unconfigured = KeycloakOpenID()
+    pem, _ = _generate_key("kid-1")
+
+    class Request:
+        headers = {"Authorization": f"Bearer {_sign(pem, 'kid-1', {'bpn': 'BPNL000000000042'})}"}
+
+    assert unconfigured.get_optional_user(Request()) is None
+
+
+def test_verification_can_still_be_disabled_deliberately(monkeypatch):
+    """KEYCLOAK_VERIFY_SIGNATURE=false remains an explicit, logged opt-out — the
+    point of the change is that *misconfiguration* no longer implies it."""
+    monkeypatch.delenv("KEYCLOAK_URL", raising=False)
+    monkeypatch.delenv("KEYCLOAK_REALM", raising=False)
+    monkeypatch.setenv("KEYCLOAK_VERIFY_SIGNATURE", "false")
+
+    relaxed = KeycloakOpenID()
+    pem, _ = _generate_key("kid-1")
+
+    claims = relaxed.decode_token(_sign(pem, "kid-1", {"bpn": "bpnl000000000042"}))
+    assert relaxed.build_user(claims)["bpn"] == "BPNL000000000042"
