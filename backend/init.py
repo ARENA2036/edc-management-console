@@ -51,7 +51,7 @@ from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
                               UnknownComponentType, UnsupportedVersion, classify,
                               new_error_id)
 from utilities.operators import op
-from utilities.auth_utils import get_oauth2_token
+from utilities.auth_utils import assert_safe_external_url, get_oauth2_token
 
 op.make_dir("logs")
 
@@ -694,10 +694,16 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
                 status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
                 message="Both a submodel service URL and a BPN are required.")
 
+        # The probe below carries whatever credentials the caller configured
+        # above, so the URL it targets has to be vetted first — see
+        # assert_safe_external_url.
+        url = assert_safe_external_url(url, field="url")
+
         import requests
         health_url = f"{url.rstrip('/')}/api/health"
         try:
-            check = requests.get(health_url, headers=headers, timeout=5)
+            check = requests.get(health_url, headers=headers, timeout=5,
+                                 allow_redirects=False)
             reachable = check.status_code == 200
         except Exception:
             reachable = False
