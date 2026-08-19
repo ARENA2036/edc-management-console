@@ -45,10 +45,6 @@ dataspaceConfig:
     realm: "CX-Central"
     client_id: "${CENTRALIDP_CLIENT_ID}"
     client_secret: "${CENTRALIDP_CLIENT_SECRET}"
-  identity:
-    url: "https://centralidp.txcd.arena2036-x.de/auth/"
-    realm: "CX-Central"
-    enforceSessionBpn: true
   ssi_wallet:
     url: "https://ssi-dim-wallet-stub.arena2036-x.de"
     client_id: "${SSI_WALLET_CLIENT_ID}"

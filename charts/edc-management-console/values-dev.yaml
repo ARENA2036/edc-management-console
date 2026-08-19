@@ -40,7 +40,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "d844572eca9baf5b7d51efeba652b090900ecaad"
+    tag: "8505ebe061e96a4c07c5b2dde073f76bd7f2f0a0"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -117,11 +117,7 @@ backend:
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  podSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 3000
-    fsGroup: 3000
-    fsGroupChangePolicy: OnRootMismatch
+  podSecurityContext: {}
   securityContext: {}
   envFrom: []
   env:
@@ -203,7 +199,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "d844572eca9baf5b7d51efeba652b090900ecaad"
+    tag: "8505ebe061e96a4c07c5b2dde073f76bd7f2f0a0"
   imagePullSecrets:
     - name: registry-creds
   env:
