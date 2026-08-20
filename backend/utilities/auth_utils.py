@@ -23,7 +23,7 @@ import ipaddress
 import logging
 import os
 import socket
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
@@ -46,7 +46,7 @@ def _allowed_schemes() -> set:
     return {"https"}
 
 
-def assert_safe_external_url(raw_url, *, field: str) -> str:
+def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) -> str:
     """Return ``raw_url`` once it is known to name a public endpoint.
 
     Every caller here builds an outbound request out of a URL the API caller
@@ -77,6 +77,10 @@ def assert_safe_external_url(raw_url, *, field: str) -> str:
 
     if parts.username or parts.password:
         raise EmcError(f"{field} must not embed credentials.",
+                       status=400, code="UNSAFE_URL", stage=Stage.REQUEST)
+
+    if not allow_query and (parts.query or parts.fragment):
+        raise EmcError(f"{field} must not carry a query string or fragment.",
                        status=400, code="UNSAFE_URL", stage=Stage.REQUEST)
 
     host = parts.hostname
@@ -111,10 +115,19 @@ def assert_safe_external_url(raw_url, *, field: str) -> str:
     return url
 
 
+def build_external_url(base_url, path: str, *, field: str) -> str:
+    parts = urlsplit(assert_safe_external_url(base_url, field=field))
+    base_path = parts.path.rstrip("/")
+
+    return urlunsplit((parts.scheme, parts.netloc,
+                       f"{base_path}/{path.lstrip('/')}", "", ""))
+
+
 def get_oauth2_token(oauth_config: dict) -> str:
     """Fetch an OAuth2 access token using the client-credentials grant."""
     token_url = assert_safe_external_url(oauth_config.get("accessTokenUrl"),
-                                         field="submodelOAuthAccessTokenUrl")
+                                         field="submodelOAuthAccessTokenUrl",
+                                         allow_query=True)
     client_id = oauth_config.get("clientId")
     client_secret = oauth_config.get("clientSecret")
     scope = oauth_config.get("scope", "openid")

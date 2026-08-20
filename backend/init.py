@@ -51,7 +51,8 @@ from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
                               UnknownComponentType, UnsupportedVersion, classify,
                               new_error_id)
 from utilities.operators import op
-from utilities.auth_utils import assert_safe_external_url, get_oauth2_token
+from utilities.auth_utils import (assert_safe_external_url, build_external_url,
+                                  get_oauth2_token)
 
 op.make_dir("logs")
 
@@ -695,12 +696,13 @@ async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid
                 message="Both a submodel service URL and a BPN are required.")
 
         # The probe below carries whatever credentials the caller configured
-        # above, so the URL it targets has to be vetted first — see
-        # assert_safe_external_url.
+        # above, so the target has to be vetted first. build_external_url
+        # re-assembles the URL from the accepted origin plus this literal path,
+        # so the caller cannot steer the request elsewhere.
         url = assert_safe_external_url(url, field="url")
+        health_url = build_external_url(url, "api/health", field="url")
 
         import requests
-        health_url = f"{url.rstrip('/')}/api/health"
         try:
             check = requests.get(health_url, headers=headers, timeout=5,
                                  allow_redirects=False)
