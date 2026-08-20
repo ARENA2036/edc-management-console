@@ -49,6 +49,7 @@ import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
 import keycloak, { isAuthDisabled } from './auth/keycloak';
+import { useSessionIdentity, type SessionIdentity } from './auth/session';
 import { resolveComponentLimit } from './utils/nameRules';
 
 const CONNECTORS_STORAGE_KEY = 'connectors';
@@ -73,6 +74,7 @@ type DeploymentFeedback = {
 
 interface DataspaceSettingsPayload {
   name?: string;
+  authority_bpn?: string;
   bpn?: string;
   realm?: string;
   username?: string;
@@ -129,7 +131,7 @@ interface DataspaceSettingsPayload {
 
 interface DataspaceSummary {
   name: string;
-  bpn: string;
+  authorityBpn: string;
   details: DataspaceSettingsPayload | null;
 }
 
@@ -151,88 +153,13 @@ function saveLocalStorage<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-interface BpnCandidate {
-  path: string;
-  value: string;
-}
-
-function collectBpnCandidates(
-  value: unknown,
-  path: string,
-  seen = new Set<unknown>(),
-): BpnCandidate[] {
-  if (!value || seen.has(value)) {
-    return [];
+function readAuthorityBpn(details: DataspaceSettingsPayload | null | undefined) {
+  const authorityBpn = details?.authority_bpn?.trim().toUpperCase();
+  if (authorityBpn) {
+    return authorityBpn;
   }
 
-  if (typeof value === 'string') {
-    const matches = value.toUpperCase().match(/BPNL[A-Z0-9]{12}/g) ?? [];
-    return matches.map((match) => ({ path, value: match }));
-  }
-
-  if (Array.isArray(value)) {
-    seen.add(value);
-    return value.flatMap((entry, index) =>
-      collectBpnCandidates(entry, `${path}[${index}]`, seen),
-    );
-  }
-
-  if (typeof value !== 'object') {
-    return [];
-  }
-
-  seen.add(value);
-  return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) =>
-    collectBpnCandidates(nestedValue, `${path}.${key}`, seen),
-  );
-}
-
-function decodeJwtPayload(token?: string) {
-  if (!token) {
-    return null;
-  }
-
-  const parts = token.split('.');
-  if (parts.length < 2) {
-    return null;
-  }
-
-  try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const payload = atob(normalized);
-    return JSON.parse(payload) as unknown;
-  } catch (error) {
-    console.error('Failed to decode JWT payload', error);
-    return null;
-  }
-}
-
-function getSessionBpnCandidates(tokenParsed: unknown, rawToken?: string) {
-  const candidates = [
-    ...collectBpnCandidates(tokenParsed, 'tokenParsed'),
-    ...collectBpnCandidates(decodeJwtPayload(rawToken), 'token'),
-  ];
-
-  const unique = new Map<string, BpnCandidate>();
-  for (const candidate of candidates) {
-    unique.set(`${candidate.path}:${candidate.value}`, candidate);
-  }
-
-  return Array.from(unique.values());
-}
-
-function readSessionBpn(tokenParsed: unknown, rawToken?: string) {
-  return getSessionBpnCandidates(tokenParsed, rawToken)[0]?.value ?? '';
-}
-
-function readDataspaceBpn(details: DataspaceSettingsPayload | null | undefined) {
-  const explicitBpn = details?.bpn?.trim().toUpperCase();
-  if (explicitBpn) {
-    return explicitBpn;
-  }
-
-  return collectBpnCandidates(details, 'dataspace')[0]?.value ?? '';
+  return details?.bpn?.trim().toUpperCase() ?? '';
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -364,14 +291,14 @@ async function fetchDataspaceSummary(
     const data = (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
     return {
       name: data?.name || fallbackName,
-      bpn: readDataspaceBpn(data),
+      authorityBpn: readAuthorityBpn(data),
       details: data,
     };
   } catch (error) {
     console.error('Failed to load dataspace:', toApiError(error));
     return {
       name: fallbackName,
-      bpn: '',
+      authorityBpn: '',
       details: null,
     };
   }
@@ -461,13 +388,13 @@ function countComponentsByType(components: ManagedComponent[]) {
   };
 }
 
-function Dashboard({ sessionBpn }: { sessionBpn: string }) {
+function Dashboard({ identity }: { identity: SessionIdentity }) {
   const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
-  const [dataspaceBpn, setDataspaceBpn] = useState('');
+  const [authorityBpn, setAuthorityBpn] = useState('');
   const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
@@ -509,9 +436,9 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
-    setDataspaceBpn(summary.bpn || sessionBpn);
+    setAuthorityBpn(summary.authorityBpn);
     setDataspaceDetails(summary.details);
-  }, [sessionBpn, t]);
+  }, [t]);
 
   useEffect(() => {
     loadDeployments();
@@ -524,7 +451,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [loadDataspace, loadDeployments, sessionBpn, t]);
+  }, [loadDataspace, loadDeployments, t]);
 
   const persistConnector = async (connector: DashboardConnector) => {
     if (connectors.some((current) => current.name === connector.name)) {
@@ -801,7 +728,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             icon={<Database size={22} />}
             title={t('dataSpace')}
             value={dataspaceName}
-            subtitle={dataspaceBpn || t('allSourcesMonitored')}
+            subtitle={authorityBpn || t('allSourcesMonitored')}
             tooltipTitle={statsGuidance.dataSpace.title}
             tooltipContent={statsGuidance.dataSpace.content}
             tooltipFooter={statsGuidance.dataSpace.footer}
@@ -919,7 +846,8 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         existingConnectorNames={connectors.map((connector) => connector.name)}
         defaultVersion={dataspaceDetails?.deployment?.connector?.defaultVersion}
         availableVersions={dataspaceDetails?.deployment?.connector?.availableVersions}
-        prefilledBpn={dataspaceBpn || sessionBpn}
+        prefilledBpn={identity.bpn}
+        bpnRequired={identity.enforceSessionBpn}
         defaultApiEndpoint={
           dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
         }
@@ -1018,7 +946,7 @@ function Monitor() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
-    bpn: '',
+    authorityBpn: '',
     details: null,
   });
 
@@ -1211,7 +1139,7 @@ function Monitor() {
             {dataspace.name}
           </p>
           <p className="mt-1 text-gray-500 dark:text-slate-400">
-            {dataspace.bpn || t('allSourcesMonitored')}
+            {dataspace.authorityBpn || t('allSourcesMonitored')}
           </p>
         </div>
       </div>
@@ -1540,10 +1468,10 @@ function ExternalAppRedirect({
 
 function Settings({
   onOpenGuide,
-  sessionBpn,
+  identity,
 }: {
   onOpenGuide: () => void;
-  sessionBpn: string;
+  identity: SessionIdentity;
 }) {
   const { t } = useI18n();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1553,15 +1481,8 @@ function Settings({
     const loadSettings = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        const details =
-          (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
         setDataspaceDetails(
-          details
-            ? {
-                ...details,
-                bpn: readDataspaceBpn(details) || sessionBpn,
-              }
-            : null,
+          (response.data?.data as DataspaceSettingsPayload | undefined) ?? null,
         );
       } catch (error) {
         console.error('Failed to load dataspace settings:', error);
@@ -1571,7 +1492,7 @@ function Settings({
     };
 
     loadSettings();
-  }, [sessionBpn]);
+  }, []);
 
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
@@ -1583,20 +1504,26 @@ function Settings({
 
   const sections = [
     {
+      key: 'company',
+      title: t('settingsSectionCompany'),
+      fields: [
+        { label: t('settingsLabelCompanyName'), value: identity.company },
+        { label: t('settingsLabelCompanyBpn'), value: identity.bpn },
+      ],
+    },
+    {
       key: 'dataspace',
       title: t('settingsSectionDataspace'),
       fields: [
         { label: t('settingsLabelDataspace'), value: dataspaceDetails?.name },
-        { label: t('settingsLabelBpn'), value: dataspaceDetails?.bpn },
-        { label: t('settingsLabelCompanyName'), value: dataspaceDetails?.realm },
-        { label: t('settingsLabelReadonly'), value: dataspaceDetails?.readonly },
+        { label: t('settingsLabelAuthorityBpn'), value: readAuthorityBpn(dataspaceDetails) },
+        { label: t('settingsLabelIdpRealm'), value: dataspaceDetails?.realm },
       ],
     },
     {
       key: 'access',
       title: t('settingsSectionAccess'),
       fields: [
-        { label: t('settingsLabelDefaultUsername'), value: dataspaceDetails?.username },
         { label: t('settingsLabelCentralIdpUrl'), value: dataspaceDetails?.centralidp?.url },
         { label: t('settingsLabelCentralIdpRealm'), value: dataspaceDetails?.centralidp?.realm },
         { label: t('settingsLabelSsiWalletUrl'), value: dataspaceDetails?.ssi_wallet?.url },
@@ -1608,7 +1535,6 @@ function Settings({
       fields: [
         { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
         { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
-        { label: t('settingsLabelSdeClientId'), value: dataspaceDetails?.sde?.client_id },
         { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
@@ -1694,17 +1620,15 @@ function Settings({
 function AppShell() {
   const { t } = useI18n();
   const authDisabled = isAuthDisabled();
+  const { identity } = useSessionIdentity();
   const firstName = keycloak.tokenParsed?.given_name || '';
   const lastName = keycloak.tokenParsed?.family_name || '';
   const fullName =
+    identity.name ||
     `${firstName} ${lastName}`.trim() ||
+    identity.username ||
     keycloak.tokenParsed?.preferred_username ||
     t('userFallback');
-  const sessionBpnCandidates = getSessionBpnCandidates(
-    keycloak.tokenParsed,
-    keycloak.token,
-  );
-  const sessionBpn = readSessionBpn(keycloak.tokenParsed, keycloak.token);
 
   // Explicit env / runtime-config values take precedence over the dataspace
   // config, so a deployment can point these entries somewhere else without
@@ -1736,25 +1660,9 @@ function AppShell() {
   }, [theme]);
 
   useEffect(() => {
-    if (sessionBpnCandidates.length > 0) {
-      console.info(
-        '[EMC] Keycloak BPNL candidates detected:',
-        sessionBpnCandidates,
-      );
-    } else {
-      console.warn(
-        '[EMC] No BPNL candidate found in Keycloak token payload.',
-        keycloak.tokenParsed,
-      );
-    }
-  }, [sessionBpnCandidates]);
-
-  useEffect(() => {
     const loadAppUrls = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        // Only fill in from the dataspace config when the deployment has not set
-        // an explicit value; otherwise the env setting would be silently ignored.
         if (!envSdeUrl && response.data?.data?.sde?.url) {
           setSdeUrl(response.data.data.sde.url);
         }
@@ -1806,7 +1714,7 @@ function AppShell() {
               <div className="flex min-h-full flex-col">
                 <div className="flex-1">
                   <Routes>
-                    <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
+                    <Route path="/" element={<Dashboard identity={identity} />} />
                     <Route path="/monitor" element={<Monitor />} />
                     <Route
                       path="/sde"
@@ -1849,7 +1757,7 @@ function AppShell() {
                       element={(
                         <Settings
                           onOpenGuide={() => setShowGuide(true)}
-                          sessionBpn={sessionBpn}
+                          identity={identity}
                         />
                       )}
                     />
