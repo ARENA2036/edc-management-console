@@ -121,7 +121,6 @@ backend:
     runAsUser: 1000
     runAsGroup: 3000
     fsGroup: 3000
-    fsGroupChangePolicy: OnRootMismatch
   securityContext: {}
   envFrom: []
   env:
