@@ -494,7 +494,11 @@ backend:
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 3000
+    fsGroupChangePolicy: OnRootMismatch
   securityContext: {}
 
   envFrom: []
