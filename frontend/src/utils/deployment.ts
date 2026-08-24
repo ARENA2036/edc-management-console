@@ -94,7 +94,7 @@ export function buildDeployRequest(draft: DeploymentDraft): DeployRequest {
       url: draft.connector.url,
       dbName: `${draft.connector.name}-db`,
       username: `${draft.connector.name}-username`,
-      password: `${draft.connector.name}-password`,
+      password: '',
       bpn: draft.connector.bpn,
     }),
   ];
@@ -124,7 +124,7 @@ export function buildStandaloneConnector(
     urls: [trimOrEmpty(draft.url), trimOrEmpty(draft.dataPlaneUrl)].filter(Boolean),
     created_by: 'dashboard',
     db_username: `${trimOrEmpty(draft.name)}-username`,
-    db_password: `${trimOrEmpty(draft.name)}-password`,
+    db_password: '',
     cp_hostname: trimOrEmpty(draft.url),
     dp_hostname: trimOrEmpty(draft.dataPlaneUrl),
     config: {
@@ -175,7 +175,6 @@ export function getDefaultComponentDraft(
   );
   const defaultUrl = trimmedBase && hostSuffix ? `${trimmedBase}.${hostSuffix}` : '';
   const defaultUsername = `${defaultName}-user`;
-  const defaultPassword = `${defaultName}-password`;
 
   return {
     enabled: existing?.enabled ?? false,
@@ -184,6 +183,6 @@ export function getDefaultComponentDraft(
     url: trimOrEmpty(existing?.url) || defaultUrl,
     dbName: trimOrEmpty(existing?.dbName) || `${defaultName}-db`,
     username: trimOrEmpty(existing?.username) || defaultUsername,
-    password: trimOrEmpty(existing?.password) || defaultPassword,
+    password: '',
   };
 }
