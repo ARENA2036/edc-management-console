@@ -284,7 +284,7 @@ export default function ComponentWizard({
         db_name: `${normalizedName}-db`,
         auth: {
           db_username: `${normalizedName}-user`,
-          db_password: `${normalizedName}-password`,
+          db_password: '',
         },
       };
 
