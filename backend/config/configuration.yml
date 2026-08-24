@@ -22,7 +22,7 @@
 ---
 appConfig:
   name: "ARENA2036 EDC Management Console"
-  client_id: "CX-EDC"
+  client_id: "EMC-1"
   version: "1.0.0"
   port: 5000
   host: "0.0.0.0"
@@ -41,7 +41,7 @@ dataspaceConfig:
   name: "ARENA2036-X"
   authority_id: "BPNL00000003CRHK"
   centralidp:
-    url: "https://centralidp.arena2036-x.de/auth/"
+    url: "https://centralidp.txcd.arena2036-x.de/auth/"
     realm: "CX-Central"
     client_id: "${CENTRALIDP_CLIENT_ID}"
     client_secret: "${CENTRALIDP_CLIENT_SECRET}"

@@ -64,7 +64,7 @@ def _sign(pem, kid, claims, issuer=ISSUER):
 
 @pytest.fixture
 def keycloak(monkeypatch):
-    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_VERIFY_SIGNATURE"):
+    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_CLIENT_ID"):
         monkeypatch.delenv(name, raising=False)
 
     instance = KeycloakOpenID()
@@ -193,26 +193,11 @@ def test_fails_closed_when_the_idp_is_unreachable(keycloak, monkeypatch):
     assert error.value.status_code == 401
 
 
-def test_optional_user_ignores_a_bad_or_absent_token(keycloak, monkeypatch):
-    """An unusable Authorization header must not turn a working API-key call
-    into a 401."""
-    monkeypatch.setattr(keycloak, "_fetch_jwks", lambda: None)
-
-    class Broken:
-        headers = {"Authorization": "Bearer not-a-jwt"}
-
-    class Absent:
-        headers = {}
-
-    assert keycloak.get_optional_user(Broken()) is None
-    assert keycloak.get_optional_user(Absent()) is None
-
-
 def test_fails_closed_when_no_identity_provider_is_configured(monkeypatch):
     """A missing URL/realm is a misconfiguration, not permission to trust the
     caller. Without an issuer there is nothing to verify against, so anyone
     could self-sign a token carrying whatever `bpn` they liked."""
-    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_VERIFY_SIGNATURE"):
+    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_CLIENT_ID"):
         monkeypatch.delenv(name, raising=False)
 
     unconfigured = KeycloakOpenID()
@@ -226,30 +211,3 @@ def test_fails_closed_when_no_identity_provider_is_configured(monkeypatch):
     assert error.value.status_code == 401
 
 
-def test_optional_user_reports_no_identity_when_unconfigured(monkeypatch):
-    """The fail-closed path must stay invisible to API-key callers: no identity
-    rather than a 401 on an otherwise working request."""
-    for name in ("KEYCLOAK_URL", "KEYCLOAK_REALM", "KEYCLOAK_VERIFY_SIGNATURE"):
-        monkeypatch.delenv(name, raising=False)
-
-    unconfigured = KeycloakOpenID()
-    pem, _ = _generate_key("kid-1")
-
-    class Request:
-        headers = {"Authorization": f"Bearer {_sign(pem, 'kid-1', {'bpn': 'BPNL000000000042'})}"}
-
-    assert unconfigured.get_optional_user(Request()) is None
-
-
-def test_verification_can_still_be_disabled_deliberately(monkeypatch):
-    """KEYCLOAK_VERIFY_SIGNATURE=false remains an explicit, logged opt-out — the
-    point of the change is that *misconfiguration* no longer implies it."""
-    monkeypatch.delenv("KEYCLOAK_URL", raising=False)
-    monkeypatch.delenv("KEYCLOAK_REALM", raising=False)
-    monkeypatch.setenv("KEYCLOAK_VERIFY_SIGNATURE", "false")
-
-    relaxed = KeycloakOpenID()
-    pem, _ = _generate_key("kid-1")
-
-    claims = relaxed.decode_token(_sign(pem, "kid-1", {"bpn": "bpnl000000000042"}))
-    assert relaxed.build_user(claims)["bpn"] == "BPNL000000000042"

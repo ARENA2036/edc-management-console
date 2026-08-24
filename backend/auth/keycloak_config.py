@@ -26,7 +26,7 @@ import time
 from typing import Any, Optional
 
 import requests
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTClaimsError, JWTError
@@ -72,19 +72,27 @@ class KeycloakOpenID:
     def __init__(self):
         self.keycloak_url = _clean(os.getenv("KEYCLOAK_URL"))
         self.realm = _clean(os.getenv("KEYCLOAK_REALM"))
-        self.verify_signature = _env_flag("KEYCLOAK_VERIFY_SIGNATURE", True)
+        self.client_id = _clean(os.getenv("KEYCLOAK_CLIENT_ID"))
         self._jwks: Optional[dict] = None
         self._jwks_fetched_at = 0.0
         self._jwks_lock = threading.Lock()
 
-    def configure(self, *, url=None, realm=None, fallback_url=None, fallback_realm=None):
+    def configure(self, *, url=None, realm=None, client_id=None,
+                  fallback_url=None, fallback_realm=None):
         """Apply configuration.yml settings. Environment variables win."""
         if not self.keycloak_url:
             self.keycloak_url = _clean(url) or _clean(fallback_url)
         if not self.realm:
             self.realm = _clean(realm) or _clean(fallback_realm)
+        if not self.client_id:
+            self.client_id = _clean(client_id)
 
         logger.info("[Keycloak] Verifying tokens issued by %s", self.issuer or "<unconfigured>")
+        if self.client_id:
+            logger.info("[Keycloak] Accepting tokens issued for client %s", self.client_id)
+        else:
+            logger.warning("[Keycloak] identity.clientId is not set; tokens issued for any "
+                           "client in this realm will be accepted.")
 
     @property
     def is_configured(self) -> bool:
@@ -130,13 +138,27 @@ class KeycloakOpenID:
             # IdP should not log everyone out.
             return self._jwks
 
+    def _assert_issued_for_this_client(self, claims: dict) -> None:
+        """Reject a token minted for a different client in the same realm.
+
+        Checked against ``azp`` as well as ``aud`` because Keycloak public
+        clients carry the client id in ``azp`` and frequently have no ``aud``
+        naming this application at all.
+        """
+        if not self.client_id:
+            return
+
+        audience = claims.get("aud")
+        accepted = {audience} if isinstance(audience, str) else set(audience or ())
+        accepted.add(_first(claims.get("azp")))
+        if self.client_id not in accepted:
+            raise _unauthorized(
+                f"Token was not issued for this application; expected client "
+                f"{self.client_id!r}."
+            )
+
     def decode_token(self, token: str) -> dict:
         """Return the token's verified claims, or raise 401."""
-        if not self.verify_signature:
-            logger.warning("[Keycloak] KEYCLOAK_VERIFY_SIGNATURE is off; token is untrusted.")
-            return jwt.decode(token, key="", options={"verify_signature": False,
-                                                      "verify_aud": False})
-
         if not self.is_configured:
             logger.error("[Keycloak] No identity provider configured; rejecting bearer tokens.")
             raise _unauthorized("Identity provider is not configured; the token cannot be trusted.")
@@ -153,8 +175,8 @@ class KeycloakOpenID:
             raise _unauthorized("Identity provider keys are unavailable")
 
         try:
-            return jwt.decode(token, key=jwks, algorithms=ALGORITHMS,
-                              issuer=self.issuer, options={"verify_aud": False})
+            claims = jwt.decode(token, key=jwks, algorithms=ALGORITHMS,
+                                issuer=self.issuer, options={"verify_aud": False})
         except ExpiredSignatureError:
             raise _unauthorized("Token has expired")
         except (JWTClaimsError, JWTError) as exception:
@@ -164,6 +186,9 @@ class KeycloakOpenID:
                 f"Token rejected: {exception}. Token issuer={_unverified_issuer(token)!r}, "
                 f"configured issuer={self.issuer!r}."
             )
+
+        self._assert_issued_for_this_client(claims)
+        return claims
 
     def build_user(self, claims: dict, token: str = "") -> dict:
         """The caller and the company they act for, from verified claims."""
@@ -187,23 +212,6 @@ class KeycloakOpenID:
         return self.build_user(self.decode_token(credentials.credentials),
                                credentials.credentials)
 
-    def get_optional_user(self, request: Request) -> Optional[dict]:
-        """Identity when a valid token is present, ``None`` otherwise.
-
-        An invalid token returns None rather than raising, so attaching a stale
-        token can never turn a working API-key call into a 401.
-        """
-        header = request.headers.get("Authorization", "")
-        if not header.lower().startswith("bearer "):
-            return None
-
-        token = header.split(" ", 1)[1].strip()
-        try:
-            return self.build_user(self.decode_token(token), token) if token else None
-        except HTTPException as exception:
-            logger.warning("[Keycloak] Ignoring unusable bearer token: %s", exception.detail)
-            return None
-
 
 def _unverified_issuer(token: str) -> str:
     """The token's own `iss`, read without verifying. For error messages only."""
@@ -211,11 +219,6 @@ def _unverified_issuer(token: str) -> str:
         return jwt.get_unverified_claims(token).get("iss", "")
     except Exception:
         return "<unreadable>"
-
-
-def _env_flag(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    return default if raw is None else raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _unauthorized(detail: str) -> HTTPException:

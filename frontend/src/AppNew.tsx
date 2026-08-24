@@ -483,7 +483,7 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
             db_name: `${connector.name}-db`,
             auth: {
               db_username: connector.db_username || `${connector.name}-username`,
-              db_password: connector.db_password || `${connector.name}-password`,
+              db_password: '',
             },
           },
         ],

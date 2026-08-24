@@ -21,9 +21,9 @@
 ###############################################################
 import argparse
 import asyncio
+import secrets
 import logging.config
 import yaml
-import urllib3
 import uvicorn
 import uuid
 import os
@@ -40,7 +40,6 @@ from auth.keycloak_config import keycloak_openid
 
 from models.connector import DeploymentRequest
 from models.database import ConnectorDB
-from tractusx_sdk.dataspace.managers import AuthManager
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager, URL_SCHEME
 from managers.databaseManager import DatabaseManager
@@ -57,12 +56,10 @@ from utilities.auth_utils import (assert_safe_external_url, build_external_url,
 op.make_dir("logs")
 
 idpManager: OAuth2Manager
-authManager: AuthManager
 edcManager: EdcManager
 edcService: EdcService
 databaseManager: DatabaseManager
 
-urllib3.disable_warnings()
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
 # ------------------------------------------------------------
@@ -96,7 +93,7 @@ with open("config/settings.yaml", "r") as f:
 # ------------------------------------------------------------
 # FastAPI Setup
 # ------------------------------------------------------------
-app = FastAPI(title="EMC Backend")
+app = FastAPI(title="EMC Backend", docs_url=None, redoc_url=None, openapi_url=None)
 keycloak_openid.add_swagger_config(app)
 logger.info("[INIT] Starting EMC Backend...")
 
@@ -234,7 +231,7 @@ async def _reconcile_and_get_release_name(record: ConnectorDB, default_namespace
 
 
 @app.get("/api/components", tags=["Components"])
-async def list_components(request: Request):
+async def list_components(user=Depends(keycloak_openid.get_current_user)):
     """
     Retrieves the list of deployed components the user is allowed to see.
 
@@ -246,9 +243,6 @@ async def list_components(request: Request):
         response: :obj:`data object with the list of components`
     """
     try:
-        ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         existingDeployments = databaseManager.get_all_connectors()
@@ -276,7 +270,7 @@ async def list_components(request: Request):
 
             component_dict = component.to_dict()
             component_dict["urls"] = url_list
-            logger.info("Fetching all components %s", component_dict)
+            logger.debug("[components] %s", component.name)
             json_list.append(
                 component_dict
             )
@@ -289,13 +283,11 @@ async def list_components(request: Request):
         return HttpUtils.error_response(exc, stage=Stage.DATABASE, log=logger)
 
 @app.get("/api/components/health", tags=["Components"])
-async def all_components_health(request: Request):
+async def all_components_health(user=Depends(keycloak_openid.get_current_user)):
     """Health of every deployed component — for continuous polling from the
     frontend. Each component is probed by type (connector -> EDC liveness/
     readiness, others -> ingress reachability) and its row status is refreshed."""
     try:
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
 
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         results = []
@@ -312,12 +304,11 @@ async def all_components_health(request: Request):
         return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 @app.get("/api/components/{component_name}/health", tags=["Components"])
-async def get_component_health(component_name: str, request: Request):
+async def get_component_health(component_name: str,
+                               user=Depends(keycloak_openid.get_current_user)):
     """Health of a single deployed component (by name) — for continuous polling
     from the frontend. Refreshes and returns the component's health + status."""
     try:
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
 
         record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
@@ -508,6 +499,20 @@ def _plan_error(plan) -> EmcError:
     return error_class(message, hint=hint)
 
 
+def _apply_db_password(comp):
+    """Replace any client-supplied DB password with a server-generated secret.
+
+    The frontend sends a value derived from the component name, so the password
+    is guessable by anyone who can read the dashboard. An existing component
+    keeps its stored password: rotating it on upgrade would leave the running
+    Postgres volume unreachable.
+    """
+    record = databaseManager.get_connector_by_name(comp.name)
+    auth = dict(getattr(comp, "auth", None) or {})
+    auth["db_password"] = (record.db_password if record else None) or secrets.token_urlsafe(24)
+    comp.auth = auth
+
+
 async def _deploy_components(components, namespace):
     """Install-or-upgrade every component in the request (config-driven) and
     persist one DB row per component. A component with no `type`/`name` is an
@@ -531,6 +536,7 @@ async def _deploy_components(components, namespace):
     for comp in components:
         if not comp.type or not comp.name:
             continue
+        _apply_db_password(comp)
         plan = edcManager.prepare_deployment(comp.type, comp)
         if "error" in plan:
             raise _plan_error(plan)
@@ -550,7 +556,8 @@ async def _deploy_components(components, namespace):
 
 
 @app.post("/api/component", tags=["Components"])
-async def add_components(payload: DeploymentRequest, request: Request):
+async def add_components(payload: DeploymentRequest,
+                         user=Depends(keycloak_openid.get_current_user)):
     """Deploy the components in the request.
 
     The payload is a list of components, each selected by its `type`
@@ -558,11 +565,8 @@ async def add_components(payload: DeploymentRequest, request: Request):
     not connector-specific.
     """
     try:
-        ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
-        logger.info(payload)
-        _apply_session_bpn(payload.components, keycloak_openid.get_optional_user(request))
+        logger.info("[deploy] %s", [f"{comp.type}/{comp.name}" for comp in payload.components])
+        _apply_session_bpn(payload.components, user)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         deployed = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, data={"deployed": deployed})
@@ -571,16 +575,14 @@ async def add_components(payload: DeploymentRequest, request: Request):
         return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 @app.put("/api/components/{component_id}", tags=["Components"])
-async def upgrade_components(component_id: str, payload: DeploymentRequest, request: Request):
+async def upgrade_components(component_id: str, payload: DeploymentRequest,
+                             user=Depends(keycloak_openid.get_current_user)):
     """Upgrade (or install) the components in the request. Same array payload and
     config-driven path as POST — Helm install-or-upgrade is the same operation, so
     this re-renders each component's values and rolls the release forward."""
     try:
-        ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
-        logger.info(payload)
-        _apply_session_bpn(payload.components, keycloak_openid.get_optional_user(request))
+        logger.info("[upgrade] %s", [f"{comp.type}/{comp.name}" for comp in payload.components])
+        _apply_session_bpn(payload.components, user)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
         upgraded = await _deploy_components(payload.components, namespace)
         return HttpUtils.response(status=200, message="Components upgraded",
@@ -590,16 +592,14 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest, requ
         return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 @app.delete("/api/components/{component_name}", tags=["Components"])
-async def delete_component(component_name: str, request: Request):
+async def delete_component(component_name: str,
+                           user=Depends(keycloak_openid.get_current_user)):
     """Delete exactly one component by name and uninstall its Helm release.
 
     Components are independent, so deleting a connector never touches a digital
     twin registry or submodel server, even if they were deployed together.
     """
     try:
-        ## Check if the api key is present and if it is authenticated
-        if not authManager.is_authenticated(request=request):
-            return HttpUtils.get_not_authorized()
 
         record = databaseManager.get_connector_by_name(name=component_name)
         if not record:
@@ -792,7 +792,7 @@ def _component_versions(component_key: str):
 
 
 @app.get("/api/dataspace", tags=["Dataspace"])
-async def get_dataspace_settings(request: Request):
+async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user)):
     """
     Retrieves dataspace specific configurations from the configuration file
 
@@ -802,7 +802,6 @@ async def get_dataspace_settings(request: Request):
     try:
         dataspace_config = app_configuration.get("dataspaceConfig", {})
         edc_config = app_configuration.get("connector", {})
-        user = keycloak_openid.get_optional_user(request) or {}
 
         dataspace_name = dataspace_config.get("name", "Your Dataspace")
         authority_bpn = dataspace_config.get("authority_id", "BPNL000000000000")
@@ -868,8 +867,6 @@ async def get_dataspace_settings(request: Request):
             },
             "readonly": True
         }
-        logger.info("%s", dataspace_settings)
-
         return {
             "user": dataspace_config.get("preferred_username", "user"),
             "data": dataspace_settings
@@ -879,17 +876,7 @@ async def get_dataspace_settings(request: Request):
 
 
 def init_app(host: str, port: int, log_level: str = "info"):
-    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, authManager, databaseManager
-
-    ## API Key Authorization
-    authManager = AuthManager()
-    auth_config: dict = app_configuration.get("authorization", {"enabled": False})
-    auth_enabled: bool = auth_config.get("enabled", False)
-
-    if auth_enabled:
-        api_key: dict = auth_config.get("apiKey", {"key": "X-Api-Key", "value": "password"})
-        authManager = AuthManager(api_key_header=api_key.get("key", "X-Api-Key"),
-                                configured_api_key=api_key.get("value", "password"), auth_enabled=True)
+    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, databaseManager
 
     dataspace_config: dict = app_configuration.get("dataspaceConfig", {})
     centralidp_config: dict = dataspace_config.get("centralidp", {}) or {}
@@ -897,6 +884,7 @@ def init_app(host: str, port: int, log_level: str = "info"):
     keycloak_openid.configure(
         url=identity_config.get("url"),
         realm=identity_config.get("realm"),
+        client_id=app_configuration.get("appConfig", {}).get("client_id"),
         fallback_url=centralidp_config.get("url"),
         fallback_realm=centralidp_config.get("realm"),
     )
@@ -935,17 +923,22 @@ def init_app(host: str, port: int, log_level: str = "info"):
         configured_db_url = f"sqlite:///{os.path.join(data_dir, 'edc_manager.db')}"
     databaseManager = DatabaseManager(database_url=configured_db_url)
 
+    allowed_origins = [origin.strip() for origin
+                       in os.environ.get("EMC_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+    if not allowed_origins:
+        logger.error("[INIT] EMC_ALLOWED_ORIGINS is not set; browser requests from the "
+                     "console origin will be refused. Set it to the frontend URL(s).")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=['*'],
-        allow_methods=['*'],
-        allow_headers=['*']
+        allow_origins=allowed_origins,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     uvicorn.run(app, host=host, port=port, log_level=log_level)
 
     logger.info("[INIT] Application Startup Initialization Completed!")
-    logger.info("✅ EMC backend configured and ready on port 8001.")
+    logger.info("[OK] EMC backend configured and ready on port 8001.")
 
 
 

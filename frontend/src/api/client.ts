@@ -68,17 +68,13 @@ apiClient.interceptors.request.use(async (config) => {
 
   if (keycloak.authenticated) {
     try {
-      const refreshed = await keycloak.updateToken(30);
-      if (refreshed) {
-        localStorage.setItem('token', keycloak.token || '');
-      }
+      await keycloak.updateToken(30);
     } catch (error) {
-
       console.warn('Failed to refresh the Keycloak token', error);
     }
   }
 
-  const token = keycloak.token || localStorage.getItem('token') || '';
+  const token = keycloak.token || '';
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
