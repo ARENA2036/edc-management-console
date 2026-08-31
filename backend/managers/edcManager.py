@@ -31,6 +31,15 @@ from utilities.common import (render_values, render_template, render_structure,
 
 logger = logging.getLogger(__name__)
 
+_UNRESOLVABLE_MARKERS = ("nameresolutionerror", "getaddrinfo",
+                         "name or service not known",
+                         "temporary failure in name resolution")
+
+
+def _is_unresolvable(exception) -> bool:
+    text = str(exception).lower()
+    return any(marker in text for marker in _UNRESOLVABLE_MARKERS)
+
 URL_SCHEME = os.getenv("EMC_URL_SCHEME", "https")
 
 
@@ -59,35 +68,6 @@ class EdcManager:
         self.ssi_wallet_url = dataspace_config.get("ssi_wallet", {}).get("url", None)
         self.authority_id = dataspace_config.get("authority_id", "BPNL00000003CRHK")
 
-    def check_health(self, connector_url: Optional[str] = None) -> Dict:
-        url = connector_url or self.default_url
-        liveness_endpoint = url + self.endpoints.get("liveness", "/api/check/liveness")
-        readiness_endpoint = url + self.endpoints.get("readiness", "/api/check/readiness")
-
-        result = {
-            "url": url,
-            "liveness": "unknown",
-            "readiness": "unknown",
-            "healthy": False
-        }
-        try:
-            liveness_response = requests.get(liveness_endpoint, timeout=5)
-            result["liveness"] = "healthy" if liveness_response.status_code == 200 else "unhealthy"
-        except Exception as e:
-            logger.error(f"[EdcManager] Liveness check failed: {str(e)}")
-            result["liveness"] = "unhealthy"
-
-        try:
-            readiness_response = requests.get(readiness_endpoint, timeout=5)
-            result["readiness"] = "ready" if readiness_response.status_code == 200 else "not ready"
-        except Exception as e:
-            logger.error(f"[EdcManager] Readiness check failed: {str(e)}")
-            result["readiness"] = "not ready"
-
-        result["healthy"] = result["liveness"] == "healthy" and result["readiness"] == "ready"
-        logger.debug("[EdcManager] Health for %s: %s", url, result)
-        return result
-
     def _edc_query(self, connector_url: Optional[str], endpoint_key: str, default_path: str) -> Dict:
         """GET a versioned EDC management resource (assets/policies/contracts) and
         return its JSON, or ``{error}`` on failure."""
@@ -100,47 +80,36 @@ class EdcManager:
             logger.error("[EdcManager] Failed to query %s at %s: %s", endpoint_key, target, e)
             return {"error": str(e)}
 
-    def _http_status(self, url: str) -> Optional[int]:
-        """GET a URL and return its HTTP status code, or None if unreachable."""
-        try:
-            return requests.get(url, timeout=5).status_code
-        except Exception as e:
-            logger.warning("[EdcManager] Health probe failed for %s: %s", url, e)
-            return None
-
     @staticmethod
     def _with_scheme(url: str) -> str:
         return url if url.startswith(("http://", "https://")) else f"{URL_SCHEME}://" + url
 
-    def component_health(self, record) -> Dict:
-        """Health of a single deployed component (a persisted ConnectorDB row).
-
-        Type-aware: the connector is probed via its EDC liveness/readiness
-        endpoints on the control plane; every other component via a simple HTTP
-        reachability check of its ingress ``url`` plus the component's configured
-        ``healthPath`` (a response with status < 500 means the ingress + pod are
-        serving). Returns a normalized dict ``{name, type, healthy, url, details}``
-        so the frontend can poll any component the same way.
-        """
+    def component_reachable(self, record, base_url: str) -> Dict:
         config = record.config or {}
         ctype = config.get("type") or ("connector" if record.cp_hostname else None)
-        result = {"name": record.name, "type": ctype, "healthy": False, "url": None, "details": {}}
+        path = (self.endpoints.get("readiness", "/api/check/readiness")
+                if ctype == "connector"
+                else self.components.get(ctype, {}).get("healthPath", "/"))
 
-        if ctype == "connector" and record.cp_hostname:
-            health = self.check_health(f"{URL_SCHEME}://" + record.cp_hostname)
-            result["url"] = health["url"]
-            result["healthy"] = health["healthy"]
-            result["details"] = {"liveness": health["liveness"], "readiness": health["readiness"]}
-            return result
+        target = base_url.rstrip("/") + path
+        try:
+            status = requests.get(target, timeout=5).status_code
+        except requests.exceptions.ConnectionError as exception:
+            if _is_unresolvable(exception):
+                logger.debug("[EdcManager] %s is not resolvable from here; "
+                             "skipping the reachability probe.", target)
+                return {"url": target, "status_code": None, "reachable": None,
+                        "detail": "not resolvable from the console"}
+            logger.warning("[EdcManager] Probe refused for %s: %s", target, exception)
+            return {"url": target, "status_code": None, "reachable": False,
+                    "detail": "connection refused"}
+        except requests.exceptions.RequestException as exception:
+            logger.warning("[EdcManager] Probe failed for %s: %s", target, exception)
+            return {"url": target, "status_code": None, "reachable": False,
+                    "detail": "no response"}
 
-        if record.url:
-            health_path = self.components.get(ctype, {}).get("healthPath", "/")
-            target = self._with_scheme(record.url) + health_path
-            status = self._http_status(target)
-            result["url"] = target
-            result["healthy"] = status is not None and status < 500
-            result["details"] = {"status_code": status}
-        return result
+        return {"url": target, "status_code": status, "reachable": status < 500,
+                "detail": "" if status < 500 else f"HTTP {status}"}
 
     def get_assets(self, connector_url: Optional[str] = None) -> Dict:
         return self._edc_query(connector_url, "assets", "/v3/assets")

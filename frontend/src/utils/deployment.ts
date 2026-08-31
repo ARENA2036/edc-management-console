@@ -148,7 +148,7 @@ export function buildManagedComponentFromDraft(
     type,
     name: trimOrEmpty(draft.name),
     version: trimOrEmpty(draft.version),
-    status: 'Active',
+    status: 'Deploying',
     deployedAt: new Date().toISOString(),
     endpoint: trimOrEmpty(draft.url),
     credentials: undefined,

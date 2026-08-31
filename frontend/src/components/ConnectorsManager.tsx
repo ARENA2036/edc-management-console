@@ -20,6 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
+import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useCallback, useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
@@ -45,30 +46,9 @@ function getConnectorType(connector: DashboardConnector) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === 'healthy' || status === 'active' || status === 'Active') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'unhealthy' || status === 'inactive' || status === 'critical') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'deploying') {
-    return (
-      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Deploying
-      </span>
-    );
-  }
   return (
-    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
-      {status || 'Unknown'}
+    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
+      {statusLabel(status)}
     </span>
   );
 }

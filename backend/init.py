@@ -42,6 +42,7 @@ from models.connector import DeploymentRequest
 from models.database import ConnectorDB
 from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager, URL_SCHEME
+from managers.clusterManager import ClusterManager, Phase
 from managers.databaseManager import DatabaseManager
 from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
@@ -59,6 +60,7 @@ idpManager: OAuth2Manager
 edcManager: EdcManager
 edcService: EdcService
 databaseManager: DatabaseManager
+clusterManager: ClusterManager
 
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
@@ -230,6 +232,45 @@ async def _reconcile_and_get_release_name(record: ConnectorDB, default_namespace
     return None
 
 
+def _cluster_namespace():
+    return app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+
+
+def _component_status(record, facts, statuses) -> dict:
+    """The component's real state, and the row status to persist.
+
+    Kubernetes is the primary source: it knows the rollout is still in progress,
+    that a container is crash-looping, or that replicas are ready. Only once the
+    workloads report ready is the component's own API probed, to separate
+    "running" from "actually serving".
+
+    Applies to every component type. The previous code refreshed status only for
+    rows carrying a control-plane hostname, which is why digital twin registries
+    and submodel servers stayed "active" forever.
+    """
+    release = (record.config or {}).get("release") or record.name
+    cluster = clusterManager.resolve(statuses, release)
+
+    result = {"name": record.name, "type": _record_type(record), **cluster.to_dict()}
+
+    if cluster.is_active:
+        base_url = ClusterManager.internal_base_url_from(facts or {}, release)
+        if base_url:
+            probe = edcManager.component_reachable(record, base_url)
+            result["probe"] = probe
+            # `None` means the probe could not be carried out (the in-cluster
+            # address is unreachable from here). Kubernetes already reported the
+            # replicas ready, so an inconclusive probe must not contradict it.
+            if probe["reachable"] is False:
+                result["phase"] = Phase.DEGRADED
+                result["detail"] = ("Replicas are ready but the component's own API "
+                                    f"did not answer ({probe['detail']}).")
+
+    result["healthy"] = result["phase"] == Phase.ACTIVE
+    record.status = result["phase"]
+    return result
+
+
 @app.get("/api/components", tags=["Components"])
 async def list_components(user=Depends(keycloak_openid.get_current_user)):
     """
@@ -244,7 +285,9 @@ async def list_components(user=Depends(keycloak_openid.get_current_user)):
     """
     try:
 
-        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+        namespace = _cluster_namespace()
+        facts = clusterManager.collect()
+        statuses = clusterManager.statuses_from(facts) if facts is not None else None
         existingDeployments = databaseManager.get_all_connectors()
         json_list: list = []
         for component in existingDeployments:
@@ -252,13 +295,12 @@ async def list_components(user=Depends(keycloak_openid.get_current_user)):
             if not await _reconcile_and_get_release_name(component, namespace):
                 continue
 
+            health = _component_status(component, facts, statuses)
+            databaseManager.update_connector(component)
+
             url_list = []
-            # Only connector components carry a control-plane host to health-check / build URLs from.
+            # Only connector components carry a control-plane host to build URLs from.
             if component.cp_hostname:
-                health = edcManager.check_health(f'{URL_SCHEME}://' + component.cp_hostname)
-                logger.info("Health check status %s", health)
-                component.status = "active" if health.get("healthy") else "unreachable"
-                databaseManager.update_connector(component)
                 for endpoint in app_configuration.get("connector", {}).get("endpoints", {}).keys():
                     url_list.append(
                         f'{URL_SCHEME}://' + component.cp_hostname + app_configuration.get("connector", {}).get("endpoints", {}).get(endpoint)
@@ -270,6 +312,7 @@ async def list_components(user=Depends(keycloak_openid.get_current_user)):
 
             component_dict = component.to_dict()
             component_dict["urls"] = url_list
+            component_dict["health"] = health
             logger.debug("[components] %s", component.name)
             json_list.append(
                 component_dict
@@ -289,15 +332,15 @@ async def all_components_health(user=Depends(keycloak_openid.get_current_user)):
     readiness, others -> ingress reachability) and its row status is refreshed."""
     try:
 
-        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
+        namespace = _cluster_namespace()
+        facts = clusterManager.collect()
+        statuses = clusterManager.statuses_from(facts) if facts is not None else None
         results = []
         for record in databaseManager.get_all_connectors():
             if not await _reconcile_and_get_release_name(record, namespace):
                 continue
-            health = edcManager.component_health(record)
-            record.status = "active" if health.get("healthy") else "unreachable"
+            results.append(_component_status(record, facts, statuses))
             databaseManager.update_connector(record)
-            results.append(health)
 
         return HttpUtils.response(status=200, data=results)
     except Exception as exc:
@@ -316,15 +359,16 @@ async def get_component_health(component_name: str,
                 status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
                 message=f"No component named '{component_name}' is known to this console.")
 
-        namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        if not await _reconcile_and_get_release_name(record, namespace):
+        if not await _reconcile_and_get_release_name(record, _cluster_namespace()):
             return HttpUtils.get_error_response(
                 status=404, code="COMPONENT_NOT_FOUND", stage=Stage.CLUSTER,
                 message=f"Component '{component_name}' no longer exists in the cluster.",
                 hint="Refresh the dashboard - the component list has changed.")
 
-        health = edcManager.component_health(record)
-        record.status = "active" if health.get("healthy") else "unreachable"
+        facts = clusterManager.collect()
+        health = _component_status(record, facts,
+                                  clusterManager.statuses_from(facts)
+                                  if facts is not None else None)
         databaseManager.update_connector(record)
         return HttpUtils.response(status=200, data=health)
     except Exception as exc:
@@ -876,7 +920,7 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
 
 
 def init_app(host: str, port: int, log_level: str = "info"):
-    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, databaseManager
+    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, databaseManager, clusterManager
 
     dataspace_config: dict = app_configuration.get("dataspaceConfig", {})
     centralidp_config: dict = dataspace_config.get("centralidp", {}) or {}
@@ -900,6 +944,8 @@ def init_app(host: str, port: int, log_level: str = "info"):
         asyncio.run(edcService.ensure_repositories())
     except Exception as e:
         logger.error("[INIT] Failed to register Helm repositories: %s", str(e))
+
+    clusterManager = ClusterManager(namespace=_cluster_namespace())
 
     edcManager = EdcManager(
         connector_config=connector_config,

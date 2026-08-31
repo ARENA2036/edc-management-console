@@ -31,6 +31,7 @@ import {
   SquareActivity,
 } from 'lucide-react';
 import { activityApi, componentApi, dataspaceApi } from './api/client';
+import { isHealthy, needsAttention, statusLabel, statusTone } from './utils/status';
 import { ApiError, toApiError } from './api/errors';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
@@ -224,7 +225,7 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     name: record.name,
     type: recordType,
     version: record.version || '',
-    status: record.status === 'inactive' ? 'Inactive' : 'Active',
+    status: statusLabel(record.status) as ManagedComponent['status'],
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
     endpoint: record.url,
     db_name: '',
@@ -332,7 +333,9 @@ function getHealthTone(
     unknown: string;
   },
 ) {
-  if (status === 'healthy' || status === 'Active') {
+  const tone = statusTone(status);
+
+  if (tone === 'ok') {
     return {
       label: labels.healthy,
       badge:
@@ -340,7 +343,14 @@ function getHealthTone(
     };
   }
 
-  if (status === 'warning') {
+  if (tone === 'progress') {
+    return {
+      label: statusLabel(status),
+      badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
+    };
+  }
+
+  if (tone === 'warn') {
     return {
       label: labels.warning,
       badge:
@@ -348,11 +358,10 @@ function getHealthTone(
     };
   }
 
-  if (status === 'inactive' || status === 'unhealthy' || status === 'critical') {
+  if (tone === 'error') {
     return {
       label: labels.critical,
-      badge:
-        'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
+      badge: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
     };
   }
 
@@ -636,21 +645,19 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
 
   const activeConnectors = useMemo(
     () =>
-      connectors.filter(
-        (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
-      ).length,
+      connectors.filter((connector) => isHealthy(connector.status)).length,
     [connectors],
   );
 
   const activeComponentCounts = useMemo(() => {
-    const isActive = (component: ManagedComponent) =>
-      component.status !== 'Inactive';
+    // Counts every deployed component of the type, matching the backend cap,
+    // which counts rows irrespective of their current phase.
     return {
       digitalTwinRegistry: components.filter(
-        (component) => component.type === 'digitalTwinRegistry' && isActive(component),
+        (component) => component.type === 'digitalTwinRegistry',
       ).length,
       submodelServer: components.filter(
-        (component) => component.type === 'submodelServer' && isActive(component),
+        (component) => component.type === 'submodelServer',
       ).length,
     };
   }, [components]);
@@ -1042,12 +1049,11 @@ function Monitor() {
     const connectorEvents = connectors.slice(0, 4).map((connector) => ({
       id: `connector-${connector.id}`,
       title: t('eventConnectorAvailable', { name: connector.name }),
-      body:
-        connector.status === 'unhealthy'
-          ? t('eventConnectorAvailableUnhealthy')
-          : t('eventConnectorAvailableHealthy'),
+      body: needsAttention(connector.status)
+        ? t('eventConnectorAvailableUnhealthy')
+        : t('eventConnectorAvailableHealthy'),
       timestamp: connector.created_at,
-      severity: connector.status === 'unhealthy' ? 'critical' : 'healthy',
+      severity: needsAttention(connector.status) ? 'critical' : 'healthy',
     }));
 
     const componentEvents = components.slice(0, 4).map((component) => ({
@@ -1067,8 +1073,8 @@ function Monitor() {
 
   const recommendations = useMemo(() => {
     const items: string[] = [];
-    const unhealthyConnectors = connectorRows.filter(
-      (connector) => connector.status === 'unhealthy',
+    const unhealthyConnectors = connectorRows.filter((connector) =>
+      needsAttention(connector.status),
     );
     if (unhealthyConnectors.length > 0) {
       items.push(
@@ -1113,11 +1119,11 @@ function Monitor() {
     },
   ];
 
-  const healthyConnectors = connectorRows.filter(
-    (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
+  const healthyConnectors = connectorRows.filter((connector) =>
+    isHealthy(connector.status),
   ).length;
   const overallHealth =
-    connectorRows.some((connector) => connector.status === 'unhealthy')
+    connectorRows.some((connector) => needsAttention(connector.status))
       ? getHealthTone('critical', healthLabels)
       : recommendations.length > 1 || connectorRows.length === 0
       ? getHealthTone('warning', healthLabels)
@@ -1232,9 +1238,7 @@ function Monitor() {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connector.tone.badge}`}>
-                          {connector.status === 'unhealthy'
-                            ? t('monitorConnectorCritical')
-                            : t('monitorConnectorActive')}
+                          {connector.tone.label}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
