@@ -332,3 +332,18 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+prometheus:
+  enabled: false
+
+loki:
+  enabled: false
+
+grafana:
+  enabled: false
+
+jaeger:
+  enabled: false
+
+opentelemetry-collector:
+  enabled: false
