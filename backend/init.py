@@ -47,10 +47,11 @@ from managers.databaseManager import DatabaseManager
 from service.edcService import EdcService
 from utilities.httpUtils import HttpUtils
 from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
-                              DuplicateComponentName, EmcError, Stage,
-                              UnknownComponentType, UnsupportedVersion, classify,
-                              new_error_id)
+                              ComponentNameTaken, DuplicateComponentName, EmcError,
+                              Stage, UnknownComponentType, UnsupportedVersion,
+                              classify, new_error_id)
 from utilities.operators import op
+from utilities.ownership import ComponentScope, normalize_bpn
 from utilities.auth_utils import (assert_safe_external_url, build_external_url,
                                   get_oauth2_token)
 
@@ -288,7 +289,7 @@ async def list_components(user=Depends(keycloak_openid.get_current_user)):
         namespace = _cluster_namespace()
         facts = clusterManager.collect()
         statuses = clusterManager.statuses_from(facts) if facts is not None else None
-        existingDeployments = databaseManager.get_all_connectors()
+        existingDeployments = databaseManager.get_all_connectors(bpn=_scope_for(user).bpn)
         json_list: list = []
         for component in existingDeployments:
             # Drop rows whose Helm release no longer exists before showing them.
@@ -336,7 +337,7 @@ async def all_components_health(user=Depends(keycloak_openid.get_current_user)):
         facts = clusterManager.collect()
         statuses = clusterManager.statuses_from(facts) if facts is not None else None
         results = []
-        for record in databaseManager.get_all_connectors():
+        for record in databaseManager.get_all_connectors(bpn=_scope_for(user).bpn):
             if not await _reconcile_and_get_release_name(record, namespace):
                 continue
             results.append(_component_status(record, facts, statuses))
@@ -353,7 +354,8 @@ async def get_component_health(component_name: str,
     from the frontend. Refreshes and returns the component's health + status."""
     try:
 
-        record = databaseManager.get_connector_by_name(name=component_name)
+        record = databaseManager.get_connector_by_name(name=component_name,
+                                                       bpn=_scope_for(user).bpn)
         if not record:
             return HttpUtils.get_error_response(
                 status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
@@ -378,7 +380,8 @@ async def get_component_health(component_name: str,
 async def get_component(component_id: str, user=Depends(keycloak_openid.get_current_user)):
     """Retrieves a single deployed component by its id."""
     try:
-        component = databaseManager.get_connector_by_id(component_id)
+        component = databaseManager.get_connector_by_id(component_id,
+                                                        bpn=_scope_for(user).bpn)
         if not component:
             return HttpUtils.get_error_response(
                 status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
@@ -390,7 +393,7 @@ async def get_component(component_id: str, user=Depends(keycloak_openid.get_curr
     except Exception as exc:
         return HttpUtils.error_response(exc, stage=Stage.DATABASE, log=logger)
 
-def _upsert_component_row(comp, plan, namespace):
+def _upsert_component_row(comp, plan, namespace, scope: ComponentScope):
     """Create or refresh the ConnectorDB row for one deployed component.
 
     Each component is persisted as its own row keyed by its `name`; `config`
@@ -409,7 +412,8 @@ def _upsert_component_row(comp, plan, namespace):
         "chart": plan["chart"],
     }
 
-    record = databaseManager.get_connector_by_name(comp.name)
+    # Scoped, so a re-deploy can only ever roll forward a row the caller owns.
+    record = databaseManager.get_connector_by_name(comp.name, bpn=scope.bpn)
     if record is None:
         record = ConnectorDB(
             id=str(uuid.uuid4()),
@@ -442,19 +446,43 @@ def _upsert_component_row(comp, plan, namespace):
     return databaseManager.update_connector(record)
 
 
-def _assert_within_component_limits(components):
+def _assert_names_available(components, scope: ComponentScope):
+    """Reject a request claiming a name owned by another company.
+
+    Component names become Helm release names in one shared namespace, so they
+    cannot be scoped per company. Without this check a caller could name a
+    component after another company's and have the deploy path treat it as an
+    in-place upgrade of *their* release. Runs before any Helm work.
+    """
+    for comp in components:
+        if not comp.type or not comp.name:
+            continue
+        record = databaseManager.get_connector_by_name(name=comp.name)
+        if record is not None and not scope.permits(record):
+            raise ComponentNameTaken(
+                f"The name '{comp.name}' is already taken by another component in "
+                "this dataspace.",
+                hint="Choose a different name and deploy again.")
+
+
+def _assert_within_component_limits(components, scope: ComponentScope):
     """Reject the whole request if it would push any component type past its cap.
 
     Runs as a pre-flight check before any Helm work, so an over-limit request
     changes nothing at all rather than deploying the first few components and then
     failing part-way through.
 
+    The cap is counted within the caller's own BPN, the only counting that makes
+    sense once companies cannot see each other's components: one company filling
+    its three connectors must not stop another from deploying any. An unscoped
+    caller sees every component, so their count spans them all.
+
     Re-deploying a name that already exists is an in-place upgrade (Helm
     install-or-upgrade), not a new instance, so it is deliberately not counted
     against the cap — otherwise upgrading a component while at the limit would be
     impossible.
     """
-    existing = databaseManager.get_all_connectors()
+    existing = databaseManager.get_all_connectors(bpn=scope.bpn)
     existing_names = {record.name for record in existing}
 
     counts: dict = {}
@@ -485,36 +513,38 @@ def _session_bpn_enforcement_enabled() -> bool:
     return bool(identity_config.get("enforceSessionBpn", False))
 
 
-def _apply_session_bpn(components, user: Optional[dict]):
-    if not user:
+def _scope_for(user: Optional[dict]) -> ComponentScope:
+    return ComponentScope.for_user(user, _session_bpn_enforcement_enabled())
+
+
+def _apply_owner_bpn(components, scope: ComponentScope):
+    """Stamp the caller's BPN onto every component in the request.
+
+    The BPN persisted on a row is the record of ownership and what every read
+    filters on, so it comes from the caller's identity rather than the payload.
+    It is applied to *every* component type: previously only connectors were
+    stamped, which is why digital twin registries and submodel servers were
+    world-visible.
+
+    For a connector the same value doubles as its dataspace participant
+    identity. No other component's value mappings read `bpn`, so stamping it
+    leaves what is deployed for those unchanged.
+    """
+    if scope.is_unscoped:
+        logger.warning("[deploy] No BPN in the caller's token; deploying without a "
+                       "recorded owner.")
         return
 
-    session_bpn = (user.get("bpn") or "").strip().upper()
-    connectors = [comp for comp in components if comp.type == "connector"]
-
-    if not session_bpn:
-        if connectors and _session_bpn_enforcement_enabled():
+    for comp in components:
+        requested = normalize_bpn(getattr(comp, "bpn", ""))
+        if requested and requested != scope.bpn and _session_bpn_enforcement_enabled():
             raise EmcError(
-                "Your login does not provide a BPN, so a connector cannot be given a "
-                "dataspace identity.",
-                status=403, code="SESSION_BPN_MISSING", stage=Stage.AUTH,
-                hint="Add a 'bpn' claim mapper for this client in the identity provider, "
-                     "or set identity.enforceSessionBpn: false.",
-            )
-        logger.warning("[deploy] No BPN in the caller's token; leaving the requested BPN as-is.")
-        return
-
-    for comp in connectors:
-        requested = (getattr(comp, "bpn", "") or "").strip().upper()
-        if requested and requested != session_bpn and _session_bpn_enforcement_enabled():
-            raise EmcError(
-                f"Connector '{comp.name}' was requested with BPN {requested}, but your "
-                f"account belongs to {session_bpn}.",
+                f"Component '{comp.name}' was requested with BPN {requested}, but your "
+                f"account belongs to {scope.bpn}.",
                 status=403, code="SESSION_BPN_MISMATCH", stage=Stage.AUTH,
-                hint="A connector can only be deployed under your own BPN.",
+                hint="A component can only be deployed under your own BPN.",
             )
-
-        comp.bpn = session_bpn
+        comp.bpn = scope.bpn
 
 
 def _plan_error(plan) -> EmcError:
@@ -557,7 +587,7 @@ def _apply_db_password(comp):
     comp.auth = auth
 
 
-async def _deploy_components(components, namespace):
+async def _deploy_components(components, namespace, scope: ComponentScope):
     """Install-or-upgrade every component in the request (config-driven) and
     persist one DB row per component. A component with no `type`/`name` is an
     empty/optional slot and is skipped. Shared by POST (create) and PUT (upgrade)
@@ -575,7 +605,8 @@ async def _deploy_components(components, namespace):
             )
         seen_names.add(dup_name)
 
-    _assert_within_component_limits(components)
+    _assert_names_available(components, scope)
+    _assert_within_component_limits(components, scope)
 
     for comp in components:
         if not comp.type or not comp.name:
@@ -592,7 +623,7 @@ async def _deploy_components(components, namespace):
             values=plan["values"],
             namespace=namespace,
         )
-        _upsert_component_row(comp, plan, namespace)
+        _upsert_component_row(comp, plan, namespace, scope)
         deployed.append({"type": comp.type, "name": comp.name,
                          "release": plan["release_name"], "version": plan["version"]})
 
@@ -610,9 +641,10 @@ async def add_components(payload: DeploymentRequest,
     """
     try:
         logger.info("[deploy] %s", [f"{comp.type}/{comp.name}" for comp in payload.components])
-        _apply_session_bpn(payload.components, user)
+        scope = _scope_for(user)
+        _apply_owner_bpn(payload.components, scope)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        deployed = await _deploy_components(payload.components, namespace)
+        deployed = await _deploy_components(payload.components, namespace, scope)
         return HttpUtils.response(status=200, data={"deployed": deployed})
 
     except Exception as exc:
@@ -626,9 +658,10 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest,
     this re-renders each component's values and rolls the release forward."""
     try:
         logger.info("[upgrade] %s", [f"{comp.type}/{comp.name}" for comp in payload.components])
-        _apply_session_bpn(payload.components, user)
+        scope = _scope_for(user)
+        _apply_owner_bpn(payload.components, scope)
         namespace = app_configuration.get("dataspaceConfig", {}).get("clusterConfig", {}).get("namespace", None)
-        upgraded = await _deploy_components(payload.components, namespace)
+        upgraded = await _deploy_components(payload.components, namespace, scope)
         return HttpUtils.response(status=200, message="Components upgraded",
                                   data={"upgraded": upgraded})
 
@@ -645,7 +678,8 @@ async def delete_component(component_name: str,
     """
     try:
 
-        record = databaseManager.get_connector_by_name(name=component_name)
+        record = databaseManager.get_connector_by_name(name=component_name,
+                                                       bpn=_scope_for(user).bpn)
         if not record:
             return HttpUtils.get_error_response(
                 status=404, code="COMPONENT_NOT_FOUND", stage=Stage.REQUEST,
