@@ -75,4 +75,3 @@ dependencies:
     repository: https://open-telemetry.github.io/opentelemetry-helm-charts
     version: "0.126.0"
     condition: opentelemetry-collector.enabled
-    
