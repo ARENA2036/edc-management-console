@@ -41,7 +41,6 @@ from auth.roles import is_admin, require_admin
 
 from models.connector import DeploymentRequest
 from models.database import ConnectorDB
-from tractusx_sdk.dataspace.managers import OAuth2Manager
 from managers.edcManager import EdcManager, URL_SCHEME
 from managers.clusterManager import ClusterManager, Phase
 from managers.databaseManager import DatabaseManager
@@ -58,7 +57,6 @@ from utilities.auth_utils import (assert_safe_external_url, build_external_url,
 
 op.make_dir("logs")
 
-idpManager: OAuth2Manager
 edcManager: EdcManager
 edcService: EdcService
 databaseManager: DatabaseManager
@@ -66,12 +64,10 @@ clusterManager: ClusterManager
 
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
+
 # ------------------------------------------------------------
 # Logging Setup
 # ------------------------------------------------------------
-#logging.basicConfig(level=logging.INFO)
-#logger = logging.getLogger("CX-EMC")
-
 with open('./config/logging.yml', 'rt') as f:
     # Read the yaml configuration
     log_config = yaml.safe_load(f.read())
@@ -141,16 +137,6 @@ async def handle_unexpected_error(request: Request, exc: Exception):
     """Last resort. Anything here is a bug: logged with a traceback and reported
     as 500, never downgraded to a 4xx that would look like the caller's fault."""
     return HttpUtils.error_response(exc, stage=Stage.INTERNAL, log=logger)
-
-# ------------------------------------------------------------
-# Initialize Managers
-# ------------------------------------------------------------
-
-# init_db()
-# init_edc(settings)
-# init_activity()
-
-logger.info("[INIT] All managers initialized successfully!")
 
 # ------------------------------------------------------------
 # API ROUTES
@@ -799,18 +785,6 @@ async def add_existing_submodel_service(data: dict, user=Depends(require_admin))
     except Exception as exc:
         return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
-# @app.get("/api/logs", tags=["Logs"])
-# async def get_activity(limit: int = 20, user=Depends(keycloak_openid.get_current_user)):
-#     try:
-#         logs = activity_manager.get_recent_logs(limit)
-#         return {
-#             "user": user["preferred_username"],
-#             "data": logs
-#         }
-#     except Exception as e:
-#         logger.exception(str(e))
-#         return HttpUtils.get_error_response(status=500, message=str(e))
-
 @app.get("/api/config", tags=["Config"])
 async def get_config(user=Depends(keycloak_openid.get_current_user)):
     return {
@@ -946,7 +920,7 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
 
 
 def init_app(host: str, port: int, log_level: str = "info"):
-    global app, app_configuration, edcService, edcManager, edcDiscoveryService, discoveryFinderService, databaseManager, clusterManager
+    global edcService, edcManager, databaseManager, clusterManager
 
     dataspace_config: dict = app_configuration.get("dataspaceConfig", {})
     centralidp_config: dict = dataspace_config.get("centralidp", {}) or {}

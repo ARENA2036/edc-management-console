@@ -158,10 +158,3 @@ class DatabaseManager:
             logger.debug(f"[DatabaseManager] Logged activity: {action}")
         finally:
             session.close()
-
-    def get_recent_activity(self, limit: int = 50) -> List[ActivityLog]:
-        session = self.get_session()
-        try:
-            return session.query(ActivityLog).order_by(ActivityLog.timestamp.desc()).limit(limit).all()
-        finally:
-            session.close()
