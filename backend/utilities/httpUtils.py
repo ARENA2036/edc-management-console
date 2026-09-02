@@ -20,9 +20,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 import logging
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from typing import Any, Dict, Optional
-import io
 
 from utilities.errors import EmcError, Stage, classify, new_error_id, redact
 
@@ -134,19 +133,4 @@ class HttpUtils:
             message="Not authorized. Please provide valid authentication.",
             code="NOT_AUTHORIZED",
             stage=Stage.AUTH,
-        )
-
-    @staticmethod
-    def proxy(response: Any):
-        if hasattr(response, 'json'):
-            return JSONResponse(content=response.json(), status_code=response.status_code)
-        return response
-
-    @staticmethod
-    def file_response(buffer: io.BytesIO, filename: str, content_type: str):
-        buffer.seek(0)
-        return StreamingResponse(
-            buffer,
-            media_type=content_type,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
