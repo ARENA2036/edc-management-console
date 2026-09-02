@@ -692,10 +692,6 @@ async def add_existing_submodel_service(submodel_service_id: str, data: dict,
         bpn = data.get("bpn")
         auth_type = data.get("authType", "none")
 
-        # Everything the caller must supply, checked in one place before any of
-        # it is used. The oauth2 branch below spends a network round-trip and
-        # the caller's client credentials, so a request that was never going to
-        # be accepted must not reach it.
         required = {"url": url, "bpn": bpn}
         if auth_type == "apiKey":
             required["apiKey"] = data.get("apiKey")
@@ -709,10 +705,6 @@ async def add_existing_submodel_service(submodel_service_id: str, data: dict,
                 message="This registration is missing required field(s): "
                         + ", ".join(missing) + ".")
 
-        # The probe below carries whatever credentials the caller configured, so
-        # the target has to be vetted first. build_external_url re-assembles the
-        # URL from the accepted origin plus this literal path, so the caller
-        # cannot steer the request elsewhere.
         url = assert_safe_external_url(url, field="url")
         health_url = build_external_url(url, "api/health", field="url")
 
