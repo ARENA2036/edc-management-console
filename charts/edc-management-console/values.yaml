@@ -158,16 +158,6 @@ backend:
       clientid: "TODO__XXX__YOUR_VALUE___XXX"
       clientsecret: "TODO__XXX__YOUR_VALUE___XXX"
 
-  connector:
-    templates:
-      enabled: false
-  registry:
-    templates:
-      enabled: false
-
-  configuration:
-    yml: ""
-
   resources: {}
     # We usually recommend not to specify default resources and to leave this as a conscious
     # choice for the user. This also increases chances charts run on environments with little
@@ -342,18 +332,3 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-
-prometheus:
-  enabled: false
-
-loki:
-  enabled: false
-
-grafana:
-  enabled: false
-
-jaeger:
-  enabled: false
-
-opentelemetry-collector:
-  enabled: false
