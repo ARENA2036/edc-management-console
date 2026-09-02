@@ -22,7 +22,7 @@
 from datetime import datetime
 
 from sqlalchemy import Uuid, Column, String, Integer, DateTime, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 

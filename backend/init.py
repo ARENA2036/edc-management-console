@@ -24,6 +24,7 @@ import asyncio
 import secrets
 import logging.config
 import yaml
+import requests
 import uvicorn
 import uuid
 import os
@@ -677,104 +678,80 @@ async def delete_component(component_name: str,
         return HttpUtils.error_response(exc, stage=Stage.HELM, log=logger)
 
 
-@app.post("/api/submodel", tags=["Submodel"])
-async def add_submodel_service(data: dict, user=Depends(require_admin)):
-    """Deploy a submodel service independently"""
-    try:
-        url = data.get("url")
-        service_type = data.get("type", "submodel-service")
-
-        auth_config = {
-            "authType": data.get("submodelAuthType", "none"),
-            "apiKey": data.get("submodelApiKey"),
-            "bearerToken": data.get("submodelBearerToken"),
-            "oauth2": {
-                "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
-                "clientId": data.get("submodelOAuthClientId"),
-                "clientSecret": data.get("submodelOAuthClientSecret"),
-                "scope": data.get("submodelOAuthScope"),
-                "clientAuth": data.get("submodelOAuthClientAuth")
-            }
-        }
-
-        if not url:
-            return HttpUtils.get_error_response(
-                status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
-                message="A submodel service URL is required.")
-
-        database_manager.log_activity(
-            action="DEPLOY_SUBMODEL",
-            details=f"Submodel service deployed by {user['preferred_username']}: {url} | Auth: {auth_config['authType']}",
-            status="success"
-        )
-
-        return {
-            "message": f"Submodel service deployed by {user['preferred_username']}",
-            "data": {
-                "url": url,
-                "type": service_type,
-                "auth": auth_config,
-                "status": "deployed"
-            }
-        }
-    except Exception as exc:
-        return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
-
 @app.post("/api/submodel/{submodel_service_id}", tags=["Submodel"])
-async def add_existing_submodel_service(data: dict, user=Depends(require_admin)):
-    """Register a submodel service independently"""
+async def add_existing_submodel_service(submodel_service_id: str, data: dict,
+                                        user=Depends(require_admin)):
+    """Register an already-running submodel service and report whether it answers.
+
+    The service is not deployed by this console - deploying one is
+    ``POST /api/component`` with ``type: submodelServer``. This records the
+    registration in the activity log and probes the endpoint once.
+    """
     try:
         url = data.get("url")
         bpn = data.get("bpn")
         auth_type = data.get("authType", "none")
 
-        headers = {"Content-Type": "application/json"}
-
+        # Everything the caller must supply, checked in one place before any of
+        # it is used. The oauth2 branch below spends a network round-trip and
+        # the caller's client credentials, so a request that was never going to
+        # be accepted must not reach it.
+        required = {"url": url, "bpn": bpn}
         if auth_type == "apiKey":
-            headers["X-API-Key"] = data.get("apiKey")
+            required["apiKey"] = data.get("apiKey")
         elif auth_type == "bearer":
-            headers["Authorization"] = f"Bearer {data.get('bearerToken')}"
+            required["bearerToken"] = data.get("bearerToken")
+
+        missing = [field for field, value in required.items() if not value]
+        if missing:
+            return HttpUtils.get_error_response(
+                status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
+                message="This registration is missing required field(s): "
+                        + ", ".join(missing) + ".")
+
+        # The probe below carries whatever credentials the caller configured, so
+        # the target has to be vetted first. build_external_url re-assembles the
+        # URL from the accepted origin plus this literal path, so the caller
+        # cannot steer the request elsewhere.
+        url = assert_safe_external_url(url, field="url")
+        health_url = build_external_url(url, "api/health", field="url")
+
+        headers = {"Content-Type": "application/json"}
+        if auth_type == "apiKey":
+            headers["X-API-Key"] = required["apiKey"]
+        elif auth_type == "bearer":
+            headers["Authorization"] = f"Bearer {required['bearerToken']}"
         elif auth_type == "oauth2":
-            oauth_config = {
+            headers["Authorization"] = "Bearer " + get_oauth2_token({
                 "accessTokenUrl": data.get("submodelOAuthAccessTokenUrl"),
                 "clientId": data.get("submodelOAuthClientId"),
                 "clientSecret": data.get("submodelOAuthClientSecret"),
                 "scope": data.get("submodelOAuthScope", "openid"),
-                "clientAuth": data.get("submodelOAuthClientAuth", "basic")
-            }
-            token = get_oauth2_token(oauth_config)
-            headers["Authorization"] = f"Bearer {token}"
+                "clientAuth": data.get("submodelOAuthClientAuth", "basic"),
+            })
 
-        if not url or not bpn:
-            return HttpUtils.get_error_response(
-                status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST,
-                message="Both a submodel service URL and a BPN are required.")
-
-        # The probe below carries whatever credentials the caller configured
-        # above, so the target has to be vetted first. build_external_url
-        # re-assembles the URL from the accepted origin plus this literal path,
-        # so the caller cannot steer the request elsewhere.
-        url = assert_safe_external_url(url, field="url")
-        health_url = build_external_url(url, "api/health", field="url")
-
-        import requests
+        # Any failure here means "it did not answer", which is a reportable
+        # result rather than an error - the registration itself still stands.
         try:
             check = requests.get(health_url, headers=headers, timeout=5,
                                  allow_redirects=False)
             reachable = check.status_code == 200
-        except Exception:
+        except Exception as exception:
+            logger.info("[submodel] %s did not answer: %s", health_url, exception)
             reachable = False
 
-        database_manager.log_activity(
+        databaseManager.log_activity(
             action="CONNECT_SUBMODEL",
-            details=f"Existing submodel service connected by {user['preferred_username']}: {url} (BPN: {bpn})",
-            status="success" if reachable else "warning"
+            connector_name=submodel_service_id,
+            details=f"Existing submodel service connected by {user['preferred_username']}: "
+                    f"{url} (BPN: {bpn})",
+            status="success" if reachable else "warning",
         )
-
 
         return {
             "message": f"Submodel service connected by {user['preferred_username']}",
             "data": {
+                "id": submodel_service_id,
                 "url": url,
                 "bpn": bpn,
                 "reachable": reachable,
