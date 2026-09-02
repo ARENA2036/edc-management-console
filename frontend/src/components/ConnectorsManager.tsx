@@ -34,6 +34,7 @@ interface Props {
   onDelete: (connector: DashboardConnector) => Promise<void> | void;
   onAddComponent: (connector: DashboardConnector) => void;
   onEditConnector?: (connector: DashboardConnector) => void;
+  canManage?: boolean;
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -69,6 +70,7 @@ export default function ConnectorsManager({
   connectors,
   onDelete,
   onAddComponent,
+  canManage = true,
   onEditConnector,
 }: Props) {
   const { language, t } = useI18n();
@@ -161,6 +163,7 @@ export default function ConnectorsManager({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
+                        {canManage ? (
                         <Tooltip content={t('connectorAddComponentTooltip')}>
                           <button
                             onClick={() => onAddComponent(connector)}
@@ -169,6 +172,7 @@ export default function ConnectorsManager({
                             <Plus size={16} />
                           </button>
                         </Tooltip>
+                        ) : null}
                         <Tooltip content={t('tableManage')}>
                           <button
                             onClick={() => setYamlConnector(connector)}
@@ -177,7 +181,7 @@ export default function ConnectorsManager({
                             <FileText size={16} />
                           </button>
                         </Tooltip>
-                        {onEditConnector ? (
+                        {canManage && onEditConnector ? (
                           <Tooltip
                             content={
                               language === 'de'
@@ -193,6 +197,7 @@ export default function ConnectorsManager({
                             </button>
                           </Tooltip>
                         ) : null}
+                        {canManage ? (
                         <Tooltip content={t('connectorDeleteTooltipWithoutComponents')}>
                           <button
                             type="button"
@@ -202,6 +207,7 @@ export default function ConnectorsManager({
                             <Trash2 size={16} />
                           </button>
                         </Tooltip>
+                        ) : null}
                         <Tooltip content={t('tableMore')}>
                           <button
                             onClick={() => setSelectedConnector(connector)}

@@ -25,12 +25,16 @@ A component belongs to the BPN that deployed it. Only a caller acting for that
 BPN may list it, health-check it, upgrade it or delete it - and an unauthorised
 lookup is answered "not found" rather than "forbidden", so the API never
 confirms that another company's component exists.
+
+This decides what a caller may *see*; :mod:`auth.roles` decides what they may
+*do*. The two are independent, so an Admin still only manages the components of
+the company they act for.
 """
 
 from dataclasses import dataclass
 from typing import Optional
 
-from utilities.errors import EmcError, Stage
+from utilities.errors import Forbidden
 
 
 def normalize_bpn(value) -> str:
@@ -42,12 +46,9 @@ def normalize_bpn(value) -> str:
 class ComponentScope:
     """The set of components one caller may act on.
 
-    ``bpn`` is either a canonical BPN or ``None``, meaning unscoped: every
-    component, including those with no recorded owner. The empty string is
-    rejected in favour of ``None`` on construction, so "owner unknown" can
-    never silently become "owns the unowned rows" - which is what makes the
-    ``bpn is None`` test at the persistence boundary safe to read as
-    "no filter".
+    ``bpn`` is the canonical BPN the caller acts for. The default of ``None``
+    matches no record at all, so a scope built without an owner denies rather
+    than grants - "owner unknown" can never silently become "owns everything".
     """
 
     bpn: Optional[str] = None
@@ -55,37 +56,25 @@ class ComponentScope:
     def __post_init__(self):
         object.__setattr__(self, "bpn", normalize_bpn(self.bpn) or None)
 
-    @property
-    def is_unscoped(self) -> bool:
-        return self.bpn is None
-
     def permits(self, record) -> bool:
         """Whether ``record`` is in this scope, for rows already in hand."""
-        return self.is_unscoped or normalize_bpn(getattr(record, "bpn", "")) == self.bpn
+        return self.bpn is not None and normalize_bpn(getattr(record, "bpn", "")) == self.bpn
 
     @classmethod
-    def for_user(cls, user: Optional[dict], enforce: bool) -> "ComponentScope":
+    def for_user(cls, user: Optional[dict]) -> "ComponentScope":
         """The scope of a caller, from their verified claims.
 
-        A caller whose token carries a BPN is scoped to it. One without a BPN
-        has no dataspace identity, and ``enforce`` (from
-        ``identity.enforceSessionBpn``) decides what that means: refuse the
-        request, or treat them as unscoped so API-key-only clients and the
-        frontend's auth-disabled development mode keep working.
-
-        Isolation does not depend on ``enforce``: as soon as a token carries a
-        BPN, that caller is scoped to it either way.
+        Every account in the dataspace acts for exactly one company, so a token
+        carrying no BPN has no company to be scoped to and the request is
+        refused rather than widened.
         """
         bpn = normalize_bpn((user or {}).get("bpn"))
-        if bpn:
-            return cls(bpn)
-
-        if enforce:
-            raise EmcError(
+        if not bpn:
+            raise Forbidden(
                 "Your login does not provide a BPN, so this console cannot tell which "
                 "company's components you may access.",
-                status=403, code="SESSION_BPN_MISSING", stage=Stage.AUTH,
-                hint="Add a 'bpn' claim mapper for this client in the identity provider, "
-                     "or set identity.enforceSessionBpn: false.",
+                code="SESSION_BPN_MISSING",
+                hint="Add a 'bpn' claim mapper for this client in the identity provider.",
             )
-        return cls(None)
+
+        return cls(bpn)

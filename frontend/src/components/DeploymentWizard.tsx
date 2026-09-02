@@ -77,7 +77,7 @@ export default function DeploymentWizard({
   defaultVersion,
   availableVersions,
   prefilledBpn,
-  bpnRequired = false,
+  bpnRequired = true,
   defaultApiEndpoint,
   defaultDataPlaneUrl,
   controlPlaneHostSuffix,
