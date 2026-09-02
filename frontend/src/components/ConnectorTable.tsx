@@ -20,6 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import { useState } from 'react';
+import { statusBadgeClass, statusLabel } from '../utils/status';
 import { Trash2, Edit, FileText, Info } from 'lucide-react';
 import type { Connector } from '../types';
 import { componentApi } from '../api/client';
@@ -88,13 +89,11 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                 </td>
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      connector.status === 'deployed' || connector.status === 'unhealthy'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
+                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusBadgeClass(
+                      connector.status,
+                    )}`}
                   >
-                    {connector.status === 'unhealthy' ? 'Active' : connector.status}
+                    {statusLabel(connector.status)}
                   </span>
                 </td>
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-gray-500">

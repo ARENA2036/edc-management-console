@@ -117,6 +117,15 @@ class ComponentLimitExceeded(Conflict):
     """
     code = "COMPONENT_LIMIT_REACHED"
 
+class ComponentNameTaken(Conflict):
+    """The requested name already belongs to another company's component.
+
+    Names are cluster-wide - they become Helm release names in one shared
+    namespace - so they cannot be scoped per company. Reported without naming
+    the owner: the caller learns the name is unavailable, nothing more.
+    """
+    code = "COMPONENT_NAME_TAKEN"
+
 class DuplicateComponentName(BadRequest):
     """Two components in one payload claim the same name. Raised before any
     Helm work, so nothing has been deployed when the caller sees it."""
