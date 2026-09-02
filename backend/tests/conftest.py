@@ -1,5 +1,4 @@
- <!-- 
- ********************************************************************************
+###############################################################
 # Tractus-X - EDC Management Console
 #
 # Copyright (c) 2026 ARENA2036 e.V.
@@ -19,21 +18,15 @@
 # under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
- ********************************************************************************
-  -->
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
-    <title>EDC Management Console</title>
-    <script src="/config.js"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+###############################################################
+"""Shared test setup.
+
+The application reads ``config/*.yml`` and writes ``logs/`` relative to the
+working directory (the container runs with ``WORKDIR /backend``), and importing
+``init`` executes that. Anchoring the process here lets a test import the app
+regardless of where pytest was invoked from.
+"""
+import os
+from pathlib import Path
+
+os.chdir(Path(__file__).resolve().parent.parent)

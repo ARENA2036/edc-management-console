@@ -1,5 +1,4 @@
- <!-- 
- ********************************************************************************
+###############################################################
 # Tractus-X - EDC Management Console
 #
 # Copyright (c) 2026 ARENA2036 e.V.
@@ -19,21 +18,4 @@
 # under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
- ********************************************************************************
-  -->
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
-    <title>EDC Management Console</title>
-    <script src="/config.js"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+###############################################################
