@@ -37,23 +37,23 @@ from fastapi import FastAPI, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from auth.keycloak_config import keycloak_openid
-from auth.roles import is_admin, require_admin
+from app.auth.keycloak_config import keycloak_openid
+from app.auth.roles import is_admin, require_admin
 
-from models.connector import DeploymentRequest
-from models.database import ConnectorDB
-from managers.edcManager import EdcManager, URL_SCHEME
-from managers.clusterManager import ClusterManager, Phase
-from managers.databaseManager import DatabaseManager
-from service.edcService import EdcService
-from utilities.httpUtils import HttpUtils
-from utilities.errors import (ComponentLimitExceeded, ComponentMisconfigured,
+from app.models.connector import DeploymentRequest
+from app.models.database import ConnectorDB
+from app.managers.edc_manager import EdcManager, URL_SCHEME
+from app.managers.cluster_manager import ClusterManager, Phase
+from app.managers.database_manager import DatabaseManager
+from app.services.edc_service import EdcService
+from app.utils.http_utils import HttpUtils
+from app.utils.errors import (ComponentLimitExceeded, ComponentMisconfigured,
                               ComponentNameTaken, DuplicateComponentName, EmcError,
                               Stage, UnknownComponentType, UnsupportedVersion,
                               classify, new_error_id)
-from utilities.operators import op
-from utilities.ownership import ComponentScope, normalize_bpn
-from utilities.auth_utils import (assert_safe_external_url, build_external_url,
+from app.utils.operators import op
+from app.utils.ownership import ComponentScope, normalize_bpn
+from app.utils.auth_utils import (assert_safe_external_url, build_external_url,
                                   get_oauth2_token)
 
 op.make_dir("logs")

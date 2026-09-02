@@ -29,14 +29,14 @@ holding neither is treated as a reader, so a missing role mapper degrades to
 view-only instead of locking the company out of its own dashboard.
 
 Roles gate *actions* only. Which components an action may touch is
-:class:`utilities.ownership.ComponentScope`, so an Admin still manages nothing
+:class:`app.utils.ownership.ComponentScope`, so an Admin still manages nothing
 outside their own BPN.
 """
 
 from fastapi import Depends
 
-from auth.keycloak_config import keycloak_openid
-from utilities.errors import Forbidden
+from app.auth.keycloak_config import keycloak_openid
+from app.utils.errors import Forbidden
 
 ADMIN = "Admin"
 USER = "User"

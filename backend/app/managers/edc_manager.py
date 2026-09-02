@@ -25,7 +25,7 @@ import logging
 from typing import Dict
 from urllib.parse import urlparse
 
-from utilities.common import (render_values, render_template, render_structure,
+from app.utils.common import (render_values, render_template, render_structure,
                               resolve_version_entry, merge_value_mappings,
                               condition_met, as_context)
 

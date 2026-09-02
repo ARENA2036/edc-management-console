@@ -28,17 +28,13 @@ into the cluster: the metadata service, the Kubernetes API and every internal
 Service are one request away, and the client secret goes with it.
 """
 
-import os
 import socket
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from utilities.auth_utils import (assert_safe_external_url,  # noqa: E402
+from app.utils.auth_utils import (assert_safe_external_url,
                                   build_external_url, get_oauth2_token)
-from utilities.errors import EmcError  # noqa: E402
+from app.utils.errors import EmcError
 
 
 @pytest.fixture(autouse=True)
@@ -139,7 +135,7 @@ def test_token_request_is_bounded_and_does_not_follow_redirects(monkeypatch):
         seen.update(url=url, **kwargs)
         return Response()
 
-    monkeypatch.setattr("utilities.auth_utils.requests.post", post)
+    monkeypatch.setattr("app.utils.auth_utils.requests.post", post)
 
     token = get_oauth2_token({"accessTokenUrl": "https://idp.example.com/token",
                               "clientId": "cid", "clientSecret": "sec"})
@@ -156,7 +152,7 @@ def test_token_request_refuses_an_internal_endpoint(monkeypatch):
     def post(*args, **kwargs):  # pragma: no cover - must never run
         raise AssertionError("the request should never have been made")
 
-    monkeypatch.setattr("utilities.auth_utils.requests.post", post)
+    monkeypatch.setattr("app.utils.auth_utils.requests.post", post)
 
     with pytest.raises(EmcError) as error:
         get_oauth2_token({"accessTokenUrl": "https://metadata.example.com/token",
@@ -176,7 +172,7 @@ def test_upstream_failures_surface_as_502_not_a_keyerror(monkeypatch):
         def json():
             return {"error": "invalid_client"}
 
-    monkeypatch.setattr("utilities.auth_utils.requests.post",
+    monkeypatch.setattr("app.utils.auth_utils.requests.post",
                         lambda *args, **kwargs: Refused())
 
     with pytest.raises(EmcError) as error:

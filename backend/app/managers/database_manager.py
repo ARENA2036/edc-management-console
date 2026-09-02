@@ -21,7 +21,7 @@
 ###############################################################
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session, Query
-from models.database import Base, ConnectorDB, ActivityLog
+from app.models.database import Base, ConnectorDB, ActivityLog
 from typing import List, Optional
 import logging
 
