@@ -19,38 +19,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
-import { Boxes, MoreHorizontal, PencilLine, Trash2, X } from 'lucide-react';
+import { Boxes, MoreHorizontal, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
+import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
 function ComponentStatusBadge({ status }: { status: string }) {
-  if (status === 'Active' || status === 'active' || status === 'healthy') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'Deploying' || status === 'deploying') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'Inactive' || status === 'inactive') {
-    return (
-      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
-        Inactive
-      </span>
-    );
-  }
   return (
-    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
-      {status || 'Unknown'}
+    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
+      {statusLabel(status)}
     </span>
   );
 }
@@ -67,6 +47,7 @@ function localizeComponentType(
 interface Props {
   components: ManagedComponent[];
   onDelete: (component: ManagedComponent) => Promise<void> | void;
+  canManage?: boolean;
 }
 
 function ComponentDetailsModal({
@@ -182,7 +163,7 @@ function DeleteComponentModal({
   );
 }
 
-export default function ComponentsManager({ components, onDelete }: Props) {
+export default function ComponentsManager({ components, onDelete, canManage = true }: Props) {
   const { t } = useI18n();
   const [selectedComponent, setSelectedComponent] = useState<ManagedComponent | null>(null);
   const [componentToDelete, setComponentToDelete] = useState<ManagedComponent | null>(null);
@@ -257,6 +238,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
+                        {canManage ? (
                         <Tooltip
                           content={t('deleteComponentTooltip')}
                         >
@@ -267,6 +249,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                             <Trash2 size={16} />
                           </button>
                         </Tooltip>
+                        ) : null}
                         <Tooltip content={t('tableMore')}>
                           <button
                             onClick={() => setSelectedComponent(component)}

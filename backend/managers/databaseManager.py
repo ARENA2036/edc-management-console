@@ -19,8 +19,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
-from sqlalchemy import create_engine, text, Uuid
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import sessionmaker, Session, Query
 from models.database import Base, ConnectorDB, ActivityLog
 from typing import List, Optional
 import logging
@@ -54,24 +54,45 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_connector_by_id(self, connector_id: int) -> Optional[ConnectorDB]:
+    @staticmethod
+    def _owned_by(query: Query, bpn: Optional[str]) -> Query:
+        """Restrict ``query`` to the rows owned by ``bpn``.
+
+        ``None`` means "no owner filter" and is the only way to read across
+        companies; the empty string is not a wildcard, so a caller whose BPN
+        could not be determined cannot be handed the unowned rows. Compared
+        case- and trim-insensitively, since rows written before BPNs were
+        normalised carry whatever the wizard was given.
+        """
+        if bpn is None:
+            return query
+        return query.filter(func.upper(func.trim(ConnectorDB.bpn)) == bpn.strip().upper())
+
+    def get_connector_by_id(self, connector_id: int,
+                            bpn: Optional[str] = None) -> Optional[ConnectorDB]:
         session = self.get_session()
         try:
-            return session.query(ConnectorDB).filter(ConnectorDB.id == connector_id).first()
+            query = self._owned_by(session.query(ConnectorDB), bpn)
+            return query.filter(ConnectorDB.id == connector_id).first()
         finally:
             session.close()
 
-    def get_connector_by_name(self, name: str) -> Optional[ConnectorDB]:
+    def get_connector_by_name(self, name: str,
+                              bpn: Optional[str] = None) -> Optional[ConnectorDB]:
+        """None when the name is unknown *or* owned by another BPN. Names are
+        unique table-wide, so an unfiltered lookup is what tells a deployment
+        whether a name is free at all."""
         session = self.get_session()
         try:
-            return session.query(ConnectorDB).filter(ConnectorDB.name == name).first()
+            query = self._owned_by(session.query(ConnectorDB), bpn)
+            return query.filter(ConnectorDB.name == name).first()
         finally:
             session.close()
 
-    def get_all_connectors(self) -> List[ConnectorDB]:
+    def get_all_connectors(self, bpn: Optional[str] = None) -> List[ConnectorDB]:
         session = self.get_session()
         try:
-            return session.query(ConnectorDB).all()
+            return self._owned_by(session.query(ConnectorDB), bpn).all()
         finally:
             session.close()
 
