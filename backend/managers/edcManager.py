@@ -22,7 +22,7 @@
 import os
 import requests
 import logging
-from typing import Dict, Optional
+from typing import Dict
 from urllib.parse import urlparse
 
 from utilities.common import (render_values, render_template, render_structure,
@@ -45,8 +45,8 @@ URL_SCHEME = os.getenv("EMC_URL_SCHEME", "https")
 
 class EdcManager:
     """Prepares Helm values for and orchestrates deployment of the dataspace
-    components (connectors today, others via the same generic path), plus the
-    EDC dataspace HTTP queries (health/assets/policies/contracts).
+    components (connectors today, others via the same generic path), and probes
+    a deployed component's own API for reachability.
 
     Deployments are described entirely in configuration under `components`:
     each entry carries its chart reference, version list, `derive` rules and
@@ -57,8 +57,7 @@ class EdcManager:
     def __init__(self, connector_config: dict, dataspace_config: dict, components_config: dict):
         # Per-component deployment definitions (chart, versions, derive, mappings).
         self.components = components_config or {}
-        # EDC dataspace query config (used by health/assets/policies/contracts).
-        self.default_url = connector_config.get("default_url", "")
+        # Endpoint paths on a deployed component, used by the reachability probe.
         self.endpoints = connector_config.get("endpoints", {})
         # Inputs to the derivation context shared by all components.
         self.hostname = connector_config.get("hostname", {})
@@ -67,22 +66,6 @@ class EdcManager:
         self.did_method = connector_config.get("didMethod", "did:web")
         self.ssi_wallet_url = dataspace_config.get("ssi_wallet", {}).get("url", None)
         self.authority_id = dataspace_config.get("authority_id", "BPNL00000003CRHK")
-
-    def _edc_query(self, connector_url: Optional[str], endpoint_key: str, default_path: str) -> Dict:
-        """GET a versioned EDC management resource (assets/policies/contracts) and
-        return its JSON, or ``{error}`` on failure."""
-        target = (connector_url or self.default_url) + self.endpoints.get(endpoint_key, default_path)
-        try:
-            response = requests.get(target, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error("[EdcManager] Failed to query %s at %s: %s", endpoint_key, target, e)
-            return {"error": str(e)}
-
-    @staticmethod
-    def _with_scheme(url: str) -> str:
-        return url if url.startswith(("http://", "https://")) else f"{URL_SCHEME}://" + url
 
     def component_reachable(self, record, base_url: str) -> Dict:
         config = record.config or {}
@@ -110,15 +93,6 @@ class EdcManager:
 
         return {"url": target, "status_code": status, "reachable": status < 500,
                 "detail": "" if status < 500 else f"HTTP {status}"}
-
-    def get_assets(self, connector_url: Optional[str] = None) -> Dict:
-        return self._edc_query(connector_url, "assets", "/v3/assets")
-
-    def get_policies(self, connector_url: Optional[str] = None) -> Dict:
-        return self._edc_query(connector_url, "policies", "/v3/policydefinitions")
-
-    def get_contracts(self, connector_url: Optional[str] = None) -> Dict:
-        return self._edc_query(connector_url, "contracts", "/v3/contractdefinitions")
 
     @staticmethod
     def _as_dict(source) -> dict:
