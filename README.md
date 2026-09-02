@@ -91,18 +91,21 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ```
 ├── backend/
-│   ├── config/              # YAML configurations
-│   ├── managers/            # Business logic managers
-│   │   ├── authManager.py   # Authentication
-│   │   ├── databaseManager.py # Database operations
-│   │   └── edcManager.py    # EDC management
-│   ├── service/             # Service layer
-│   │   └── edcService.py    # EDC integration
-│   ├── models/              # Data models
-│   │   ├── database.py      # SQLAlchemy models
-│   │   └── requests.py      # API request models
-│   ├── utilities/           # Helper utilities
-│   └── init.py              # FastAPI application
+│   ├── app/                        # Application package
+│   │   ├── auth/                   # Token verification and roles
+│   │   ├── managers/               # Business logic managers
+│   │   │   ├── cluster_manager.py  # Kubernetes workload state
+│   │   │   ├── database_manager.py # Database operations
+│   │   │   └── edc_manager.py      # Helm values, component probes
+│   │   ├── models/                 # Data models
+│   │   │   ├── connector.py        # API request models
+│   │   │   └── database.py         # SQLAlchemy models
+│   │   ├── services/               # Service layer
+│   │   │   └── edc_service.py      # Helm client
+│   │   ├── utils/                  # Helper utilities
+│   │   └── main.py                 # FastAPI application
+│   ├── config/                     # YAML configurations
+│   └── tests/
 │
 ├── frontend/
 │   ├── src/

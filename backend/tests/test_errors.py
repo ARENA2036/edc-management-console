@@ -31,9 +31,9 @@ which is what makes that table safe to extend.
 """
 import pytest
 
-from utilities import errors
-from utilities.errors import EmcError, Stage
-from utilities.httpUtils import HttpUtils
+from app.utils import errors
+from app.utils.errors import EmcError, Stage
+from app.utils.http_utils import HttpUtils
 
 CLASSIFICATION_CASES = [
     ('exec: "helm": executable file not found in $PATH',

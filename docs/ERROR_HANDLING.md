@@ -107,7 +107,7 @@ cd frontend && npx tsc -p tsconfig.app.json --noEmit
 Out of scope for this change (exception handling only), listed by impact.
 
 1. **`database_manager` is undefined** in both `/api/submodel` routes
-   (`init.py`) — the instance is `databaseManager`. Every call raises
+   (`app/main.py`) — the instance is `databaseManager`. Every call raises
    `NameError`. It now returns a clean 500 with an `errorId` instead of an
    unformatted traceback, but the endpoints remain non-functional.
 2. **`DatabaseManager` never rolls back** — all five methods use `try/finally`

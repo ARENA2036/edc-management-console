@@ -23,7 +23,7 @@ import logging
 from fastapi.responses import JSONResponse
 from typing import Any, Dict, Optional
 
-from utilities.errors import EmcError, Stage, classify, new_error_id, redact
+from app.utils.errors import EmcError, Stage, classify, new_error_id, redact
 
 logger = logging.getLogger(__name__)
 

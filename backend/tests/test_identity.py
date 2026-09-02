@@ -21,8 +21,6 @@
 ###############################################################
 
 import base64
-import os
-import sys
 import time
 
 import pytest
@@ -31,9 +29,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from jose import jwt
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from auth.keycloak_config import KeycloakOpenID  # noqa: E402
+from app.auth.keycloak_config import KeycloakOpenID
 
 ISSUER = "https://centralidp.example.de/auth/realms/CX-Central"
 
