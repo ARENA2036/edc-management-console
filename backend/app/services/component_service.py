@@ -211,7 +211,8 @@ class ComponentService:
             error = classify(exception, stage=Stage.CLUSTER)
             logger.warning("[reconcile][%s][stage=%s] Could not verify release '%s' in "
                            "namespace '%s': %s; keeping row",
-                           error.code, error.stage, release_name, namespace, error.message)
+                           error.code, error.stage, release_name, namespace,
+                           error.detail or error.message)
             return release_name
 
         if exists:

@@ -26,7 +26,9 @@ rules they call under `app/services`, and the objects they need are built once i
 `lifespan` and reached through `app/api/dependencies`.
 """
 import argparse
+import asyncio
 import logging
+import sys
 
 from contextlib import asynccontextmanager
 
@@ -44,6 +46,7 @@ from app.api.routers import (components, configuration, dataspace,  # noqa: E402
 from app.auth.keycloak_config import keycloak_openid               # noqa: E402
 from app.core import config                                        # noqa: E402
 from app.core.logging_setup import configure_logging               # noqa: E402
+from app.utils.errors import describe                              # noqa: E402
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -70,6 +73,7 @@ async def lifespan(app: FastAPI):
     )
 
     app.state.runtime = build_runtime()
+    _warn_if_subprocesses_are_unavailable()
 
     # Registering the configured Helm repositories up front is what lets each
     # chart and its subchart dependencies resolve at deploy time. A failure here
@@ -77,10 +81,31 @@ async def lifespan(app: FastAPI):
     try:
         await app.state.runtime.edc_service.ensure_repositories()
     except Exception as exception:
-        logger.error("[INIT] Failed to register Helm repositories: %s", exception)
+        # Named, not str()'d: the failure that actually happens here on Windows
+        # is NotImplementedError, whose message is empty.
+        logger.error("[INIT] Failed to register Helm repositories: %s",
+                     describe(exception))
 
     logger.info("[INIT] EMC backend ready.")
     yield
+
+
+def _warn_if_subprocesses_are_unavailable() -> None:
+    """Every Helm call spawns a subprocess, and asyncio cannot do that on a
+    Windows SelectorEventLoop - it raises NotImplementedError, which carries no
+    message. uvicorn selects that loop whenever it runs the server in a child
+    process, which is what --reload and --workers do.
+    """
+    if sys.platform != "win32":
+        return
+    if isinstance(asyncio.get_running_loop(), asyncio.ProactorEventLoop):
+        return
+
+    logger.warning(
+        "[INIT] This is a Windows SelectorEventLoop, which cannot start subprocesses, "
+        "so every helm command will fail with an empty NotImplementedError. uvicorn "
+        "selects it for --reload and --workers. Run `python -m app.main`, or uvicorn "
+        "without --reload, for deployments to work.")
 
 
 def _add_cors(app: FastAPI) -> None:
