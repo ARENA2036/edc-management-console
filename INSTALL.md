@@ -47,7 +47,18 @@ CENTRALIDP_CLIENT_SECRET=your-client-secret
 
 **Run Backend:**
 ```bash
-uvicorn init:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**On Windows, leave `--reload` off if you need to deploy anything.** uvicorn
+switches to a `SelectorEventLoop` whenever it runs the server in a child process
+(`--reload`, `--workers`), and asyncio cannot spawn a subprocess on that loop.
+Every helm command then fails with an empty `NotImplementedError`. Either of
+these keeps Helm working:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m app.main --host 0.0.0.0 --port 8000
 ```
 
 Backend will be available at: `http://localhost:8000`  
@@ -128,7 +139,7 @@ The application automatically creates tables on startup. For manual migration:
 
 ```bash
 cd backend
-python -c "from managers.databaseManager import DatabaseManager; import os; DatabaseManager(os.getenv('DATABASE_URL')).create_tables()"
+python -c "from app.managers.database_manager import DatabaseManager; import os; DatabaseManager(os.getenv('DATABASE_URL')).create_tables()"
 ```
 
 ## Helm Charts
