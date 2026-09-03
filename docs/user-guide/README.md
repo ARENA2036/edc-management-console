@@ -211,7 +211,7 @@ Some endpoints are protected by API key authentication, while others expect a Ke
 ## Known Issues
 
 - Some screenshots in older versions of the guide showed a four-step connector wizard. The current application separates EDC connector deployment from optional component/service setup.
-- The backend initialization must run during FastAPI startup. Starting the app by importing `app.main:app` may skip manager initialization unless the startup wiring is fixed.
+- Backend initialization runs in the FastAPI `lifespan` handler, so `uvicorn app.main:app` and `python3 -m app.main` both wire up the managers identically.
 - Authentication is currently mixed: some backend routes use `X-Api-Key`, while other routes use Keycloak bearer tokens.
 - Swagger Keycloak OAuth integration is present as a placeholder and needs full configuration.
 - The frontend calls an activity log endpoint, but the backend route may be disabled.
