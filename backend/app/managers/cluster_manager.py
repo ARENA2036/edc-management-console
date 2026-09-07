@@ -118,8 +118,8 @@ class ClusterManager:
 
     The Kubernetes APIs are injected, so the derivation logic can be exercised
     without a cluster, and so a caller may supply an already-authenticated
-    client. Left unset, in-cluster credentials are used (the backend pod's
-    service account), falling back to the developer's kubeconfig.
+    client. Left unset, the kubeconfig is used - the same credentials every Helm
+    call runs with - falling back to the pod's own service account.
 
     Every method fails soft: an unreachable or forbidden API surfaces as
     ``Phase.UNKNOWN``, never as an exception. A component whose state cannot be
@@ -149,21 +149,47 @@ class ClusterManager:
                          "component status cannot be determined.")
             return False
 
-        try:
-            config.load_incluster_config()
-        except Exception:
-            try:
-                config.load_kube_config()
-            except Exception as exception:
-                self.last_error = f"no usable Kubernetes credentials ({exception})"
-                logger.error("[ClusterManager] No usable Kubernetes credentials: %s",
-                             exception)
-                return False
+        if not self._load_credentials(config):
+            return False
 
         self._apps_api = self._apps_api or client.AppsV1Api()
         self._core_api = self._core_api or client.CoreV1Api()
         self._configured = True
         return True
+
+    def _load_credentials(self, config) -> bool:
+        """Authenticate as whoever Helm deploys as, not as whoever we run as.
+
+        The container entrypoint fetches a cluster kubeconfig into KUBECONFIG and
+        every Helm call inherits it, so components are created with that
+        identity. Reading their status has to use the same one: the moment
+        components live in a namespace other than the pod's own, the pod's
+        service account has no rights there and the deploy succeeds while the
+        status read comes back 403 - which the dashboard then shows as
+        "unknown" for a component that is running perfectly well.
+
+        In-cluster config is therefore the fallback, not the first choice. It
+        always succeeds inside a pod, so trying it first masks the kubeconfig
+        entirely and there is no way to notice.
+        """
+        attempts = (("kubeconfig", config.load_kube_config),
+                    ("in-cluster", config.load_incluster_config))
+        failures = []
+
+        for name, load in attempts:
+            try:
+                load()
+            except Exception as exception:
+                failures.append(f"{name}: {exception}")
+                continue
+
+            logger.info("[ClusterManager] Authenticated with %s credentials.", name)
+            return True
+
+        detail = "; ".join(failures)
+        self.last_error = f"no usable Kubernetes credentials ({detail})"
+        logger.error("[ClusterManager] No usable Kubernetes credentials: %s", detail)
+        return False
 
     @staticmethod
     def _release_of(item) -> str:
