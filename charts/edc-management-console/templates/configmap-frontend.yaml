@@ -38,4 +38,5 @@ data:
     VITE_EDC_HOSTNAME=staging.arena2036-x.de
     VITE_SDE_URL=https://sde.txcd.arena2036.app
     VITE_PORTAL_URL=https://portal.staging.arena2036-x.de
+    VITE_ICH_URL=https://ichub1-ichub-frontend.txcd.arena2036.app
 {{- end }}

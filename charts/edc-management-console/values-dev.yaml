@@ -222,6 +222,8 @@ frontend:
       value: https://sde.txcd.arena2036.app
     - name: VITE_PORTAL_URL
       value: https://portal.txcd.arena2036-x.de
+    - name: VITE_ICH_URL
+      value: https://ichub1-ichub-frontend.txcd.arena2036.app
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
     apiUrl: https://emc-backend.txcd.arena2036.app,
@@ -231,7 +233,8 @@ frontend:
     realm: CX-Central,
     clientId: EMC-1,
     sdeUrl: https://sde.txcd.arena2036.app,
-    portalUrl: https://portal.txcd.arena2036-x.de
+    portalUrl: https://portal.txcd.arena2036-x.de,
+    ichUrl: https://ichub1-ichub-frontend.txcd.arena2036.app
     };
   service:
     type: ClusterIP
