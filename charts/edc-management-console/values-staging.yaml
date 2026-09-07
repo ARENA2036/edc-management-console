@@ -124,6 +124,7 @@ backend:
   securityContext:
     runAsUser: 10000
     runAsGroup: 10001
+  allowedOrigins: []
   envFrom: []
   env:
     - name: CLUSTER_SECRET
