@@ -117,8 +117,12 @@ backend:
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 3000
   securityContext: {}
+  allowedOrigins: []
   envFrom: []
   env:
     - name: CLUSTER_SECRET
@@ -219,6 +223,8 @@ frontend:
       value: https://sde.staging.arena2036-x.de
     - name: VITE_PORTAL_URL
       value: https://portal.staging.arena2036-x.de
+    - name: VITE_ICH_URL
+      value: https://ichub1-ichub-frontend.txcd.arena2036.app
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
     apiUrl: https://emc-backend.staging.arena2036-x.de,
@@ -228,7 +234,8 @@ frontend:
     realm: CX-Central,
     clientId: A36-EMC,
     sdeUrl: https://sde.staging.arena2036-x.de,
-    portalUrl: https://portal.staging.arena2036-x.de
+    portalUrl: https://portal.staging.arena2036-x.de,
+    ichUrl: https://ichub1-ichub-frontend.txcd.arena2036.app
     };
   service:
     type: ClusterIP
