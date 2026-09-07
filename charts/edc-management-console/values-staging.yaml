@@ -122,6 +122,7 @@ backend:
     runAsGroup: 3000
     fsGroup: 3000
   securityContext: {}
+  allowedOrigins: []
   envFrom: []
   env:
     - name: CLUSTER_SECRET

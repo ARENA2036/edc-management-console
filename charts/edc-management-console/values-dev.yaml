@@ -122,6 +122,7 @@ backend:
     runAsGroup: 3000
     fsGroup: 3000
   securityContext: {}
+  allowedOrigins: []
   envFrom: []
   env:
     - name: CLUSTER_SECRET
@@ -231,7 +232,7 @@ frontend:
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: EMC-1,
+    clientId: EMC,
     sdeUrl: https://sde.txcd.arena2036.app,
     portalUrl: https://portal.txcd.arena2036-x.de,
     ichUrl: https://ichub1-ichub-frontend.txcd.arena2036.app

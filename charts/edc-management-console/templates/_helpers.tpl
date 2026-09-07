@@ -82,3 +82,31 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Browser origins the backend accepts cross-origin requests from.
+
+Derived from the frontend ingress rather than configured on its own, because a
+developer-preview environment's hosts are generated per branch: ArgoCD already
+overrides frontend.ingress.hosts[0].host, so there is nothing extra to keep in
+sync. An empty list makes the backend refuse every browser request, so a
+missing value here fails visibly rather than silently widening access.
+
+Set backend.allowedOrigins to override (for example with a localhost origin
+when running the frontend outside the cluster).
+*/}}
+{{- define "chart.allowedOrigins" -}}
+{{- if .Values.backend.allowedOrigins -}}
+{{- join "," .Values.backend.allowedOrigins -}}
+{{- else -}}
+{{- $origins := list -}}
+{{- with .Values.frontend.ingress -}}
+{{- range .hosts -}}
+{{- if .host -}}
+{{- $origins = append $origins (printf "https://%s" .host) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $origins -}}
+{{- end -}}
+{{- end }}

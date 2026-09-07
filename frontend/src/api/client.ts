@@ -30,11 +30,6 @@ const backendUrl = getRuntimeConfigValue(
   window.__RUNTIME_CONFIG__?.apiUrl,
   '',
 );
-const apiKey = getRuntimeConfigValue(
-  import.meta.env.VITE_API_KEY,
-  window.__RUNTIME_CONFIG__?.apiKey,
-  '',
-);
 const edcHost = getRuntimeConfigValue(
   import.meta.env.VITE_EDC_HOSTNAME,
   window.__RUNTIME_CONFIG__?.edcHost,
@@ -45,10 +40,6 @@ const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 const apiClientHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
-
-if (apiKey) {
-  apiClientHeaders['X-Api-Key'] = apiKey;
-}
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
