@@ -295,3 +295,58 @@ def test_arbitrary_request_field_gates_and_maps(tmp_path):
 
     plan = mgr.prepare_deployment("vault", req)
     assert plan["values"]["server"]["host"] == "https://vault.example"
+
+@pytest.fixture
+def local_chart_manager(tmp_path):
+    """A component charted from a local directory, like submodelServer."""
+    return EdcManager(
+        connector_config={},
+        dataspace_config={},
+        components_config={
+            "submodelServer": {
+                "releaseName": "{name}",
+                "version": "{version}",
+                "chart": {"directory": "config/simple-data-backend"},
+                "versions": [{"version": "0.1.0"}],
+                "valueMappings": [],
+            },
+        },
+    )
+
+
+def test_a_local_chart_records_the_version_but_does_not_pass_it_to_helm(local_chart_manager):
+    """The regression: one `version` key served both purposes, so nulling it for
+    Helm also blanked the version stored on the row - the console offered 0.1.0
+    in the dropdown and then showed no version at all for what it deployed."""
+    plan = local_chart_manager.prepare_deployment(
+        "submodelServer", {"name": "sub1", "version": "0.1.0"})
+
+    assert plan["chart"] == "config/simple-data-backend"
+    assert plan["repo"] is None
+    assert plan["chart_version"] is None    # Helm reads Chart.yaml instead
+    assert plan["version"] == "0.1.0"       # ...but this is what was deployed
+
+
+def test_a_local_chart_still_validates_the_requested_version(local_chart_manager):
+    plan = local_chart_manager.prepare_deployment(
+        "submodelServer", {"name": "sub1", "version": "9.9.9"})
+
+    assert plan["error_code"] == "VERSION_UNSUPPORTED"
+
+
+def test_a_component_with_a_version_selector_requires_one(local_chart_manager):
+    """`version: "{version}"` reads the request. With nothing to read, the
+    placeholder survives rendering and fails validation rather than quietly
+    deploying whatever happens to be listed first."""
+    plan = local_chart_manager.prepare_deployment("submodelServer", {"name": "sub1"})
+
+    assert plan["error_code"] == "VERSION_UNSUPPORTED"
+    assert "{version}" in plan["error"]
+
+
+def test_a_repo_chart_tells_helm_the_same_version_it_records(manager):
+    """For a named chart the two coincide, which is why this went unnoticed."""
+    plan = manager.prepare_deployment("connector", {"name": "e1", "version": "1.0.0"})
+
+    assert plan["version"] == "1.0.0"
+    assert plan["chart_version"] == "1.0.0"

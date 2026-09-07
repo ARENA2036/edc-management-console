@@ -161,7 +161,7 @@ class ComponentService:
                 release_name=plan["release_name"],
                 chart_name=plan["chart"],
                 repo=plan["repo"],
-                version=plan["version"],
+                version=plan["chart_version"],
                 values=plan["values"],
                 namespace=namespace,
             )
