@@ -23,15 +23,14 @@ import asyncio
 import logging
 from typing import Dict, List, Optional
 
-import requests
 from pyhelm3 import Client, Command, ReleaseNotFoundError
 
 logger = logging.getLogger(__name__)
 
 
 class EdcService:
-    """Thin async wrapper around Helm 3 (via pyhelm3) for managing connector
-    releases, plus the EDC dataspace HTTP calls.
+    """Thin async wrapper around Helm 3 (via pyhelm3) for managing component
+    releases.
 
     All Helm operations go through pyhelm3, which invokes the ``helm`` binary,
     passes values over stdin (no temporary values files) and never changes the
@@ -137,37 +136,3 @@ class EdcService:
             return True
         except ReleaseNotFoundError:
             return False
-
-    # ------------------------------------------------------------------
-    # EDC dataspace HTTP calls (unchanged — not Helm/CLI related).
-    # ------------------------------------------------------------------
-    def do_get(self, counter_party_id: str, counter_party_address: str,
-               dct_type: Optional[str], path: str,
-               policies: Optional[List[str]] = None,
-               headers: Optional[Dict] = None):
-        logger.info(f"[EdcService] Performing GET request to {counter_party_address}{path}")
-        try:
-            url = f"{counter_party_address}{path}"
-            response = requests.get(url, headers=headers or {}, timeout=30, verify=False)
-            return response
-        except Exception as e:
-            logger.error(f"[EdcService] GET request failed: {str(e)}")
-            raise
-
-    def do_post(self, counter_party_id: str, counter_party_address: str,
-                dct_type: Optional[str], path: str,
-                body: Optional[Dict] = None,
-                policies: Optional[List[str]] = None,
-                headers: Optional[Dict] = None,
-                content_type: str = "application/json"):
-        logger.info(f"[EdcService] Performing POST request to {counter_party_address}{path}")
-        try:
-            url = f"{counter_party_address}{path}"
-            if headers is None:
-                headers = {}
-            headers["Content-Type"] = content_type
-            response = requests.post(url, json=body, headers=headers, timeout=30, verify=False)
-            return response
-        except Exception as e:
-            logger.error(f"[EdcService] POST request failed: {str(e)}")
-            raise

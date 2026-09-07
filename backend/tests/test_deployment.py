@@ -21,14 +21,14 @@
 ###############################################################
 """Robustness tests for the generic, config-driven deployment pipeline.
 
-Covers the pure value-rendering engine (utilities/common.py) and the
-component-agnostic orchestration (managers/edcManager.py). No cluster, helm or
+Covers the pure value-rendering engine (app/utils/common.py) and the
+component-agnostic orchestration (app/managers/edc_manager.py). No cluster, helm or
 network access is required — EdcManager.prepare_deployment is pure given config.
 """
 import pytest
 
-from utilities import common
-from managers.edcManager import EdcManager
+from app.utils import common
+from app.managers.edc_manager import EdcManager
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ def test_all_release_names_covers_every_component(manager):
 def test_arbitrary_request_field_gates_and_maps(tmp_path):
     """A component gated/mapped on a field that is NOT declared on the Connector
     model still works, because the model accepts extra fields."""
-    from models.connector import Connector
+    from app.models.connector import Connector
 
     components = {
         "connector": {"deployWhen": "always", "releaseName": "{name}",

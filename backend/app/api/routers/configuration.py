@@ -1,4 +1,4 @@
-/********************************************************************************
+###############################################################
 # Tractus-X - EDC Management Console
 #
 # Copyright (c) 2026 ARENA2036 e.V.
@@ -18,14 +18,16 @@
 # under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-********************************************************************************/
-window.__RUNTIME_CONFIG__ = {
-  apiUrl: "__BACKEND_URL__",
-  apiKey: "__API_KEY__",
-  edcHost: "__EDC_HOSTNAME__",
-  keycloakUrl: "__KEYCLOAK_URL__",
-  realm: "__KEYCLOAK_REALM__",
-  clientId: "__KEYCLOAK_CLIENT_ID__",
-  sdeUrl: "__SDE_URL__",
-  portalUrl: "__PORTAL_URL__",
-};
+###############################################################
+"""settings.yaml, served to the frontend as-is."""
+from fastapi import APIRouter, Depends
+
+from app.api.dependencies import get_current_user
+from app.core import config
+
+router = APIRouter(prefix="/api", tags=["Config"])
+
+
+@router.get("/config")
+async def get_config(user: dict = Depends(get_current_user)):
+    return {"user": user["preferred_username"], "data": config.settings}

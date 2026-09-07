@@ -42,9 +42,21 @@ export function getKeycloakConfig(): KeycloakConfig {
   };
 }
 
+function isAbsoluteHttpUrl(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function validateKeycloakConfig(config: KeycloakConfig) {
   const missingFields = [
-    ['url', config.url],
+    ['url', isAbsoluteHttpUrl(config.url) ? config.url : ''],
     ['realm', config.realm],
     ['clientId', config.clientId],
   ].filter(([, value]) => !value);

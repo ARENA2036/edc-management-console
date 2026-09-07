@@ -1,3 +1,4 @@
+#!/bin/bash
 ###############################################################
 # Tractus-X - EDC Management Console
 #
@@ -20,13 +21,11 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 
-#!/bin/bash
-
 ROOT_DIR=/usr/share/nginx/html
 
 echo "Replacing docker environment constants in JavaScript files"
 
-for file in $ROOT_DIR/assets/index-*.js* $ROOT_DIR/index.html;
+for file in $ROOT_DIR/assets/index-*.js* $ROOT_DIR/index.html $ROOT_DIR/config.js;
 do
 	echo "Processing $file ...";
 	sed -i "s|__BACKEND_URL__|${VITE_BACKEND_URL}|g" "$file"
@@ -37,6 +36,7 @@ do
 	sed -i "s|__KEYCLOAK_CLIENT_ID__|${VITE_KEYCLOAK_CLIENT_ID}|g" "$file"
 	sed -i "s|__SDE_URL__|${VITE_SDE_URL}|g" "$file"
 	sed -i "s|__PORTAL_URL__|${VITE_PORTAL_URL}|g" "$file"
+	sed -i "s|__ICH_URL__|${VITE_ICH_URL}|g" "$file"
 done
 
 exec "$@"
