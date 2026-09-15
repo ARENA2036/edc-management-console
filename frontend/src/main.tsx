@@ -25,7 +25,6 @@ import './index.css'
 import AppNew from './AppNew.tsx'
 import keycloak, {
   getKeycloakConfig,
-  isAuthDisabled,
   validateKeycloakConfig,
 } from './auth/keycloak'
 import { I18nProvider } from './i18n'
@@ -70,12 +69,6 @@ const renderAuthStatus = (title: string, message: string, actionLabel?: string) 
 };
 
 const initKeycloak = async () => {
-  if (isAuthDisabled()) {
-    localStorage.removeItem('token');
-    renderApp();
-    return;
-  }
-
   renderAuthStatus(
     'Connecting to Keycloak',
     'Your login session is being prepared. If authentication is required, the application will redirect you to Keycloak automatically.',
@@ -99,14 +92,8 @@ const initKeycloak = async () => {
     });
 
     if (authenticated) {
-      localStorage.setItem('token', keycloak.token || '');
-      
       keycloak.onTokenExpired = () => {
-        keycloak.updateToken(30).then((refreshed) => {
-          if (refreshed) {
-            localStorage.setItem('token', keycloak.token || '');
-          }
-        }).catch(() => {
+        keycloak.updateToken(30).catch(() => {
           keycloak.login();
         });
       };

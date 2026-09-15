@@ -21,42 +21,11 @@
 ###############################################################
 from datetime import datetime
 
-from sqlalchemy import Uuid, Column, String, Integer, DateTime, Text, Boolean, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from sqlalchemy import ForeignKey
+from sqlalchemy import Uuid, Column, String, Integer, DateTime, Text, JSON
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-# class DigitalTwinRegistryDB(Base):
-#     """
-#         DTR class, holds DTR information has 1:1 mapping with the connector
-#     """
-#     __tablename__ = "digital_twin_registry"
-
-#     url = Column(String(512), primary_key=True, nullable=False)
-#     credentials = Column(String(256), nullable=True)
-
-#     def to_dict(self):
-#         return {
-#             "url": self.url,
-#             "credentials": self.credentials
-#         }
-
-# class SubModelServerDB(Base):
-#     """
-#         Submodel class that has 1:1 mapping with connector
-#     """
-#     __tablename__ = "submodel_server"
-
-#     url = Column(String(512), primary_key=True, index=True)
-#     credentials = Column(String(256), nullable=True)
-
-#     def to_dict(self):
-#         return {
-#             "url": self.url,
-#             "credentials": self.credentials
-#         }
 
 class ConnectorDB(Base):
     """
@@ -85,9 +54,6 @@ class ConnectorDB(Base):
     created_by = Column(String(255), nullable=True)
     registry = Column(String(512), nullable=True)
     submodel = Column(String(512), nullable=True)
-
-    # submodel_rel = relationship("SubModelServerDB", backref="connectors")
-    # registry_rel = relationship("DigitalTwinRegistryDB", backref="connectors")
 
     def to_dict(self):
         return {

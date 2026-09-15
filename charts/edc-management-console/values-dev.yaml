@@ -40,7 +40,7 @@ backend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-backend"
     pullPolicy: Always
-    tag: "8505ebe061e96a4c07c5b2dde073f76bd7f2f0a0"
+    tag: "43e048ad775a05b76ea8ea600adf30c42c6edfd7"
   envFrom:
     - secretRef:
         name: registry-creds
@@ -117,8 +117,12 @@ backend:
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 3000
   securityContext: {}
+  allowedOrigins: []
   envFrom: []
   env:
     - name: CLUSTER_SECRET
@@ -199,7 +203,7 @@ frontend:
   image:
     repository: "harbor-hub-shared.arena.3ascloud.de/arena2036/emc-frontend"
     pullPolicy: Always
-    tag: "8505ebe061e96a4c07c5b2dde073f76bd7f2f0a0"
+    tag: "43e048ad775a05b76ea8ea600adf30c42c6edfd7"
   imagePullSecrets:
     - name: registry-creds
   env:
@@ -219,6 +223,8 @@ frontend:
       value: https://sde.txcd.arena2036.app
     - name: VITE_PORTAL_URL
       value: https://portal.txcd.arena2036-x.de
+    - name: VITE_ICH_URL
+      value: https://ichub1-ichub-frontend.txcd.arena2036.app
   configuration: |-
     window.__RUNTIME_CONFIG__ = {
     apiUrl: https://emc-backend.txcd.arena2036.app,
@@ -226,9 +232,10 @@ frontend:
     edcHost: arena2036-x.de,
     keycloakUrl: https://centralidp.txcd.arena2036-x.de/auth,
     realm: CX-Central,
-    clientId: EMC-1,
+    clientId: EMC,
     sdeUrl: https://sde.txcd.arena2036.app,
-    portalUrl: https://portal.txcd.arena2036-x.de
+    portalUrl: https://portal.txcd.arena2036-x.de,
+    ichUrl: https://ichub1-ichub-frontend.txcd.arena2036.app
     };
   service:
     type: ClusterIP

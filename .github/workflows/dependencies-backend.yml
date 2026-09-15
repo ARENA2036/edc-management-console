@@ -80,7 +80,12 @@ jobs:
       - name: List packages
         run: |
             source ${{ matrix.folder }}/venv/bin/activate
-            pip list --format=freeze | awk -F'==' '{print "pypi/pypi/-/" $1 "/" $2}' | awk '!seen[$0]++' > ${{ matrix.folder }}/PACKAGE
+            # pip itself is the installer, not a project dependency, and this step
+            # upgrades it right before installing - so its version (and therefore
+            # this line) changes on its own release schedule, independent of any
+            # requirements.txt change, causing a spurious diff against the
+            # committed DEPENDENCIES_EMC-BACKEND on every pip release.
+            pip list --format=freeze | grep -v '^pip==' | awk -F'==' '{print "pypi/pypi/-/" $1 "/" $2}' | awk '!seen[$0]++' > ${{ matrix.folder }}/PACKAGE
 
       - name: Generate Dependencies file
         run: |

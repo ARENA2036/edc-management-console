@@ -31,6 +31,7 @@ import {
   SquareActivity,
 } from 'lucide-react';
 import { activityApi, componentApi, dataspaceApi } from './api/client';
+import { isHealthy, needsAttention, statusLabel, statusTone } from './utils/status';
 import { ApiError, toApiError } from './api/errors';
 import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
@@ -45,10 +46,12 @@ import type { ComponentType } from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import DeploymentStatusModal from './components/DeploymentStatusModal';
+import EndpointWithCopy from './components/EndpointWithCopy';
 import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
-import keycloak, { isAuthDisabled } from './auth/keycloak';
+import keycloak from './auth/keycloak';
+import { useSessionIdentity, type SessionIdentity } from './auth/session';
 import { resolveComponentLimit } from './utils/nameRules';
 
 const CONNECTORS_STORAGE_KEY = 'connectors';
@@ -73,6 +76,7 @@ type DeploymentFeedback = {
 
 interface DataspaceSettingsPayload {
   name?: string;
+  authority_bpn?: string;
   bpn?: string;
   realm?: string;
   username?: string;
@@ -85,6 +89,9 @@ interface DataspaceSettingsPayload {
     url?: string;
   };
   portal?: {
+    url?: string;
+  };
+  ich?: {
     url?: string;
   };
   sde?: {
@@ -129,7 +136,7 @@ interface DataspaceSettingsPayload {
 
 interface DataspaceSummary {
   name: string;
-  bpn: string;
+  authorityBpn: string;
   details: DataspaceSettingsPayload | null;
 }
 
@@ -151,88 +158,13 @@ function saveLocalStorage<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-interface BpnCandidate {
-  path: string;
-  value: string;
-}
-
-function collectBpnCandidates(
-  value: unknown,
-  path: string,
-  seen = new Set<unknown>(),
-): BpnCandidate[] {
-  if (!value || seen.has(value)) {
-    return [];
+function readAuthorityBpn(details: DataspaceSettingsPayload | null | undefined) {
+  const authorityBpn = details?.authority_bpn?.trim().toUpperCase();
+  if (authorityBpn) {
+    return authorityBpn;
   }
 
-  if (typeof value === 'string') {
-    const matches = value.toUpperCase().match(/BPNL[A-Z0-9]{12}/g) ?? [];
-    return matches.map((match) => ({ path, value: match }));
-  }
-
-  if (Array.isArray(value)) {
-    seen.add(value);
-    return value.flatMap((entry, index) =>
-      collectBpnCandidates(entry, `${path}[${index}]`, seen),
-    );
-  }
-
-  if (typeof value !== 'object') {
-    return [];
-  }
-
-  seen.add(value);
-  return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) =>
-    collectBpnCandidates(nestedValue, `${path}.${key}`, seen),
-  );
-}
-
-function decodeJwtPayload(token?: string) {
-  if (!token) {
-    return null;
-  }
-
-  const parts = token.split('.');
-  if (parts.length < 2) {
-    return null;
-  }
-
-  try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const payload = atob(normalized);
-    return JSON.parse(payload) as unknown;
-  } catch (error) {
-    console.error('Failed to decode JWT payload', error);
-    return null;
-  }
-}
-
-function getSessionBpnCandidates(tokenParsed: unknown, rawToken?: string) {
-  const candidates = [
-    ...collectBpnCandidates(tokenParsed, 'tokenParsed'),
-    ...collectBpnCandidates(decodeJwtPayload(rawToken), 'token'),
-  ];
-
-  const unique = new Map<string, BpnCandidate>();
-  for (const candidate of candidates) {
-    unique.set(`${candidate.path}:${candidate.value}`, candidate);
-  }
-
-  return Array.from(unique.values());
-}
-
-function readSessionBpn(tokenParsed: unknown, rawToken?: string) {
-  return getSessionBpnCandidates(tokenParsed, rawToken)[0]?.value ?? '';
-}
-
-function readDataspaceBpn(details: DataspaceSettingsPayload | null | undefined) {
-  const explicitBpn = details?.bpn?.trim().toUpperCase();
-  if (explicitBpn) {
-    return explicitBpn;
-  }
-
-  return collectBpnCandidates(details, 'dataspace')[0]?.value ?? '';
+  return details?.bpn?.trim().toUpperCase() ?? '';
 }
 
 function getConnectorType(connector: DashboardConnector) {
@@ -297,7 +229,7 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     name: record.name,
     type: recordType,
     version: record.version || '',
-    status: record.status === 'inactive' ? 'Inactive' : 'Active',
+    status: record.status,
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
     endpoint: record.url,
     db_name: '',
@@ -321,8 +253,6 @@ async function fetchDeploymentState(): Promise<{
   components: ManagedComponent[];
   error?: ApiError | null;
 }> {
-  const cached = getCachedDeployments();
-
   try {
     const response = await componentApi.getAll();
     const apiRows = Array.isArray(response.data.data)
@@ -342,7 +272,14 @@ async function fetchDeploymentState(): Promise<{
   } catch (error) {
     const apiError = toApiError(error, 'The list of deployed components could not be loaded.');
     console.error('Failed to load deployments:', apiError);
-    return { ...cached, error: apiError };
+
+    if (apiError.stage === 'auth') {
+      saveLocalStorage(CONNECTORS_STORAGE_KEY, []);
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, []);
+      return { connectors: [], components: [], error: apiError };
+    }
+
+    return { ...getCachedDeployments(), error: apiError };
   }
 }
 
@@ -364,14 +301,14 @@ async function fetchDataspaceSummary(
     const data = (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
     return {
       name: data?.name || fallbackName,
-      bpn: readDataspaceBpn(data),
+      authorityBpn: readAuthorityBpn(data),
       details: data,
     };
   } catch (error) {
     console.error('Failed to load dataspace:', toApiError(error));
     return {
       name: fallbackName,
-      bpn: '',
+      authorityBpn: '',
       details: null,
     };
   }
@@ -404,8 +341,11 @@ function getHealthTone(
     critical: string;
     unknown: string;
   },
+  t: ReturnType<typeof useI18n>['t'],
 ) {
-  if (status === 'healthy' || status === 'Active') {
+  const tone = statusTone(status);
+
+  if (tone === 'ok') {
     return {
       label: labels.healthy,
       badge:
@@ -413,7 +353,14 @@ function getHealthTone(
     };
   }
 
-  if (status === 'warning') {
+  if (tone === 'progress') {
+    return {
+      label: statusLabel(status, t),
+      badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
+    };
+  }
+
+  if (tone === 'warn') {
     return {
       label: labels.warning,
       badge:
@@ -421,11 +368,10 @@ function getHealthTone(
     };
   }
 
-  if (status === 'inactive' || status === 'unhealthy' || status === 'critical') {
+  if (tone === 'error') {
     return {
       label: labels.critical,
-      badge:
-        'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
+      badge: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300',
     };
   }
 
@@ -461,13 +407,13 @@ function countComponentsByType(components: ManagedComponent[]) {
   };
 }
 
-function Dashboard({ sessionBpn }: { sessionBpn: string }) {
+function Dashboard({ identity }: { identity: SessionIdentity }) {
   const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
-  const [dataspaceBpn, setDataspaceBpn] = useState('');
+  const [authorityBpn, setAuthorityBpn] = useState('');
   const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeploymentWizard, setShowDeploymentWizard] = useState(false);
@@ -509,9 +455,9 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
   const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
-    setDataspaceBpn(summary.bpn || sessionBpn);
+    setAuthorityBpn(summary.authorityBpn);
     setDataspaceDetails(summary.details);
-  }, [sessionBpn, t]);
+  }, [t]);
 
   useEffect(() => {
     loadDeployments();
@@ -524,7 +470,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [loadDataspace, loadDeployments, sessionBpn, t]);
+  }, [loadDataspace, loadDeployments, t]);
 
   const persistConnector = async (connector: DashboardConnector) => {
     if (connectors.some((current) => current.name === connector.name)) {
@@ -556,7 +502,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             db_name: `${connector.name}-db`,
             auth: {
               db_username: connector.db_username || `${connector.name}-username`,
-              db_password: connector.db_password || `${connector.name}-password`,
+              db_password: '',
             },
           },
         ],
@@ -709,21 +655,19 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
 
   const activeConnectors = useMemo(
     () =>
-      connectors.filter(
-        (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
-      ).length,
+      connectors.filter((connector) => isHealthy(connector.status)).length,
     [connectors],
   );
 
   const activeComponentCounts = useMemo(() => {
-    const isActive = (component: ManagedComponent) =>
-      component.status !== 'Inactive';
+    // Counts every deployed component of the type, matching the backend cap,
+    // which counts rows irrespective of their current phase.
     return {
       digitalTwinRegistry: components.filter(
-        (component) => component.type === 'digitalTwinRegistry' && isActive(component),
+        (component) => component.type === 'digitalTwinRegistry',
       ).length,
       submodelServer: components.filter(
-        (component) => component.type === 'submodelServer' && isActive(component),
+        (component) => component.type === 'submodelServer',
       ).length,
     };
   }, [components]);
@@ -801,7 +745,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             icon={<Database size={22} />}
             title={t('dataSpace')}
             value={dataspaceName}
-            subtitle={dataspaceBpn || t('allSourcesMonitored')}
+            subtitle={authorityBpn || t('allSourcesMonitored')}
             tooltipTitle={statsGuidance.dataSpace.title}
             tooltipContent={statsGuidance.dataSpace.content}
             tooltipFooter={statsGuidance.dataSpace.footer}
@@ -858,6 +802,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
           />
         </div>
 
+        {identity.isAdmin ? (
         <div className="mb-6 flex flex-wrap justify-end gap-3">
           <Tooltip
             title={statsGuidance.add.title}
@@ -875,16 +820,19 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
             </button>
           </Tooltip>
         </div>
+        ) : null}
 
         <div className="space-y-6">
           <ConnectorsManager
             connectors={connectors}
             onDelete={handleDeleteConnector}
             onAddComponent={() => openComponentWizard()}
+            canManage={identity.isAdmin}
           />
           <ComponentsManager
             components={components}
             onDelete={handleDeleteComponent}
+            canManage={identity.isAdmin}
           />
         </div>
       </div>
@@ -919,7 +867,7 @@ function Dashboard({ sessionBpn }: { sessionBpn: string }) {
         existingConnectorNames={connectors.map((connector) => connector.name)}
         defaultVersion={dataspaceDetails?.deployment?.connector?.defaultVersion}
         availableVersions={dataspaceDetails?.deployment?.connector?.availableVersions}
-        prefilledBpn={dataspaceBpn || sessionBpn}
+        prefilledBpn={identity.bpn}
         defaultApiEndpoint={
           dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
         }
@@ -1018,7 +966,7 @@ function Monitor() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
-    bpn: '',
+    authorityBpn: '',
     details: null,
   });
 
@@ -1064,7 +1012,7 @@ function Monitor() {
   const connectorRows = useMemo(
     () =>
       connectors.map((connector) => {
-        const tone = getHealthTone(connector.status, healthLabels);
+        const tone = getHealthTone(connector.status, healthLabels, t);
         return {
           ...connector,
           connectorType:
@@ -1084,7 +1032,7 @@ function Monitor() {
         ...component,
         endpointLabel: component.endpoint || t('standaloneDeployment'),
         statusCode: 'healthy' as const,
-        tone: getHealthTone('healthy', healthLabels),
+        tone: getHealthTone('healthy', healthLabels, t),
         statusLabel: t('standaloneReady'),
       })),
     [components, healthLabels, t],
@@ -1114,12 +1062,11 @@ function Monitor() {
     const connectorEvents = connectors.slice(0, 4).map((connector) => ({
       id: `connector-${connector.id}`,
       title: t('eventConnectorAvailable', { name: connector.name }),
-      body:
-        connector.status === 'unhealthy'
-          ? t('eventConnectorAvailableUnhealthy')
-          : t('eventConnectorAvailableHealthy'),
+      body: needsAttention(connector.status)
+        ? t('eventConnectorAvailableUnhealthy')
+        : t('eventConnectorAvailableHealthy'),
       timestamp: connector.created_at,
-      severity: connector.status === 'unhealthy' ? 'critical' : 'healthy',
+      severity: needsAttention(connector.status) ? 'critical' : 'healthy',
     }));
 
     const componentEvents = components.slice(0, 4).map((component) => ({
@@ -1129,7 +1076,7 @@ function Monitor() {
         type: getManagedComponentLabel(component.type, t),
       }),
       timestamp: component.deployedAt,
-      severity: 'healthy',
+      severity: needsAttention(component.status) ? 'critical' : 'healthy',
     }));
 
     return [...connectorEvents, ...componentEvents]
@@ -1139,8 +1086,8 @@ function Monitor() {
 
   const recommendations = useMemo(() => {
     const items: string[] = [];
-    const unhealthyConnectors = connectorRows.filter(
-      (connector) => connector.status === 'unhealthy',
+    const unhealthyConnectors = connectorRows.filter((connector) =>
+      needsAttention(connector.status),
     );
     if (unhealthyConnectors.length > 0) {
       items.push(
@@ -1185,15 +1132,16 @@ function Monitor() {
     },
   ];
 
-  const healthyConnectors = connectorRows.filter(
-    (connector) => connector.status !== 'inactive' && connector.status !== 'unhealthy',
+  const healthyConnectors = connectorRows.filter((connector) =>
+    isHealthy(connector.status),
   ).length;
   const overallHealth =
-    connectorRows.some((connector) => connector.status === 'unhealthy')
-      ? getHealthTone('critical', healthLabels)
+    connectorRows.some((connector) => needsAttention(connector.status))
+    || components.some((component) => needsAttention(component.status))
+      ? getHealthTone('critical', healthLabels, t)
       : recommendations.length > 1 || connectorRows.length === 0
-      ? getHealthTone('warning', healthLabels)
-      : getHealthTone('healthy', healthLabels);
+      ? getHealthTone('warning', healthLabels, t)
+      : getHealthTone('healthy', healthLabels, t);
 
   return (
     <div className="p-4 md:p-6">
@@ -1211,7 +1159,7 @@ function Monitor() {
             {dataspace.name}
           </p>
           <p className="mt-1 text-gray-500 dark:text-slate-400">
-            {dataspace.bpn || t('allSourcesMonitored')}
+            {dataspace.authorityBpn || t('allSourcesMonitored')}
           </p>
         </div>
       </div>
@@ -1228,7 +1176,7 @@ function Monitor() {
             title: t('statusHealthyConnectorsTitle'),
             value: `${healthyConnectors}/${connectorRows.length}`,
             subtitle: t('statusHealthyConnectorsSubtitle'),
-            tone: getHealthTone('healthy', healthLabels).badge,
+            tone: getHealthTone('healthy', healthLabels, t).badge,
           },
           {
             title: t('statusLinkedServicesTitle'),
@@ -1239,6 +1187,7 @@ function Monitor() {
             tone: getHealthTone(
               componentRows.length === 0 ? 'warning' : 'healthy',
               healthLabels,
+              t,
             ).badge,
           },
           {
@@ -1251,6 +1200,7 @@ function Monitor() {
             tone: getHealthTone(
               activityLogs.length > 0 ? 'healthy' : 'warning',
               healthLabels,
+              t,
             ).badge,
           },
         ].map((card) => (
@@ -1304,9 +1254,7 @@ function Monitor() {
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connector.tone.badge}`}>
-                          {connector.status === 'unhealthy'
-                            ? t('monitorConnectorCritical')
-                            : t('monitorConnectorActive')}
+                          {connector.tone.label}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
@@ -1317,9 +1265,7 @@ function Monitor() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {connector.endpoint || t('noValue')}
-                        </span>
+                        <EndpointWithCopy endpoint={connector.endpoint} fallback={t('noValue')} />
                       </td>
                     </tr>
                   ))}
@@ -1356,7 +1302,7 @@ function Monitor() {
                     <span
                       key={badge.key}
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(full ? 'warning' : 'healthy', healthLabels).badge
+                        getHealthTone(full ? 'warning' : 'healthy', healthLabels, t).badge
                       }`}
                     >
                       {badge.label} {badge.count}/{badge.limit}
@@ -1390,9 +1336,10 @@ function Monitor() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {component.endpointLabel}
-                        </span>
+                        <EndpointWithCopy
+                          endpoint={component.endpoint}
+                          fallback={t('standaloneDeployment')}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1450,7 +1397,7 @@ function Monitor() {
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(event.severity, healthLabels).badge
+                        getHealthTone(event.severity, healthLabels, t).badge
                       }`}
                     >
                       {event.severity === 'critical'
@@ -1540,10 +1487,10 @@ function ExternalAppRedirect({
 
 function Settings({
   onOpenGuide,
-  sessionBpn,
+  identity,
 }: {
   onOpenGuide: () => void;
-  sessionBpn: string;
+  identity: SessionIdentity;
 }) {
   const { t } = useI18n();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1553,15 +1500,8 @@ function Settings({
     const loadSettings = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        const details =
-          (response.data?.data as DataspaceSettingsPayload | undefined) ?? null;
         setDataspaceDetails(
-          details
-            ? {
-                ...details,
-                bpn: readDataspaceBpn(details) || sessionBpn,
-              }
-            : null,
+          (response.data?.data as DataspaceSettingsPayload | undefined) ?? null,
         );
       } catch (error) {
         console.error('Failed to load dataspace settings:', error);
@@ -1571,7 +1511,15 @@ function Settings({
     };
 
     loadSettings();
-  }, [sessionBpn]);
+  }, []);
+
+  // Same precedence as the /ich route: an explicit env / runtime-config value
+  // wins, the dataspace config is the fallback.
+  const ichUrlFromConfig = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    dataspaceDetails?.ich?.url ?? '',
+  );
 
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
@@ -1583,20 +1531,26 @@ function Settings({
 
   const sections = [
     {
+      key: 'company',
+      title: t('settingsSectionCompany'),
+      fields: [
+        { label: t('settingsLabelCompanyName'), value: identity.company },
+        { label: t('settingsLabelCompanyBpn'), value: identity.bpn },
+      ],
+    },
+    {
       key: 'dataspace',
       title: t('settingsSectionDataspace'),
       fields: [
         { label: t('settingsLabelDataspace'), value: dataspaceDetails?.name },
-        { label: t('settingsLabelBpn'), value: dataspaceDetails?.bpn },
-        { label: t('settingsLabelCompanyName'), value: dataspaceDetails?.realm },
-        { label: t('settingsLabelReadonly'), value: dataspaceDetails?.readonly },
+        { label: t('settingsLabelAuthorityBpn'), value: readAuthorityBpn(dataspaceDetails) },
+        { label: t('settingsLabelIdpRealm'), value: dataspaceDetails?.realm },
       ],
     },
     {
       key: 'access',
       title: t('settingsSectionAccess'),
       fields: [
-        { label: t('settingsLabelDefaultUsername'), value: dataspaceDetails?.username },
         { label: t('settingsLabelCentralIdpUrl'), value: dataspaceDetails?.centralidp?.url },
         { label: t('settingsLabelCentralIdpRealm'), value: dataspaceDetails?.centralidp?.realm },
         { label: t('settingsLabelSsiWalletUrl'), value: dataspaceDetails?.ssi_wallet?.url },
@@ -1608,7 +1562,7 @@ function Settings({
       fields: [
         { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
         { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
-        { label: t('settingsLabelSdeClientId'), value: dataspaceDetails?.sde?.client_id },
+        { label: t('settingsLabelIchUrl'), value: ichUrlFromConfig },
         { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
@@ -1693,18 +1647,15 @@ function Settings({
 
 function AppShell() {
   const { t } = useI18n();
-  const authDisabled = isAuthDisabled();
+  const { identity } = useSessionIdentity();
   const firstName = keycloak.tokenParsed?.given_name || '';
   const lastName = keycloak.tokenParsed?.family_name || '';
   const fullName =
+    identity.name ||
     `${firstName} ${lastName}`.trim() ||
+    identity.username ||
     keycloak.tokenParsed?.preferred_username ||
     t('userFallback');
-  const sessionBpnCandidates = getSessionBpnCandidates(
-    keycloak.tokenParsed,
-    keycloak.token,
-  );
-  const sessionBpn = readSessionBpn(keycloak.tokenParsed, keycloak.token);
 
   // Explicit env / runtime-config values take precedence over the dataspace
   // config, so a deployment can point these entries somewhere else without
@@ -1720,9 +1671,15 @@ function AppShell() {
     window.__RUNTIME_CONFIG__?.portalUrl,
     '',
   );
+  const envIchUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    '',
+  );
 
   const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
   const [portalUrl, setPortalUrl] = useState(envPortalUrl);
+  const [ichUrl, setIchUrl] = useState(envIchUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1736,30 +1693,17 @@ function AppShell() {
   }, [theme]);
 
   useEffect(() => {
-    if (sessionBpnCandidates.length > 0) {
-      console.info(
-        '[EMC] Keycloak BPNL candidates detected:',
-        sessionBpnCandidates,
-      );
-    } else {
-      console.warn(
-        '[EMC] No BPNL candidate found in Keycloak token payload.',
-        keycloak.tokenParsed,
-      );
-    }
-  }, [sessionBpnCandidates]);
-
-  useEffect(() => {
     const loadAppUrls = async () => {
       try {
         const response = await dataspaceApi.getDataspace();
-        // Only fill in from the dataspace config when the deployment has not set
-        // an explicit value; otherwise the env setting would be silently ignored.
         if (!envSdeUrl && response.data?.data?.sde?.url) {
           setSdeUrl(response.data.data.sde.url);
         }
         if (!envPortalUrl && response.data?.data?.portal?.url) {
           setPortalUrl(response.data.data.portal.url);
+        }
+        if (!envIchUrl && response.data?.data?.ich?.url) {
+          setIchUrl(response.data.data.ich.url);
         }
       } catch (error) {
         console.error('Failed to load external app URLs:', error);
@@ -1794,7 +1738,7 @@ function AppShell() {
                 name: fullName,
                 role: t('userAdministrator'),
               }}
-              onLogout={authDisabled ? undefined : () => keycloak.logout()}
+              onLogout={() => keycloak.logout()}
               onMenuToggle={() => setIsSidebarOpen((current) => !current)}
               onHelpClick={() => setShowGuide(true)}
               theme={theme}
@@ -1806,7 +1750,7 @@ function AppShell() {
               <div className="flex min-h-full flex-col">
                 <div className="flex-1">
                   <Routes>
-                    <Route path="/" element={<Dashboard sessionBpn={sessionBpn} />} />
+                    <Route path="/" element={<Dashboard identity={identity} />} />
                     <Route path="/monitor" element={<Monitor />} />
                     <Route
                       path="/sde"
@@ -1838,10 +1782,18 @@ function AppShell() {
                     <Route
                       path="/ich"
                       element={
-                        <AppPlaceholder
-                          title={t('ichNavLabel')}
-                          description={t('ichPlaceholderDescription')}
-                        />
+                        ichUrl ? (
+                          <ExternalAppRedirect
+                            url={ichUrl}
+                            title={t('ichRedirectTitle')}
+                            description={t('ichRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('ichNavLabel')}
+                            description={t('ichPlaceholderDescription')}
+                          />
+                        )
                       }
                     />
                     <Route
@@ -1849,7 +1801,7 @@ function AppShell() {
                       element={(
                         <Settings
                           onOpenGuide={() => setShowGuide(true)}
-                          sessionBpn={sessionBpn}
+                          identity={identity}
                         />
                       )}
                     />

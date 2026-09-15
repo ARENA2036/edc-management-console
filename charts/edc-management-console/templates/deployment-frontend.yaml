@@ -80,7 +80,7 @@ spec:
           {{- end }}
           volumeMounts:
             {{- toYaml .Values.frontend.volumeMounts | nindent 12 }}
-      {{- with .Values.backend.volumes }}
+      {{- with .Values.frontend.volumes }}
       volumes:
         {{- tpl (toYaml $.Values.frontend.volumes | nindent 12) $ }}
       {{- end }}

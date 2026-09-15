@@ -103,6 +103,9 @@ class BadRequest(EmcError):
 class NotAuthorized(EmcError):
     status, code, stage = 401, "NOT_AUTHORIZED", Stage.AUTH
 
+class Forbidden(EmcError):
+    status, code, stage = 403, "FORBIDDEN", Stage.AUTH
+
 class NotFound(EmcError):
     status, code, stage = 404, "NOT_FOUND", Stage.REQUEST
 
@@ -116,6 +119,15 @@ class ComponentLimitExceeded(Conflict):
     state - the same request succeeds once an instance is deleted.
     """
     code = "COMPONENT_LIMIT_REACHED"
+
+class ComponentNameTaken(Conflict):
+    """The requested name already belongs to another company's component.
+
+    Names are cluster-wide - they become Helm release names in one shared
+    namespace - so they cannot be scoped per company. Reported without naming
+    the owner: the caller learns the name is unavailable, nothing more.
+    """
+    code = "COMPONENT_NAME_TAKEN"
 
 class DuplicateComponentName(BadRequest):
     """Two components in one payload claim the same name. Raised before any
