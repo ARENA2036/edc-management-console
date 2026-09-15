@@ -31,8 +31,8 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import get_admin_user, get_database
 from app.managers.database_manager import DatabaseManager
 from app.utils.auth_utils import (assert_safe_external_url, build_external_url,
-                                  get_oauth2_token)
-from app.utils.errors import BadRequest, Stage
+                                  get_oauth2_token, pinned_connection)
+from app.utils.errors import BadRequest, EmcError, Stage
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,10 @@ async def add_existing_submodel_service(submodel_service_id: str, data: dict,
         required["apiKey"] = data.get("apiKey")
     elif auth_type == "bearer":
         required["bearerToken"] = data.get("bearerToken")
+    elif auth_type == "oauth2":
+        required["submodelOAuthAccessTokenUrl"] = data.get("submodelOAuthAccessTokenUrl")
+        required["submodelOAuthClientId"] = data.get("submodelOAuthClientId")
+        required["submodelOAuthClientSecret"] = data.get("submodelOAuthClientSecret")
 
     missing = [field for field, value in required.items() if not value]
     if missing:
@@ -65,7 +69,6 @@ async def add_existing_submodel_service(submodel_service_id: str, data: dict,
                          code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST)
 
     url = assert_safe_external_url(url, field="url")
-    health_url = build_external_url(url, "api/health", field="url")
 
     headers = {"Content-Type": "application/json"}
     if auth_type == "apiKey":
@@ -84,11 +87,15 @@ async def add_existing_submodel_service(submodel_service_id: str, data: dict,
     # Any failure here means "it did not answer", which is a result to report
     # rather than an error - the registration itself still stands.
     try:
-        check = requests.get(health_url, headers=headers, timeout=5,
-                             allow_redirects=False)
-        reachable = check.status_code == 200
+        with pinned_connection(url, field="url") as safe_url:
+            health_url = build_external_url(safe_url, "api/health", field="url")
+            check = requests.get(health_url, headers=headers, timeout=5,
+                                 allow_redirects=False)
+            reachable = check.status_code == 200
+    except EmcError:
+        raise
     except Exception as exception:
-        logger.info("[submodel] %s did not answer: %s", health_url, exception)
+        logger.info("[submodel] %s did not answer: %s", url, exception)
         reachable = False
 
     database.log_activity(

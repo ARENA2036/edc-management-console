@@ -26,6 +26,7 @@ import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
 import DetailsModal from './DetailsModal';
+import EndpointWithCopy from './EndpointWithCopy';
 import Tooltip from './Tooltip';
 import YamlViewModal from './YamlViewModal';
 
@@ -47,9 +48,10 @@ function getConnectorType(connector: DashboardConnector) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
-      {statusLabel(status)}
+      {statusLabel(status, t)}
     </span>
   );
 }
@@ -157,9 +159,7 @@ export default function ConnectorsManager({
                       <StatusBadge status={connector.status} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <span className="block max-w-[260px] truncate">
-                        {connector.endpoint || t('noValue')}
-                      </span>
+                      <EndpointWithCopy endpoint={connector.endpoint} fallback={t('noValue')} />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

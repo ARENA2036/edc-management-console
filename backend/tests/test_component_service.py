@@ -26,6 +26,7 @@ Helm and Kubernetes. Everything the service collaborates with is passed in, so
 each rule is now testable on its own.
 """
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.managers.cluster_manager import Phase, ReleaseStatus
 from app.models.connector import ComponentRequest
@@ -46,10 +47,11 @@ def row(name, bpn=OURS, ctype="connector", release=None):
 
 
 class FakeDatabase:
-    def __init__(self, rows=()):
+    def __init__(self, rows=(), raise_on_create=None):
         self.rows = list(rows)
         self.deleted = []
         self.written = []
+        self._raise_on_create = raise_on_create
 
     def get_all_connectors(self, bpn=None):
         return [r for r in self.rows if bpn is None or r.bpn == bpn]
@@ -67,6 +69,8 @@ class FakeDatabase:
         return None
 
     def create_connector(self, connector):
+        if self._raise_on_create is not None:
+            raise self._raise_on_create
         self.rows.append(connector)
         self.written.append(connector)
         return connector
@@ -172,6 +176,14 @@ async def test_a_name_owned_by_another_company_is_refused(scope):
         await service(database).deploy([request("edc1")], scope)
 
 
+@pytest.mark.asyncio
+async def test_a_name_taken_by_a_concurrent_request_is_a_conflict_not_a_500(scope):
+    database = FakeDatabase(raise_on_create=IntegrityError("INSERT", {}, Exception("UNIQUE")))
+    with pytest.raises(errors.ComponentNameTaken) as error:
+        await service(database).deploy([request("edc1")], scope)
+    assert error.value.status == 409
+
+
 # -- limits ------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_deploying_past_the_cap_is_refused(scope):
@@ -193,7 +205,8 @@ async def test_redeploying_an_existing_name_at_the_cap_is_an_upgrade(scope):
 async def test_the_cap_is_counted_within_the_callers_own_bpn(scope):
     """One company filling its quota must not block another."""
     database = FakeDatabase([row("a", bpn=THEIRS), row("b", bpn=THEIRS)])
-    assert await service(database).deploy([request("ours1")], scope)
+    deployed = await service(database).deploy([request("ours1")], scope)
+    assert [entry["name"] for entry in deployed] == ["ours1"]
 
 
 @pytest.mark.asyncio

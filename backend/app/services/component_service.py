@@ -30,11 +30,13 @@ import secrets
 import uuid
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
+
 from app.core import config
 from app.managers.cluster_manager import ClusterManager, Phase
 from app.managers.edc_manager import URL_SCHEME
 from app.models.database import ConnectorDB
-from app.utils.errors import (ComponentLimitExceeded, ComponentMisconfigured,
+from app.utils.errors import (BadRequest, ComponentLimitExceeded, ComponentMisconfigured,
                               ComponentNameTaken, DuplicateComponentName, EmcError,
                               NotFound, Stage, UnknownComponentType,
                               UnsupportedVersion, classify)
@@ -135,12 +137,22 @@ class ComponentService:
 
     # -- writes --------------------------------------------------------------
 
-    async def deploy(self, components, scope: ComponentScope) -> list:
+    async def deploy(self, components, scope: ComponentScope,
+                     component_id: Optional[str] = None) -> list:
         """Install-or-upgrade every component in the request and persist a row
         for each. An entry with no `type`/`name` is an optional slot and is
         skipped. Create and upgrade share this path because Helm
         install-or-upgrade is the same operation either way.
         """
+        if component_id is not None:
+            record = self.get(component_id, scope)
+            if not any(comp.name == record.name for comp in components if comp.name):
+                raise BadRequest(
+                    f"'{component_id}' is deployed as '{record.name}'; renaming a "
+                    "component via this endpoint is not supported.",
+                    code="COMPONENT_RENAME_NOT_SUPPORTED",
+                    hint="Keep the existing name, or delete and redeploy under the new name.")
+
         self._apply_owner_bpn(components, scope)
         self._assert_names_unique(components)
         self._assert_names_available(components, scope)
@@ -310,11 +322,19 @@ class ComponentService:
             if not comp.type or not comp.name:
                 continue
             record = self.database.get_connector_by_name(name=comp.name)
-            if record is not None and not scope.permits(record):
+            if record is None:
+                continue
+            if not scope.permits(record):
                 raise ComponentNameTaken(
                     f"The name '{comp.name}' is already taken by another component in "
                     "this dataspace.",
                     hint="Choose a different name and deploy again.")
+            existing_type = record_type(record)
+            if existing_type and existing_type != comp.type:
+                raise ComponentNameTaken(
+                    f"'{comp.name}' already exists with type '{existing_type}', not "
+                    f"'{comp.type}'.",
+                    hint="Delete the existing component first, or choose a different name.")
 
     def _assert_within_limits(self, components, scope: ComponentScope) -> None:
         """Reject the whole request if it would push any type past its cap.
@@ -399,7 +419,12 @@ class ComponentService:
                 registry="",
                 submodel="",
             )
-            return self.database.create_connector(connector=record)
+            try:
+                return self.database.create_connector(connector=record)
+            except IntegrityError:
+                raise ComponentNameTaken(
+                    f"The name '{comp.name}' was just taken by another request.",
+                    hint="Choose a different name and deploy again.")
 
         record.config = row_config
         record.bpn = getattr(comp, "bpn", record.bpn) or record.bpn

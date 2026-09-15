@@ -20,7 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import Keycloak, { type KeycloakConfig } from 'keycloak-js';
-import { getRuntimeConfigBoolean, getRuntimeConfigValue } from '../runtime-config';
+import { getRuntimeConfigValue } from '../runtime-config';
 
 export function getKeycloakConfig(): KeycloakConfig {
   return {
@@ -68,12 +68,5 @@ export function validateKeycloakConfig(config: KeycloakConfig) {
 }
 
 const keycloak = new Keycloak(getKeycloakConfig());
-
-export const isAuthDisabled = () =>
-  getRuntimeConfigBoolean(
-    import.meta.env.VITE_DISABLE_AUTH,
-    window.__RUNTIME_CONFIG__?.disableAuth,
-    false,
-  );
 
 export default keycloak;

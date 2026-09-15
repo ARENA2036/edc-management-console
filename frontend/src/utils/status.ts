@@ -20,6 +20,10 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
+import type { useI18n } from '../i18n';
+
+type Translate = ReturnType<typeof useI18n>['t'];
+
 export type ComponentPhase =
   | 'active'
   | 'deploying'
@@ -44,6 +48,7 @@ const ALIASES: Record<string, ComponentPhase> = {
   inactive: 'failed',
   not_found: 'not_found',
   notfound: 'not_found',
+  'not found': 'not_found',
   missing: 'not_found',
 };
 
@@ -70,17 +75,17 @@ export function statusTone(raw?: string | null): StatusTone {
   return TONES[normalizeStatus(raw)];
 }
 
-const LABELS: Record<ComponentPhase, string> = {
-  active: 'Active',
-  deploying: 'Deploying',
-  degraded: 'Degraded',
-  failed: 'Failed',
-  not_found: 'Not found',
-  unknown: 'Unknown',
+const LABEL_KEYS: Record<ComponentPhase, Parameters<Translate>[0]> = {
+  active: 'componentPhaseActive',
+  deploying: 'componentPhaseDeploying',
+  degraded: 'componentPhaseDegraded',
+  failed: 'componentPhaseFailed',
+  not_found: 'componentPhaseNotFound',
+  unknown: 'componentPhaseUnknown',
 };
 
-export function statusLabel(raw?: string | null): string {
-  return LABELS[normalizeStatus(raw)];
+export function statusLabel(raw: string | null | undefined, t: Translate): string {
+  return t(LABEL_KEYS[normalizeStatus(raw)]);
 }
 
 const BADGE_CLASSES: Record<StatusTone, string> = {
@@ -101,5 +106,5 @@ export function isHealthy(raw?: string | null): boolean {
 
 export function needsAttention(raw?: string | null): boolean {
   const tone = statusTone(raw);
-  return tone === 'error' || tone === 'warn';
+  return tone === 'error' || tone === 'warn' || tone === 'muted';
 }

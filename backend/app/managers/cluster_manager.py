@@ -242,9 +242,12 @@ class ClusterManager:
             logger.warning("[ClusterManager] Could not read workloads in '%s': %s",
                            self.namespace, self.last_error)
             return None
+
+        incomplete_reason = None
         if workload_errors:
-            logger.warning("[ClusterManager] Partial workload read in '%s': could not list %s",
-                           self.namespace, "; ".join(workload_errors))
+            incomplete_reason = "could not list " + " or ".join(workload_errors)
+            logger.warning("[ClusterManager] Partial workload read in '%s': %s",
+                           self.namespace, incomplete_reason)
 
         try:
             for pod in self._core_api.list_namespaced_pod(self.namespace).items:
@@ -275,7 +278,7 @@ class ClusterManager:
             logger.warning("[ClusterManager] Could not read services in '%s': %s",
                            self.namespace, exception)
 
-        self.last_error = None
+        self.last_error = incomplete_reason
         return facts
 
     @staticmethod
@@ -318,8 +321,14 @@ class ClusterManager:
         if statuses is None:
             reason = self.last_error or "the cluster could not be reached"
             return ReleaseStatus(Phase.UNKNOWN, detail=f"Status unavailable: {reason}.")
-        return statuses.get(release_name) or ReleaseStatus(
-            Phase.NOT_FOUND, detail="No workloads carry this release's label.")
+
+        found = statuses.get(release_name)
+        if found:
+            return found
+        if self.last_error:
+            return ReleaseStatus(Phase.UNKNOWN,
+                                 detail=f"Status unavailable: {self.last_error}.")
+        return ReleaseStatus(Phase.NOT_FOUND, detail="No workloads carry this release's label.")
 
     @staticmethod
     def internal_base_url_from(facts: Dict[str, _ReleaseFacts],
