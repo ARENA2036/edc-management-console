@@ -87,7 +87,7 @@ export interface ManagedComponent {
   name: string;
   version: string;
 
-  status: "Active" | "Deploying" | "Degraded" | "Failed" | "Not found" | "Unknown";
+  status: string;
 
   deployedAt: string;
 
