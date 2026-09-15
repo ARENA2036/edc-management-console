@@ -19,6 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
+import asyncio
 import logging
 import os
 import threading
@@ -36,7 +37,8 @@ logger = logging.getLogger('app')
 security = HTTPBearer(auto_error=False)
 
 JWKS_TTL_SECONDS = 300
-ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256"]
+ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512",
+             "PS256", "PS384", "PS512"]
 
 BPN_CLAIM = "bpn"
 COMPANY_CLAIM = "organisation"
@@ -106,8 +108,9 @@ class KeycloakOpenID:
         if self.client_id:
             logger.info("[Keycloak] Accepting tokens issued for client %s", self.client_id)
         else:
-            logger.warning("[Keycloak] identity.clientId is not set; tokens issued for any "
-                           "client in this realm will be accepted.")
+            logger.error("[Keycloak] No client id configured (KEYCLOAK_CLIENT_ID or "
+                        "appConfig.client_id); every bearer token will be rejected until "
+                        "this is set.")
 
     @property
     def is_configured(self) -> bool:
@@ -177,6 +180,12 @@ class KeycloakOpenID:
         if not self.is_configured:
             logger.error("[Keycloak] No identity provider configured; rejecting bearer tokens.")
             raise _unauthorized("Identity provider is not configured; the token cannot be trusted.")
+        if not self.client_id:
+            logger.error("[Keycloak] No client id configured; rejecting bearer tokens.")
+            raise _unauthorized(
+                "This application's client id is not configured, so a token's "
+                "audience cannot be verified; the token cannot be trusted."
+            )
 
         try:
             kid = jwt.get_unverified_header(token).get("kid")
@@ -248,8 +257,8 @@ class KeycloakOpenID:
         if credentials is None or not credentials.credentials:
             raise _unauthorized("Missing bearer token")
 
-        return self.build_user(self.decode_token(credentials.credentials),
-                               credentials.credentials)
+        claims = await asyncio.to_thread(self.decode_token, credentials.credentials)
+        return self.build_user(claims, credentials.credentials)
 
 
 def _unverified_issuer(token: str) -> str:

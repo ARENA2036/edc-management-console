@@ -48,7 +48,7 @@ async def get_dataspace_settings(user: dict = Depends(get_current_user)):
     authority_bpn = dataspace.get("authority_id", "BPNL000000000000")
 
     return {
-        "user": dataspace.get("preferred_username", "user"),
+        "user": user.get("preferred_username") or dataspace.get("preferred_username", "user"),
         "data": {
             "name": dataspace.get("name", "Your Dataspace"),
             "authority_bpn": authority_bpn,
