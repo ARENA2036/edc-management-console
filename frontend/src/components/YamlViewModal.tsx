@@ -23,6 +23,7 @@ import { X, Copy } from 'lucide-react';
 import type { Connector, ManagedComponent } from '../types';
 import yaml from 'js-yaml';
 import { useLockBodyScroll } from '../useLockBodyScroll';
+import { toConnectorYamlView } from '../utils/connectorYaml';
 
 interface Props {
   connector: Connector;
@@ -33,17 +34,7 @@ interface Props {
 export default function YamlViewModal({ connector, components = [], onClose }: Props) {
   useLockBodyScroll(true);
 
-  const submodel = components.find((c) => c.type === 'submodelServer');
-  const registry = components.find((c) => c.type === 'digitalTwinRegistry');
-
-  // Build the YAML object, augmenting registry/submodel with linked component URLs.
-  const yamlData = {
-    ...connector,
-    registry: registry?.endpoint || connector.registry || '',
-    submodel: submodel?.endpoint || connector.submodel || '',
-  };
-
-  const yamlContent = yaml.dump(yamlData, { indent: 2 });
+  const yamlContent = yaml.dump(toConnectorYamlView(connector, components), { indent: 2 });
 
   const handleCopy = () => {
     navigator.clipboard.writeText(yamlContent);
