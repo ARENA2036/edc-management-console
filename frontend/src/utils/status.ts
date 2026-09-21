@@ -100,6 +100,10 @@ export function statusBadgeClass(raw?: string | null): string {
   return BADGE_CLASSES[statusTone(raw)];
 }
 
+export function emptyBadgeClass(): string {
+  return BADGE_CLASSES.muted;
+}
+
 export function isHealthy(raw?: string | null): boolean {
   return statusTone(raw) === 'ok';
 }

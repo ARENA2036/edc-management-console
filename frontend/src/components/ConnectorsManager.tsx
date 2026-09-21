@@ -20,14 +20,14 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
-import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useCallback, useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
 import DetailsModal from './DetailsModal';
-import EndpointWithCopy from './EndpointWithCopy';
+import PlaneEndpoints from './PlaneEndpoints';
 import Tooltip from './Tooltip';
+import StatusBadge from './StatusBadge';
 import YamlViewModal from './YamlViewModal';
 
 interface Props {
@@ -45,27 +45,6 @@ function getConnectorType(connector: DashboardConnector) {
   }
 
   return 'EDC Connector';
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const { t } = useI18n();
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
-      {statusLabel(status, t)}
-    </span>
-  );
-}
-
-function getConnectorEndpoint(connector: DashboardConnector) {
-  if (connector.url) {
-    return connector.url;
-  }
-
-  if (connector.urls.length > 0) {
-    return connector.urls[0];
-  }
-
-  return '';
 }
 
 export default function ConnectorsManager({
@@ -89,7 +68,6 @@ export default function ConnectorsManager({
       connectors.map((connector) => ({
         ...connector,
         connectorType: localizeConnectorType(getConnectorType(connector)),
-        endpoint: getConnectorEndpoint(connector),
       })),
     [connectors, localizeConnectorType],
   );
@@ -156,10 +134,10 @@ export default function ConnectorsManager({
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <StatusBadge status={connector.status} />
+                      <StatusBadge status={connector.status} detail={connector.health?.detail} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <EndpointWithCopy endpoint={connector.endpoint} fallback={t('noValue')} />
+                      <PlaneEndpoints connector={connector} />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
