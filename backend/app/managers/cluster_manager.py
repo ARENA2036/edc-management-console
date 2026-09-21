@@ -37,7 +37,7 @@ Reads only. Nothing here mutates the cluster.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +111,15 @@ class _ReleaseFacts:
     failures: List[str] = field(default_factory=list)
     progress_failures: List[str] = field(default_factory=list)
     services: List[Tuple[str, int, str]] = field(default_factory=list)
+
+
+@dataclass
+class _Snapshot:
+    releases: Dict[str, _ReleaseFacts] = field(default_factory=dict)
+    workloads: Dict[str, Workload] = field(default_factory=dict)
+
+    def facts(self, release: str) -> _ReleaseFacts:
+        return self.releases.get(release) or _ReleaseFacts()
 
 
 class ClusterManager:
@@ -196,8 +205,8 @@ class ClusterManager:
         labels = getattr(getattr(item, "metadata", None), "labels", None) or {}
         return labels.get(RELEASE_LABEL, "")
 
-    def _collect(self) -> Optional[Dict[str, _ReleaseFacts]]:
-        """One pass over the namespace, grouped by release. None on failure.
+    def _collect(self) -> Optional[_Snapshot]:
+        """One pass over the namespace. None on failure.
 
         Listing the namespace once and grouping locally keeps a dashboard
         refresh at a fixed four API calls regardless of how many components
@@ -206,7 +215,8 @@ class ClusterManager:
         if not self._ensure_clients():
             return None
 
-        facts: Dict[str, _ReleaseFacts] = {}
+        snapshot = _Snapshot()
+        facts = snapshot.releases
 
         def bucket(release: str) -> _ReleaseFacts:
             return facts.setdefault(release, _ReleaseFacts())
@@ -222,16 +232,19 @@ class ClusterManager:
                 workload_errors.append(f"{kind.lower()}s ({exception})")
                 continue
             for item in listing.items:
-                release = self._release_of(item)
-                if not release:
-                    continue
                 spec, status = item.spec, item.status
-                bucket(release).workloads.append(Workload(
+                workload = Workload(
                     name=item.metadata.name,
                     kind=kind,
                     desired=int(getattr(spec, "replicas", 0) or 0),
                     ready=int(getattr(status, "ready_replicas", 0) or 0),
-                ))
+                )
+                snapshot.workloads[workload.name] = workload
+
+                release = self._release_of(item)
+                if not release:
+                    continue
+                bucket(release).workloads.append(workload)
                 for condition in (getattr(status, "conditions", None) or []):
                     if (condition.type == "Progressing" and condition.status == "False"
                             and condition.reason == "ProgressDeadlineExceeded"):
@@ -279,14 +292,25 @@ class ClusterManager:
                            self.namespace, exception)
 
         self.last_error = incomplete_reason
-        return facts
+        return snapshot
 
     @staticmethod
-    def _phase_of(release_facts: _ReleaseFacts) -> ReleaseStatus:
-        workloads = tuple(release_facts.workloads)
+    def _workloads_of(release_facts: _ReleaseFacts, expected: Sequence[str],
+                      by_name: Mapping[str, Workload]) -> Tuple[Workload, ...]:
+        found = {w.name: w for w in release_facts.workloads}
+        for name in expected:
+            workload = by_name.get(name)
+            if workload is not None:
+                found.setdefault(name, workload)
+        return tuple(found.values())
+
+    @classmethod
+    def _phase_of(cls, release_facts: _ReleaseFacts, expected: Sequence[str] = (),
+                  by_name: Optional[Mapping[str, Workload]] = None) -> ReleaseStatus:
+        workloads = cls._workloads_of(release_facts, expected, by_name or {})
         if not workloads:
             return ReleaseStatus(Phase.NOT_FOUND,
-                                 detail="No workloads carry this release's label.")
+                                 detail="This release has no workloads in the namespace.")
 
         if release_facts.failures:
             return ReleaseStatus(Phase.FAILED, workloads,
@@ -296,6 +320,13 @@ class ClusterManager:
                 Phase.FAILED, workloads,
                 detail="Rollout exceeded its progress deadline: "
                        + ", ".join(sorted(set(release_facts.progress_failures))))
+
+        present = {w.name for w in workloads}
+        missing = sorted(name for name in expected if name not in present)
+        if missing:
+            return ReleaseStatus(Phase.DEPLOYING, workloads,
+                                 detail="Waiting for " + ", ".join(missing)
+                                        + " to be created.")
 
         desired = sum(w.desired for w in workloads)
         ready = sum(w.ready for w in workloads)
@@ -331,7 +362,7 @@ class ClusterManager:
         return ReleaseStatus(Phase.NOT_FOUND, detail="No workloads carry this release's label.")
 
     @staticmethod
-    def internal_base_url_from(facts: Dict[str, _ReleaseFacts],
+    def internal_base_url_from(snapshot: Optional["_Snapshot"],
                                release_name: str) -> Optional[str]:
         """In-cluster base URL for probing this release's own API, if any.
 
@@ -339,7 +370,7 @@ class ClusterManager:
         configuration, and keeps the probe inside the cluster — the public
         ingress deliberately does not route health paths.
         """
-        candidates = (facts.get(release_name) or _ReleaseFacts()).services
+        candidates = snapshot.facts(release_name).services if snapshot else []
         if not candidates:
             return None
 
@@ -364,10 +395,15 @@ class ClusterManager:
         name, port, _ = min(usable, key=rank)
         return f"http://{name}:{port}"
 
-    def collect(self) -> Optional[Dict[str, _ReleaseFacts]]:
+    def collect(self) -> Optional[_Snapshot]:
         """Raw facts for callers that need both statuses and probe URLs from a
         single pass over the namespace."""
         return self._collect()
 
-    def statuses_from(self, facts: Dict[str, _ReleaseFacts]) -> Dict[str, ReleaseStatus]:
-        return {release: self._phase_of(f) for release, f in facts.items()}
+    def statuses_from(self, snapshot: _Snapshot,
+                      expected: Optional[Mapping[str, Sequence[str]]] = None,
+                      ) -> Dict[str, ReleaseStatus]:
+        wanted = expected or {}
+        return {release: self._phase_of(snapshot.facts(release), wanted.get(release, ()),
+                                        snapshot.workloads)
+                for release in set(snapshot.releases) | set(wanted)}

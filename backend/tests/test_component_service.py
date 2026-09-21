@@ -86,11 +86,15 @@ class FakeDatabase:
 
 
 class FakeEdcService:
-    def __init__(self, exists=True, verify_raises=None):
+    def __init__(self, exists=True, verify_raises=None, workloads=()):
         self.exists = exists
         self.verify_raises = verify_raises
+        self.workloads = list(workloads)
         self.installed = []
         self.uninstalled = []
+
+    async def release_workloads(self, release_name, namespace):
+        return list(self.workloads)
 
     async def release_exists(self, release_name, namespace):
         if self.verify_raises is not None:
@@ -105,10 +109,14 @@ class FakeEdcService:
 
 
 class FakeCluster:
+    def __init__(self):
+        self.expected = None
+
     def collect(self):
         return {}
 
-    def statuses_from(self, facts):
+    def statuses_from(self, facts, expected=None):
+        self.expected = expected
         return {}
 
     def resolve(self, statuses, release):
@@ -289,3 +297,72 @@ async def test_an_unreachable_cluster_keeps_the_row(scope):
     listing = await service(database, edc_service).list_components(scope)
     assert [entry["name"] for entry in listing] == ["edc1"]
     assert database.deleted == []
+
+def connector_row(cp_hostname=None, dp_hostname=None):
+    return ConnectorDB(id="id-edc1", name="edc1", url="", bpn=OURS, namespace="ns",
+                       status="active", config={"type": "connector", "release": "edc1"},
+                       cp_hostname=cp_hostname, dp_hostname=dp_hostname)
+
+
+def test_both_planes_are_published_as_absolute_urls():
+    endpoints = ComponentService._endpoints_for(
+        connector_row(cp_hostname="edc1-controlplane.example.de",
+                      dp_hostname="edc1-dataplane.example.de"))
+    assert endpoints == {"controlPlane": "https://edc1-controlplane.example.de",
+                         "dataPlane": "https://edc1-dataplane.example.de"}
+
+
+def test_a_component_without_planes_publishes_no_endpoints():
+    """A submodel server or registry has no planes, so it gets an empty map
+    rather than keys holding empty strings a caller would have to filter."""
+    assert ComponentService._endpoints_for(connector_row()) == {}
+
+
+@pytest.mark.asyncio
+async def test_the_listing_carries_the_data_plane_alongside_the_control_plane(scope):
+    database = FakeDatabase([connector_row(cp_hostname="edc1-controlplane.example.de",
+                                           dp_hostname="edc1-dataplane.example.de")])
+    listing = await service(database).list_components(scope)
+    assert listing[0]["endpoints"]["dataPlane"] == "https://edc1-dataplane.example.de"
+@pytest.mark.asyncio
+async def test_a_freshly_deployed_component_is_recorded_as_deploying(scope):
+    database = FakeDatabase()
+    await service(database).deploy([request("edc1")], scope)
+    assert database.rows[0].status == Phase.DEPLOYING
+
+
+@pytest.mark.asyncio
+async def test_a_redeploy_drops_an_existing_row_back_to_deploying(scope):
+    database = FakeDatabase([row("edc1")])
+    await service(database).deploy([request("edc1")], scope)
+    assert database.rows[0].status == Phase.DEPLOYING
+
+
+@pytest.mark.asyncio
+async def test_each_release_is_judged_against_the_workloads_helm_says_it_applies(scope):
+    database = FakeDatabase([row("edc1", release="edc1-release")])
+    edc_service = FakeEdcService(workloads=["edc1-controlplane", "edc1-dataplane"])
+    svc = service(database, edc_service)
+    await svc.list_components(scope)
+    assert svc.cluster.expected == {
+        "edc1-release": ["edc1-controlplane", "edc1-dataplane"]}
+
+
+@pytest.mark.asyncio
+async def test_a_release_helm_cannot_describe_is_judged_on_replicas_alone(scope):
+    """An empty manifest read is no expectation, which is how this behaved
+    before Helm was consulted - a hiccup costs precision, never the status."""
+    database = FakeDatabase([row("edc1")])
+    svc = service(database, FakeEdcService(workloads=[]))
+    await svc.list_components(scope)
+    assert svc.cluster.expected == {}
+
+
+@pytest.mark.asyncio
+async def test_a_pruned_row_is_not_asked_about(scope):
+    """Reading the manifest of a release that has just been reconciled away
+    would be a Helm call per refresh for a component that no longer exists."""
+    database = FakeDatabase([row("edc1")])
+    svc = service(database, FakeEdcService(exists=False, workloads=["edc1-controlplane"]))
+    assert await svc.list_components(scope) == []
+    assert svc.cluster.expected == {}

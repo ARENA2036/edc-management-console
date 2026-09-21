@@ -29,6 +29,27 @@ export interface SubmodelServer {
   credentials: string;
 }
 
+export interface ConnectorEndpoints {
+  controlPlane?: string;
+  dataPlane?: string;
+}
+
+export interface WorkloadState {
+  name: string;
+  kind: string;
+  desired: number;
+  ready: number;
+}
+
+export interface ComponentHealth {
+  phase: string;
+  detail?: string;
+  healthy?: boolean;
+  ready?: number;
+  desired?: number;
+  workloads?: WorkloadState[];
+}
+
 // Typisierung für config und urls
 export interface Connector {
   id: string | number;
@@ -36,12 +57,15 @@ export interface Connector {
   url: string;
   bpn?: string;
   version?: string;
+  namespace?: string;
   status: string;
   config?: Record<string, unknown>; // Anstelle von any, Record gibt ein Schlüssel-Wert-Paar an
   created_at?: string;
   updated_at?: string;
   cp_hostname?: string;
   dp_hostname?: string;
+  endpoints?: ConnectorEndpoints;
+  health?: ComponentHealth;
   urls: string[]; // Wenn es sich um ein Array von Strings handelt
   created_by: string;
   db_username: string;
@@ -88,6 +112,8 @@ export interface ManagedComponent {
   version: string;
 
   status: string;
+  /** The backend's explanation of `status`, when it has one. */
+  detail?: string;
 
   deployedAt: string;
 
@@ -101,16 +127,6 @@ export interface ManagedComponent {
     db_username: string;
     db_password: string;
   };
-}
-
-export interface ActivityLog {
-  id: number;
-  connector_id?: number;
-  connector_name?: string;
-  action: string;
-  details?: string;
-  status?: string;
-  timestamp?: string;
 }
 
 export interface ConnectorCreate {

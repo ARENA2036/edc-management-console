@@ -30,8 +30,10 @@ import keycloak, {
 import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
 
+const root = createRoot(document.getElementById('root')!);
+
 const renderApp = () => {
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <I18nProvider>
         <ErrorBoundary>
@@ -43,7 +45,7 @@ const renderApp = () => {
 };
 
 const renderAuthStatus = (title: string, message: string, actionLabel?: string) => {
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col justify-center">

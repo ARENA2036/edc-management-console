@@ -27,6 +27,8 @@ from pyhelm3 import Client, Command, ReleaseNotFoundError
 
 logger = logging.getLogger(__name__)
 
+WORKLOAD_KINDS = frozenset({"Deployment", "StatefulSet"})
+
 
 class EdcService:
     """Thin async wrapper around Helm 3 (via pyhelm3) for managing component
@@ -136,3 +138,19 @@ class EdcService:
             return True
         except ReleaseNotFoundError:
             return False
+
+    async def release_workloads(self, release_name: str, namespace: str) -> List[str]:
+        try:
+            resources = list(await self._command.get_resources(release_name,
+                                                               namespace=namespace))
+        except ReleaseNotFoundError:
+            return []
+        except Exception as exception:
+            logger.warning("[EdcService] Could not read the manifest of release '%s' in "
+                           "namespace '%s': %s", release_name, namespace, exception)
+            return []
+
+        names = ((resource or {}).get("metadata", {}).get("name")
+                 for resource in resources
+                 if (resource or {}).get("kind") in WORKLOAD_KINDS)
+        return [name for name in names if name]

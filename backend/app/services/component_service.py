@@ -79,19 +79,17 @@ class ComponentService:
 
     async def list_components(self, scope: ComponentScope) -> list:
         namespace = config.cluster_namespace()
-        facts = self.cluster.collect()
-        statuses = self.cluster.statuses_from(facts) if facts is not None else None
+        records = await self._surviving(scope, namespace)
+        facts, statuses = await self._cluster_snapshot(records, namespace)
 
         listing = []
-        for record in self.database.get_all_connectors(bpn=scope.bpn):
-            if not await self._reconcile(record, namespace):
-                continue
-
+        for record in records:
             health = self._status(record, facts, statuses)
             self.database.update_connector(record)
 
             payload = record.to_dict()
             payload["urls"] = self._urls_for(record)
+            payload["endpoints"] = self._endpoints_for(record)
             payload["health"] = health
             listing.append(payload)
 
@@ -99,31 +97,29 @@ class ComponentService:
 
     async def health_of_all(self, scope: ComponentScope) -> list:
         namespace = config.cluster_namespace()
-        facts = self.cluster.collect()
-        statuses = self.cluster.statuses_from(facts) if facts is not None else None
+        records = await self._surviving(scope, namespace)
+        facts, statuses = await self._cluster_snapshot(records, namespace)
 
         results = []
-        for record in self.database.get_all_connectors(bpn=scope.bpn):
-            if not await self._reconcile(record, namespace):
-                continue
+        for record in records:
             results.append(self._status(record, facts, statuses))
             self.database.update_connector(record)
 
         return results
 
     async def health_of(self, name: str, scope: ComponentScope) -> dict:
+        namespace = config.cluster_namespace()
         record = self.database.get_connector_by_name(name=name, bpn=scope.bpn)
         if not record:
             raise NotFound(f"No component named '{name}' is known to this console.",
                            code="COMPONENT_NOT_FOUND")
 
-        if not await self._reconcile(record, config.cluster_namespace()):
+        if not await self._reconcile(record, namespace):
             raise NotFound(f"Component '{name}' no longer exists in the cluster.",
                            code="COMPONENT_NOT_FOUND", stage=Stage.CLUSTER,
                            hint="Refresh the dashboard - the component list has changed.")
 
-        facts = self.cluster.collect()
-        statuses = self.cluster.statuses_from(facts) if facts is not None else None
+        facts, statuses = await self._cluster_snapshot([record], namespace)
         health = self._status(record, facts, statuses)
         self.database.update_connector(record)
         return health
@@ -196,13 +192,17 @@ class ComponentService:
                            hint="It may already have been deleted - refresh the dashboard.")
 
         await self.edc_service.uninstall(
-            release_name=(record.config or {}).get("release") or record.name,
+            release_name=self._release_of(record),
             namespace=record.namespace or config.cluster_namespace(),
         )
         self.database.delete_connector(connector_id=record.id)
         return record.name
 
     # -- state derivation ----------------------------------------------------
+
+    @staticmethod
+    def _release_of(record: ConnectorDB) -> str:
+        return (record.config or {}).get("release") or record.name
 
     async def _reconcile(self, record: ConnectorDB, default_namespace) -> Optional[str]:
         """The record's release name if it still exists in the cluster; prune the
@@ -214,7 +214,7 @@ class ComponentService:
         than pruned and the endpoint does not fail because the cluster was
         briefly unreachable.
         """
-        release_name = (record.config or {}).get("release") or record.name
+        release_name = self._release_of(record)
         namespace = record.namespace or default_namespace
         try:
             exists = await self.edc_service.release_exists(release_name=release_name,
@@ -235,6 +235,27 @@ class ComponentService:
         self.database.delete_connector(connector_id=record.id)
         return None
 
+    async def _surviving(self, scope: ComponentScope, namespace) -> list:
+        return [record for record in self.database.get_all_connectors(bpn=scope.bpn)
+                if await self._reconcile(record, namespace)]
+
+    async def _cluster_snapshot(self, records, namespace):
+        facts = self.cluster.collect()
+        if facts is None:
+            return None, None
+        return facts, self.cluster.statuses_from(
+            facts, await self._expected_workloads(records, namespace))
+
+    async def _expected_workloads(self, records, namespace) -> dict:
+        expected = {}
+        for record in records:
+            release = self._release_of(record)
+            workloads = await self.edc_service.release_workloads(
+                release_name=release, namespace=record.namespace or namespace)
+            if workloads:
+                expected[release] = workloads
+        return expected
+
     def _status(self, record, facts, statuses) -> dict:
         """The component's real state, and the row status to persist.
 
@@ -243,13 +264,13 @@ class ComponentService:
         Only once the workloads report ready is the component's own API probed,
         which separates "running" from "actually serving".
         """
-        release = (record.config or {}).get("release") or record.name
+        release = self._release_of(record)
         cluster = self.cluster.resolve(statuses, release)
 
         result = {"name": record.name, "type": record_type(record), **cluster.to_dict()}
 
         if cluster.is_active:
-            base_url = ClusterManager.internal_base_url_from(facts or {}, release)
+            base_url = ClusterManager.internal_base_url_from(facts, release)
             if base_url:
                 probe = self.edc_manager.component_reachable(record, base_url)
                 result["probe"] = probe
@@ -263,6 +284,11 @@ class ComponentService:
         result["healthy"] = result["phase"] == Phase.ACTIVE
         record.status = result["phase"]
         return result
+
+    @staticmethod
+    def _endpoints_for(record: ConnectorDB) -> dict:
+        planes = (("controlPlane", record.cp_hostname), ("dataPlane", record.dp_hostname))
+        return {plane: f"{URL_SCHEME}://{host}" for plane, host in planes if host}
 
     @staticmethod
     def _urls_for(record: ConnectorDB) -> list:
@@ -407,7 +433,7 @@ class ComponentService:
                 url=getattr(comp, "url", "") or "",
                 version=plan["version"] or "",
                 namespace=namespace,
-                status="active",
+                status=Phase.DEPLOYING,
                 config=row_config,
                 cp_hostname=(f"{comp.name}-{cp_host}"
                              if comp.type == "connector" and cp_host else None),
@@ -433,7 +459,7 @@ class ComponentService:
         record.db_name = getattr(comp, "db_name", record.db_name) or record.db_name
         record.db_username = auth.get("db_username", record.db_username)
         record.db_password = auth.get("db_password", record.db_password)
-        record.status = "active"
+        record.status = Phase.DEPLOYING
         return self.database.update_connector(record)
 
     @staticmethod
