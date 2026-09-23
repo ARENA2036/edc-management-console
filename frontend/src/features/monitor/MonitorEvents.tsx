@@ -23,6 +23,7 @@
 import { useI18n } from '../../i18n';
 import { formatTimestamp } from '../../utils/format';
 import { statusBadgeClass } from '../../utils/status';
+
 import type { MonitorEvent } from './types';
 
 export default function MonitorEvents({ events }: { events: MonitorEvent[] }) {

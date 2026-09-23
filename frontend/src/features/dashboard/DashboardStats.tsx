@@ -20,13 +20,12 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useMemo } from 'react';
 import { Activity, Boxes, Database, Layers, Server, SquareActivity } from 'lucide-react';
+import { useMemo } from 'react';
 
-import StatsCard from '../../components/StatsCard';
-import { STATS_CARD_VARIANTS } from '../../components/statsCardVariants';
+import StatsCard from '../../components/ui/StatsCard';
+import { STATS_CARD_VARIANTS } from '../../components/ui/statsCardVariants';
 import { useI18n } from '../../i18n';
-import type { DashboardConnector, ManagedComponent } from '../../types';
 import { formatClockTime } from '../../utils/format';
 import {
   computeSystemHealth,
@@ -36,6 +35,8 @@ import {
   systemHealthTone,
 } from '../../utils/status';
 import { countComponentsByType, type ComponentLimits } from '../deployments/model';
+
+import type { DashboardConnector, ManagedComponent } from '../../types';
 
 interface Props {
   dataspaceName: string;

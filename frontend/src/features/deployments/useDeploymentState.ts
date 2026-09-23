@@ -22,10 +22,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import type { ApiError } from '../../api/errors';
 import { MONITORING_INTERVAL_MS } from '../../app/constants';
-import type { DashboardConnector, ManagedComponent } from '../../types';
+
 import { fetchDeploymentState } from './api';
+
+import type { ApiError } from '../../api/errors';
+import type { DashboardConnector, ManagedComponent } from '../../types';
+
 
 export function useDeploymentState() {
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);

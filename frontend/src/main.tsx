@@ -21,14 +21,15 @@
 ********************************************************************************/
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
 import './index.css'
+import ErrorBoundary from './app/ErrorBoundary'
 import App from './App.tsx'
 import keycloak, {
   getKeycloakConfig,
   validateKeycloakConfig,
 } from './auth/keycloak'
 import { I18nProvider } from './i18n'
-import ErrorBoundary from './components/ErrorBoundary'
 
 const root = createRoot(document.getElementById('root')!);
 

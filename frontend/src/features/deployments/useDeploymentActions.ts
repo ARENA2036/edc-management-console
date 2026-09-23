@@ -29,10 +29,12 @@ import {
   CONNECTORS_STORAGE_KEY,
   DEFAULT_COMPONENT_HOST_SUFFIX,
 } from '../../app/constants';
-import type { DashboardConnector, ManagedComponent } from '../../types';
 import { saveLocalStorage } from '../../utils/storage';
+
 import { countComponentsByType, type ComponentLimits } from './model';
+
 import type { DeploymentState } from './useDeploymentState';
+import type { DashboardConnector, ManagedComponent } from '../../types';
 
 export function useDeploymentActions(state: DeploymentState, limits: ComponentLimits) {
   const { connectors, components, refresh, setConnectors, setComponents } = state;
