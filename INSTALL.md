@@ -123,11 +123,12 @@ docker run -p 8080:8080 \
 Edit `frontend/src/main.tsx`:
 ```typescript
 import { initKeycloak } from './keycloak';
+import App from './App.tsx';
 
 initKeycloak(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <AppNew />
+      <App />
     </StrictMode>,
   );
 });
