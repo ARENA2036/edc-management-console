@@ -20,10 +20,14 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import axios from 'axios';
-import { getRuntimeConfigValue } from '../runtime-config';
+
 import keycloak from '../auth/keycloak';
-import type { DeployRequest } from '../types';
+import { getRuntimeConfigValue } from '../runtime-config';
+
 import { toApiError } from './errors';
+
+import type { DeployRequest } from '../types';
+
 
 const backendUrl = getRuntimeConfigValue(
   import.meta.env.VITE_BACKEND_URL,

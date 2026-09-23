@@ -20,10 +20,11 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import PlaneEndpoints from '../../components/PlaneEndpoints';
-import StatusBadge from '../../components/StatusBadge';
+import StatusBadge from '../../components/ui/StatusBadge';
 import { useI18n } from '../../i18n';
 import { formatTimestamp } from '../../utils/format';
+import PlaneEndpoints from '../deployments/components/PlaneEndpoints';
+
 import type { ConnectorRow } from './types';
 
 export default function ConnectorHealthTable({ connectors }: { connectors: ConnectorRow[] }) {

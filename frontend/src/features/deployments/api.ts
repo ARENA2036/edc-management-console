@@ -23,9 +23,11 @@
 import { componentApi } from '../../api/client';
 import { toApiError, type ApiError } from '../../api/errors';
 import { COMPONENTS_STORAGE_KEY, CONNECTORS_STORAGE_KEY } from '../../app/constants';
-import type { DashboardConnector, ManagedComponent } from '../../types';
 import { readLocalStorage, saveLocalStorage } from '../../utils/storage';
+
 import { getRecordType, mapApiComponent, mapApiConnector } from './model';
+
+import type { DashboardConnector, ManagedComponent } from '../../types';
 
 export function getCachedDeployments() {
   const cachedConnectors = readLocalStorage<DashboardConnector[]>(

@@ -20,9 +20,10 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
+import { resolveComponentLimit } from './nameRules';
+
 import type { useI18n } from '../../i18n';
 import type { DashboardConnector, ManagedComponent } from '../../types';
-import { resolveComponentLimit } from '../../utils/nameRules';
 import type { DataspaceSettingsPayload } from '../dataspace/types';
 
 export function getConnectorType(connector: DashboardConnector) {

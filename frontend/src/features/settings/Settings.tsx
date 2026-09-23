@@ -20,11 +20,12 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import type { SessionIdentity } from '../../auth/session';
 import { useI18n } from '../../i18n';
 import { getRuntimeConfigValue } from '../../runtime-config';
 import { readAuthorityBpn } from '../dataspace/api';
-import { useDataspaceSummary } from '../dataspace/useDataspace';
+import { useDataspaceSummary } from '../dataspace/DataspaceContext';
+
+import type { SessionIdentity } from '../../auth/session';
 
 export default function Settings({
   onOpenGuide,

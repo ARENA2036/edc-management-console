@@ -24,20 +24,22 @@ import { useMemo } from 'react';
 
 import { useI18n } from '../../i18n';
 import { isHealthy, computeSystemHealth } from '../../utils/status';
-import { useDataspaceSummary } from '../dataspace/useDataspace';
+import { useDataspaceSummary } from '../dataspace/DataspaceContext';
 import {
   countComponentsByType,
   getConnectorType,
   resolveComponentLimits,
 } from '../deployments/model';
 import { useDeploymentState } from '../deployments/useDeploymentState';
+
 import ConnectorHealthTable from './ConnectorHealthTable';
 import MonitorEvents from './MonitorEvents';
 import MonitorRecommendations from './MonitorRecommendations';
 import MonitorSummary from './MonitorSummary';
 import ServiceHealthTable, { type CapacityBadge } from './ServiceHealthTable';
-import type { ComponentRow, ConnectorRow } from './types';
 import { useMonitorInsights } from './useMonitorInsights';
+
+import type { ComponentRow, ConnectorRow } from './types';
 
 export default function Monitor() {
   const { t } = useI18n();

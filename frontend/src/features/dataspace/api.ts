@@ -22,6 +22,7 @@
 
 import { dataspaceApi } from '../../api/client';
 import { toApiError } from '../../api/errors';
+
 import type { DataspaceSettingsPayload, DataspaceSummary } from './types';
 
 export function readAuthorityBpn(details: DataspaceSettingsPayload | null | undefined) {
