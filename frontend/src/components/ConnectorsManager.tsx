@@ -44,7 +44,7 @@ function getConnectorType(connector: DashboardConnector) {
     return config.connectorType;
   }
 
-  return 'EDC Connector';
+  return 'Connector';
 }
 
 export default function ConnectorsManager({
@@ -59,7 +59,7 @@ export default function ConnectorsManager({
   const [yamlConnector, setYamlConnector] = useState<DashboardConnector | null>(null);
   const [deleteConnector, setDeleteConnector] = useState<DashboardConnector | null>(null);
   const localizeConnectorType = useCallback(
-    (type: string) => (type === 'EDC Connector' ? t('connectorTypeDefault') : type),
+    (type: string) => (type === 'Connector' ? t('connectorTypeDefault') : type),
     [t],
   );
 
@@ -141,16 +141,7 @@ export default function ConnectorsManager({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        {canManage ? (
-                        <Tooltip content={t('connectorAddComponentTooltip')}>
-                          <button
-                            onClick={() => onAddComponent(connector)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </Tooltip>
-                        ) : null}
+                        
                         <Tooltip content={t('tableManage')}>
                           <button
                             onClick={() => setYamlConnector(connector)}

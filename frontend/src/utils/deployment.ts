@@ -128,7 +128,7 @@ export function buildStandaloneConnector(
     cp_hostname: trimOrEmpty(draft.url),
     dp_hostname: trimOrEmpty(draft.dataPlaneUrl),
     config: {
-      connectorType: 'EDC Connector',
+      connectorType: 'Connector',
       endpoint: trimOrEmpty(draft.url),
       dataPlaneUrl: trimOrEmpty(draft.dataPlaneUrl),
       bpn: trimOrEmpty(draft.bpn),
