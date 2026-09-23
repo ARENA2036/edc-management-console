@@ -22,7 +22,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import AppNew from './AppNew.tsx'
+import App from './App.tsx'
 import keycloak, {
   getKeycloakConfig,
   validateKeycloakConfig,
@@ -37,7 +37,7 @@ const renderApp = () => {
     <StrictMode>
       <I18nProvider>
         <ErrorBoundary>
-          <AppNew />
+          <App />
         </ErrorBoundary>
       </I18nProvider>
     </StrictMode>,

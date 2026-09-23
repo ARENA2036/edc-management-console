@@ -20,32 +20,38 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useI18n } from '../i18n';
-import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
+import { useEffect, useState } from 'react';
 
-interface Props {
-  status: string;
-  detail?: string;
-}
+import { useI18n } from '../../i18n';
+import { fetchDataspaceSummary } from './api';
+import type { DataspaceSummary } from './types';
 
-export default function StatusBadge({ status, detail }: Props) {
+export function useDataspaceSummary() {
   const { t } = useI18n();
-  const badge = (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
-    >
-      {statusLabel(status, t)}
-    </span>
-  );
+  const fallbackName = t('dataspaceFallback');
+  const [dataspace, setDataspace] = useState<DataspaceSummary>({
+    name: fallbackName,
+    authorityBpn: '',
+    details: null,
+  });
+  const [loaded, setLoaded] = useState(false);
 
-  if (!detail?.trim()) {
-    return badge;
-  }
+  useEffect(() => {
+    let active = true;
 
-  return (
-    <Tooltip content={detail} position="top">
-      <span className="inline-flex cursor-help">{badge}</span>
-    </Tooltip>
-  );
+    fetchDataspaceSummary(fallbackName).then((summary) => {
+      if (!active) {
+        return;
+      }
+
+      setDataspace(summary);
+      setLoaded(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [fallbackName]);
+
+  return { dataspace, loaded };
 }
