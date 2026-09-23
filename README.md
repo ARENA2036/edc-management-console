@@ -14,6 +14,8 @@ EDC Management Console (EMC) is a platform designed to manage the deployment and
 Please refer to:
 
 - [Our docs](docs/README.md)
+- [User guide](docs/user-guide/README.md) and the [status reference](docs/user-guide/README.md#status-reference)
+- [Architecture documentation (arc42)](docs/architecture/README.md)
 - [Our Releases]()
 - [Report Bug / Request Feature](https://github.com/ARENA2036/edc-management-console/issues)
 
@@ -42,7 +44,7 @@ The project provides pre-built backend and frontend [docker](https://www.docker.
 - **React Router** for navigation
 
 ## Getting Started
-Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
+Follow the [INSTALL.md](INSTALL.md) for local setup and deployment on cloud.
 
 ### Deploying an EDC Connector
 
@@ -62,10 +64,10 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ### Dashboard Features
 
-- **Data Space Card:** Shows current dataspace (Catena-X)
-- **System Health:** Overall system status
-- **Activity:** Recent system activities
-- **EDC Connectors:** Total and active connector count
+- **Data Space Card:** Current dataspace and authority BPNL
+- **System Health:** The worst state among all deployments, derived from the phases the cluster reports - see the [status reference](docs/user-guide/README.md#status-reference)
+- **Activity:** How many deployments are rolling out, and when the view last reached the backend
+- **EDC Connectors / Registries / Submodel Services:** Deployed against the configured limit, with the healthy count underneath
 
 ## API Endpoints
 
@@ -91,32 +93,45 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ```
 ├── backend/
-│   ├── config/              # YAML configurations
-│   ├── managers/            # Business logic managers
-│   │   ├── authManager.py   # Authentication
-│   │   ├── databaseManager.py # Database operations
-│   │   └── edcManager.py    # EDC management
-│   ├── service/             # Service layer
-│   │   └── edcService.py    # EDC integration
-│   ├── models/              # Data models
-│   │   ├── database.py      # SQLAlchemy models
-│   │   └── requests.py      # API request models
-│   ├── utilities/           # Helper utilities
-│   └── init.py              # FastAPI application
+│   ├── app/                        # Application package
+│   │   ├── auth/                   # Token verification and roles
+│   │   ├── managers/               # Business logic managers
+│   │   │   ├── cluster_manager.py  # Kubernetes workload state
+│   │   │   ├── database_manager.py # Database operations
+│   │   │   └── edc_manager.py      # Helm values, component probes
+│   │   ├── models/                 # Data models
+│   │   │   ├── connector.py        # API request models
+│   │   │   └── database.py         # SQLAlchemy models
+│   │   ├── services/               # Service layer
+│   │   │   └── edc_service.py      # Helm client
+│   │   ├── utils/                  # Helper utilities
+│   │   └── main.py                 # FastAPI application
+│   ├── config/                     # YAML configurations
+│   └── tests/
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # React components
-│   │   │   ├── Sidebar.tsx
-│   │   │   ├── Header.tsx
-│   │   │   ├── StatsCard.tsx
-│   │   │   ├── DeploymentWizard.tsx
-│   │   │   └── ConnectorTableNew.tsx
-│   │   ├── api/             # API client
-│   │   ├── types/           # TypeScript types
-│   │   ├── keycloak.ts      # Keycloak integration
-│   │   └── AppNew.tsx       # Main application
+│   │   ├── App.tsx              # Entry point
+│   │   ├── app/                 # Shell: routes, navigation, theme, onboarding
+│   │   ├── features/            # One folder per feature
+│   │   │   ├── deployments/     # Shared domain: models, polling, wizards, tables
+│   │   │   ├── dataspace/       # Dataspace configuration (loaded once)
+│   │   │   ├── dashboard/       # Dashboard page, stat cards, dialogs
+│   │   │   ├── monitor/         # Monitor view and its tables
+│   │   │   ├── onboarding/      # First-run guide
+│   │   │   └── settings/        # Read-only dataspace settings
+│   │   ├── components/
+│   │   │   ├── ui/              # Modal, Button, fields, tables, badges, ...
+│   │   │   └── layout/          # Header and sidebar
+│   │   ├── hooks/               # Cross-feature React hooks
+│   │   ├── utils/               # Pure helpers (status, format, storage)
+│   │   ├── api/                 # API client and error normalization
+│   │   ├── auth/                # Keycloak integration and session identity
+│   │   ├── locales/             # en.json (source of truth) and de.json
+│   │   └── types/               # Shared TypeScript types
 ```
+
+The frontend conventions are documented in [frontend/README.md](frontend/README.md#conventions).
 
 ## Security Considerations
 
@@ -161,7 +176,7 @@ npm run lint
 
 ## License
 
-Distributed under the Apache 2.0 License. See [LICENSE](/LICENSE) for more information.
+Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more information.
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
