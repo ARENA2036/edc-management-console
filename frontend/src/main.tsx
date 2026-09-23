@@ -21,22 +21,24 @@
 ********************************************************************************/
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
 import './index.css'
-import AppNew from './AppNew.tsx'
+import ErrorBoundary from './app/ErrorBoundary'
+import App from './App.tsx'
 import keycloak, {
   getKeycloakConfig,
-  isAuthDisabled,
   validateKeycloakConfig,
 } from './auth/keycloak'
 import { I18nProvider } from './i18n'
-import ErrorBoundary from './components/ErrorBoundary'
+
+const root = createRoot(document.getElementById('root')!);
 
 const renderApp = () => {
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <I18nProvider>
         <ErrorBoundary>
-          <AppNew />
+          <App />
         </ErrorBoundary>
       </I18nProvider>
     </StrictMode>,
@@ -44,7 +46,7 @@ const renderApp = () => {
 };
 
 const renderAuthStatus = (title: string, message: string, actionLabel?: string) => {
-  createRoot(document.getElementById('root')!).render(
+  root.render(
     <StrictMode>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col justify-center">
@@ -70,12 +72,6 @@ const renderAuthStatus = (title: string, message: string, actionLabel?: string) 
 };
 
 const initKeycloak = async () => {
-  if (isAuthDisabled()) {
-    localStorage.removeItem('token');
-    renderApp();
-    return;
-  }
-
   renderAuthStatus(
     'Connecting to Keycloak',
     'Your login session is being prepared. If authentication is required, the application will redirect you to Keycloak automatically.',
@@ -99,14 +95,8 @@ const initKeycloak = async () => {
     });
 
     if (authenticated) {
-      localStorage.setItem('token', keycloak.token || '');
-      
       keycloak.onTokenExpired = () => {
-        keycloak.updateToken(30).then((refreshed) => {
-          if (refreshed) {
-            localStorage.setItem('token', keycloak.token || '');
-          }
-        }).catch(() => {
+        keycloak.updateToken(30).catch(() => {
           keycloak.login();
         });
       };
