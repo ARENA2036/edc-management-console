@@ -21,7 +21,12 @@
 ********************************************************************************/
 
 import AppShell from './app/AppShell';
+import DataspaceProvider from './features/dataspace/DataspaceProvider';
 
 export default function App() {
-  return <AppShell />;
+  return (
+    <DataspaceProvider>
+      <AppShell />
+    </DataspaceProvider>
+  );
 }

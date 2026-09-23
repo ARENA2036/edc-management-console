@@ -20,11 +20,12 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import EndpointWithCopy from '../../components/EndpointWithCopy';
-import StatusBadge from '../../components/StatusBadge';
+import EndpointWithCopy from '../../components/ui/EndpointWithCopy';
+import StatusBadge from '../../components/ui/StatusBadge';
 import { useI18n } from '../../i18n';
 import { statusBadgeClass } from '../../utils/status';
 import { getManagedComponentLabel } from '../deployments/model';
+
 import type { ComponentRow } from './types';
 
 export interface CapacityBadge {

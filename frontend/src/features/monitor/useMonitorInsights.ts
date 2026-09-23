@@ -23,10 +23,11 @@
 import { useMemo } from 'react';
 
 import { useI18n } from '../../i18n';
-import type { DashboardConnector, ManagedComponent } from '../../types';
 import { needsAttention } from '../../utils/status';
 import { getManagedComponentLabel } from '../deployments/model';
+
 import type { ConnectorRow, MonitorEvent } from './types';
+import type { DashboardConnector, ManagedComponent } from '../../types';
 
 export function useMonitorInsights(
   connectors: DashboardConnector[],
