@@ -112,15 +112,19 @@ Follow the [INSTALL.md](INSTALL.md) for local setup and deployment on cloud.
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx              # Entry point
-│   │   ├── app/                 # Shell: navigation, theme, routes, constants
+│   │   ├── app/                 # Shell: routes, navigation, theme, onboarding
 │   │   ├── features/            # One folder per feature
-│   │   │   ├── deployments/     # Shared domain: mapping, polling, deploy/delete
-│   │   │   ├── dataspace/       # Dataspace configuration
-│   │   │   ├── dashboard/       # Dashboard and its stat cards
+│   │   │   ├── deployments/     # Shared domain: models, polling, wizards, tables
+│   │   │   ├── dataspace/       # Dataspace configuration (loaded once)
+│   │   │   ├── dashboard/       # Dashboard page, stat cards, dialogs
 │   │   │   ├── monitor/         # Monitor view and its tables
+│   │   │   ├── onboarding/      # First-run guide
 │   │   │   └── settings/        # Read-only dataspace settings
-│   │   ├── components/          # Reusable presentational components
-│   │   ├── utils/               # Pure helpers (status, format, storage, ...)
+│   │   ├── components/
+│   │   │   ├── ui/              # Modal, Button, fields, tables, badges, ...
+│   │   │   └── layout/          # Header and sidebar
+│   │   ├── hooks/               # Cross-feature React hooks
+│   │   ├── utils/               # Pure helpers (status, format, storage)
 │   │   ├── api/                 # API client and error normalization
 │   │   ├── auth/                # Keycloak integration and session identity
 │   │   ├── locales/             # en.json (source of truth) and de.json

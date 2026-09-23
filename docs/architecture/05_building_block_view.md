@@ -15,27 +15,30 @@
 ## Level 2: frontend
 
 Organized by feature. A feature folder owns its data access, its React state
-and its components; anything used by two features moves up into `utils/`,
-`components/` or `app/`.
+and its components; anything used by two features moves up into `components/`,
+`hooks/` or `app/`.
 
 | Path | Contents |
 | --- | --- |
-| `src/App.tsx` | Entry point; renders the shell. |
-| `src/app/` | `AppShell` (navigation, theme, routes, onboarding guide) and `constants.ts` (storage keys, monitoring interval). |
-| `src/features/deployments/` | The shared domain: `model.ts` (API row to UI mapping, component limits), `api.ts` (fetch plus the localStorage cache), `useDeploymentState.ts` (polling), `useDeploymentActions.ts` (deploy and delete). |
-| `src/features/dataspace/` | `types.ts` (configuration document), `api.ts`, `useDataspace.ts`. Configuration is loaded once per screen, not polled. |
-| `src/features/dashboard/` | `Dashboard.tsx` (wizards and tables) and `DashboardStats.tsx` (the headline cards). |
+| `src/App.tsx` | Entry point; provides the dataspace configuration and renders the shell. |
+| `src/app/` | `AppShell` (sidebar, header, footer), `routes/` (every route plus the placeholder and redirect views), `externalApps.ts` (one definition per linked application, shared by the sidebar and the routes), the shell's hooks (`useTheme`, `useOnboarding`, `useCurrentUser`) and `constants.ts`. |
+| `src/features/deployments/` | The shared domain. Pure modules: `model.ts` (API rows to UI models, limits), `payloads.ts`, `nameRules.ts`, `endpoints.ts`, `connectorYaml.ts`. Data access: `api.ts` (fetch plus the localStorage cache). React state: `useDeploymentState.ts` (polling) and `useDeploymentActions.ts` (deploy, delete). Components: `connector-list/`, `component-list/`, `deployment-wizard/`, `component-wizard/`. |
+| `src/features/dataspace/` | The configuration document: `types.ts`, `api.ts`, and a provider plus context so it is fetched once per session. |
+| `src/features/dashboard/` | `Dashboard.tsx` (arranges), `DashboardStats.tsx` (headline cards), `DashboardDialogs.tsx` and `useDeploymentDialogs.ts` (which dialog is open and what is in flight). |
 | `src/features/monitor/` | `Monitor.tsx` plus `MonitorSummary`, `ConnectorHealthTable`, `ServiceHealthTable`, `MonitorRecommendations`, `MonitorEvents`, and `useMonitorInsights.ts` for the derived feed. |
+| `src/features/onboarding/` | The first-run guide: the frame, and one component per step. |
 | `src/features/settings/` | Read-only dataspace settings. |
-| `src/components/` | Reusable presentational components: wizards, modals, tables, badges, tooltips. |
-| `src/utils/` | Pure helpers with no React dependency: `status.ts` (phases, tones, aggregated health), `format.ts`, `storage.ts`, `nameRules.ts`, `deployment.ts`, `endpoints.ts`, `connectorYaml.ts`. |
+| `src/components/ui/` | The design primitives every screen reuses: `Modal`, `ConfirmDialog`, `Button`, `Notice`, `fields` (text and select), `DataTable`, `SectionCard`, `EmptyState`, `DetailList`, `StatsCard`, `StatusBadge`, `Tooltip`, `ErrorDetails`. |
+| `src/components/layout/` | `Header` and `Sidebar`, with the sidebar's entries described as data in `sidebar/navigation.ts`. |
+| `src/hooks/` | Cross-feature React hooks. |
+| `src/utils/` | Pure helpers with no React dependency: `status.ts` (phases, tones, aggregated health), `format.ts`, `storage.ts`. |
 | `src/api/` | Axios client and the `ApiError` normalization. |
 | `src/auth/` | Keycloak setup and the session identity hook. |
 | `src/locales/` | `en.json` (source of truth) and `de.json`. |
 
 Dependency direction: `app/` to `features/` to `components/` and `utils/`.
 Components never reach back into a feature, and `utils/` imports nothing from
-React.
+React. Import order and grouping are enforced by ESLint.
 
 ## Level 2: backend
 
