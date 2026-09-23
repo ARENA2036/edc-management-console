@@ -14,6 +14,8 @@ EDC Management Console (EMC) is a platform designed to manage the deployment and
 Please refer to:
 
 - [Our docs](docs/README.md)
+- [User guide](docs/user-guide/README.md) and the [status reference](docs/user-guide/README.md#status-reference)
+- [Architecture documentation (arc42)](docs/architecture/README.md)
 - [Our Releases]()
 - [Report Bug / Request Feature](https://github.com/ARENA2036/edc-management-console/issues)
 
@@ -42,7 +44,7 @@ The project provides pre-built backend and frontend [docker](https://www.docker.
 - **React Router** for navigation
 
 ## Getting Started
-Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
+Follow the [INSTALL.md](INSTALL.md) for local setup and deployment on cloud.
 
 ### Deploying an EDC Connector
 
@@ -62,10 +64,10 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 
 ### Dashboard Features
 
-- **Data Space Card:** Shows current dataspace (Catena-X)
-- **System Health:** Overall system status
-- **Activity:** Recent system activities
-- **EDC Connectors:** Total and active connector count
+- **Data Space Card:** Current dataspace and authority BPNL
+- **System Health:** The worst state among all deployments, derived from the phases the cluster reports - see the [status reference](docs/user-guide/README.md#status-reference)
+- **Activity:** How many deployments are rolling out, and when the view last reached the backend
+- **EDC Connectors / Registries / Submodel Services:** Deployed against the configured limit, with the healthy count underneath
 
 ## API Endpoints
 
@@ -109,17 +111,23 @@ Follow the [INSTALL.md](/INSTALL.md) for local setup and deployment on cloud.
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # React components
-│   │   │   ├── Sidebar.tsx
-│   │   │   ├── Header.tsx
-│   │   │   ├── StatsCard.tsx
-│   │   │   ├── DeploymentWizard.tsx
-│   │   │   └── ConnectorTableNew.tsx
-│   │   ├── api/             # API client
-│   │   ├── types/           # TypeScript types
-│   │   ├── keycloak.ts      # Keycloak integration
-│   │   └── AppNew.tsx       # Main application
+│   │   ├── App.tsx              # Entry point
+│   │   ├── app/                 # Shell: navigation, theme, routes, constants
+│   │   ├── features/            # One folder per feature
+│   │   │   ├── deployments/     # Shared domain: mapping, polling, deploy/delete
+│   │   │   ├── dataspace/       # Dataspace configuration
+│   │   │   ├── dashboard/       # Dashboard and its stat cards
+│   │   │   ├── monitor/         # Monitor view and its tables
+│   │   │   └── settings/        # Read-only dataspace settings
+│   │   ├── components/          # Reusable presentational components
+│   │   ├── utils/               # Pure helpers (status, format, storage, ...)
+│   │   ├── api/                 # API client and error normalization
+│   │   ├── auth/                # Keycloak integration and session identity
+│   │   ├── locales/             # en.json (source of truth) and de.json
+│   │   └── types/               # Shared TypeScript types
 ```
+
+The frontend conventions are documented in [frontend/README.md](frontend/README.md#conventions).
 
 ## Security Considerations
 
@@ -164,7 +172,7 @@ npm run lint
 
 ## License
 
-Distributed under the Apache 2.0 License. See [LICENSE](/LICENSE) for more information.
+Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more information.
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
