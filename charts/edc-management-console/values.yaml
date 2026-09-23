@@ -32,8 +32,21 @@ fullnameOverride: ""
 backend:
   enabled: true
   name: "emc-backend"
+  # Per-version chart-template ConfigMaps for the connector/registry component
+  # wizard (see templates/connector-values-configmap.yaml and
+  # registry-values-configmap.yaml). Off by default in this generic values
+  # file - environments that deploy these components enable them with their
+  # own mountDir/versions (see values-dev.yaml for a populated example).
+  connector:
+    templates:
+      enabled: false
+  registry:
+    templates:
+      enabled: false
   # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
   replicaCount: 1
+  strategy:
+    type: Recreate
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
   image:
     # repository: nginx
@@ -68,6 +81,19 @@ backend:
   # -- Existing image pull secret to use to [obtain the container image from private registries](https://kubernetes.io/docs/concepts/containers/images/#using-a-private-registry)
   imagePullSecrets:
     - name: acr-pull-secret
+  # Rendered into /backend/config/configuration.yml (see templates/configmap-backend.yaml).
+  # Every value here is read defensively (app/core/config.py: `.get(...) or {}`
+  # throughout), so a minimal/empty config is safe at startup - it just means no
+  # dataspace identity, connector or deployable components are configured yet.
+  # Environments provide their real dataspace config (see values-dev.yaml).
+  configuration:
+    yml: |-
+      appConfig:
+        name: "EDC Management Console"
+        client_id: "EMC"
+      dataspaceConfig:
+        name: "Dataspace"
+        authority_id: "BPNL000000000000"
   podAnnotations: {}
     # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
   service:
@@ -174,9 +200,10 @@ backend:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
-  podSecurityContext: {}
-    # fsGroup: 2000
-
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 3000
   securityContext: {}
     # capabilities:
     #   drop:
@@ -222,6 +249,10 @@ backend:
 frontend:
   enabled: true
   name: "emc-frontend"
+  # Rendered into the frontend ConfigMap's config.js key (templates/configmap-frontend.yaml).
+  # Environments override this with their real runtime values (see values-dev.yaml).
+  configuration: |-
+    window.__RUNTIME_CONFIG__ = {};
   # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
   replicaCount: 1
   # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
@@ -316,11 +347,11 @@ securityContext: {}
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 readinessProbe:
   httpGet:
-    path: /
+    path: /health
     port: http
 
 
@@ -329,3 +360,25 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# Optional observability stack (Chart.yaml `dependencies`, each gated by its
+# own `condition`). Helm enables a dependency whenever its condition path is
+# unresolvable, so leaving these unset here does not mean "off" - it means
+# every one of them renders with this chart's bare defaults, and several
+# (loki in particular) fail outright without real storage/backend config they
+# have no sensible default for. Off here; environments that want them enable
+# and configure each one explicitly (see values-dev.yaml).
+prometheus:
+  enabled: false
+
+loki:
+  enabled: false
+
+grafana:
+  enabled: false
+
+jaeger:
+  enabled: false
+
+opentelemetry-collector:
+  enabled: false

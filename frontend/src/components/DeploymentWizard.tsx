@@ -44,6 +44,7 @@ interface Props {
   defaultVersion?: string;
   availableVersions?: string[];
   prefilledBpn?: string;
+  bpnRequired?: boolean;
   defaultApiEndpoint?: string;
   defaultDataPlaneUrl?: string;
   controlPlaneHostSuffix?: string;
@@ -76,6 +77,7 @@ export default function DeploymentWizard({
   defaultVersion,
   availableVersions,
   prefilledBpn,
+  bpnRequired = true,
   defaultApiEndpoint,
   defaultDataPlaneUrl,
   controlPlaneHostSuffix,
@@ -197,6 +199,8 @@ export default function DeploymentWizard({
     [dataplaneHostnameSuffix, normalizedConnectorName],
   );
   const connectorLimitReached = connectorCount >= MAX_CONNECTORS;
+  const bpnMissing = !resolvedBpn;
+  const blockedByMissingBpn = bpnRequired && bpnMissing;
 
   // The deployed connector lives at its own per-name host ("{name}-{suffix}"), which
   // is what the backend's cp_hostname/dp_hostname derive templates put on the Ingress.
@@ -238,7 +242,12 @@ export default function DeploymentWizard({
 
   const deployConnector = async () => {
     setSubmitted(true);
-    if (deploying || connectorLimitReached || Object.keys(stepErrors).length > 0) {
+    if (
+      deploying ||
+      connectorLimitReached ||
+      blockedByMissingBpn ||
+      Object.keys(stepErrors).length > 0
+    ) {
       return;
     }
 
@@ -273,21 +282,19 @@ export default function DeploymentWizard({
             </button>
           </div>
 
-          <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
-              {t('connectorNameHelp')}
-            </div>
+          <div className="space-y-6 overflow-y-auto overscroll-contain px-6 py-6"> 
             <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
               <p className="font-medium text-gray-900 dark:text-slate-100">{t('deploymentPreparationWelcome')}</p>
               <p className="mt-2">{t('deploymentPreparationCredentials')}</p>
             </div>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-              <p className="font-medium">{t('deploymentAutoConfigTitle')}</p>
-              <p className="mt-2">{t('deploymentAutoConfigDescription')}</p>
-            </div>
             {connectorLimitReached && (
               <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
                 {t('connectorLimitReached', { max: String(MAX_CONNECTORS) })}
+              </div>
+            )}
+            {bpnMissing && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                {bpnRequired ? t('bpnMissingBlocking') : t('bpnMissingWarning')}
               </div>
             )}
 
@@ -314,6 +321,9 @@ export default function DeploymentWizard({
                   {stepErrors.name}
                 </p>
               )}
+            </div>
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-100">
+              {t('connectorNameHelp')}
             </div>
 
             <div>
@@ -348,6 +358,26 @@ export default function DeploymentWizard({
             </div>
 
             <div>
+              <label
+                htmlFor="connector-bpn"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300"
+              >
+                {t('bpnLabel')}
+              </label>
+              <input
+                id="connector-bpn"
+                type="text"
+                value={resolvedBpn}
+                readOnly
+                placeholder={t('bpnUnavailablePlaceholder')}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                {t('bpnHelp')}
+              </p>
+            </div>
+
+            <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-slate-300">
                 {t('hostnameLabel')}
               </label>
@@ -375,7 +405,7 @@ export default function DeploymentWizard({
               </button>
               <button
                 onClick={() => void deployConnector()}
-                disabled={deploying || connectorLimitReached}
+                disabled={deploying || connectorLimitReached || blockedByMissingBpn}
                 className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
               >
                 {deploying ? t('deploymentStatusDeployingTitle') : t('deployNow')}

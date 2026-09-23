@@ -53,6 +53,8 @@ export default function Tooltip({
   const [isVisible, setIsVisible] = useState(false);
   const [style, setStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLDivElement>(null);
+  const isRich = Boolean(title || footer || (items && items.length > 0));
+
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) {
       return;
@@ -61,20 +63,23 @@ export default function Tooltip({
     const rect = triggerRef.current.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const tooltipWidth = Math.min(360, viewportWidth - 24);
+    const maxWidth = Math.min(isRich ? 360 : 220, viewportWidth - 24);
     const sideOffset = 14;
+    const verticalPosition = position === 'top' && rect.top < 96 ? 'bottom' : position;
 
-    if (position === 'top' || position === 'bottom') {
+    if (verticalPosition === 'top' || verticalPosition === 'bottom') {
+      const centerX = rect.left + rect.width / 2;
       const left = Math.min(
-        Math.max(12, rect.left + rect.width / 2 - tooltipWidth / 2),
-        viewportWidth - tooltipWidth - 12,
+        Math.max(centerX, maxWidth / 2 + 12),
+        viewportWidth - maxWidth / 2 - 12,
       );
       setStyle({
         position: 'fixed',
         left,
-        top: position === 'top' ? rect.top - sideOffset : rect.bottom + sideOffset,
-        width: tooltipWidth,
-        transform: position === 'top' ? 'translateY(-100%)' : undefined,
+        top: verticalPosition === 'top' ? rect.top - sideOffset : rect.bottom + sideOffset,
+        maxWidth,
+        transform:
+          verticalPosition === 'top' ? 'translate(-50%, -100%)' : 'translateX(-50%)',
       });
       return;
     }
@@ -82,21 +87,21 @@ export default function Tooltip({
     const rawTop = rect.top + rect.height / 2 - 72;
     const top = Math.min(Math.max(12, rawTop), viewportHeight - 148);
     const preferredLeft =
-      position === 'left'
-        ? rect.left - tooltipWidth - sideOffset
+      verticalPosition === 'left'
+        ? rect.left - maxWidth - sideOffset
         : rect.right + sideOffset;
     const left = Math.min(
       Math.max(12, preferredLeft),
-      viewportWidth - tooltipWidth - 12,
+      viewportWidth - maxWidth - 12,
     );
 
     setStyle({
       position: 'fixed',
       left,
       top,
-      width: tooltipWidth,
+      maxWidth,
     });
-  }, [position]);
+  }, [position, isRich, title, footer, items]);
 
   useEffect(() => {
     if (!isVisible) {
@@ -127,9 +132,9 @@ export default function Tooltip({
         createPortal(
           <div
             style={style}
-            className={`pointer-events-none z-[200] rounded-xl border border-black bg-gray-900 px-4 py-3 text-xs leading-5 text-white shadow-2xl transition-all duration-150 ${
-              isVisible ? 'visible opacity-100' : 'invisible opacity-0'
-            }`}
+            className={`pointer-events-none z-[200] w-max rounded-xl border border-black bg-gray-900 text-xs leading-5 text-white shadow-2xl transition-all duration-150 ${
+              isRich ? 'px-4 py-3' : 'px-3 py-1.5'
+            } ${isVisible ? 'visible opacity-100' : 'invisible opacity-0'}`}
           >
             {title && (
               <span className="mb-1 block text-sm font-semibold text-white">{title}</span>

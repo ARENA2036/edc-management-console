@@ -66,7 +66,7 @@ export default function Header({
 
         <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
           <div className="hidden items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-slate-700 dark:bg-slate-900 sm:flex">
-            <Tooltip content={t('languageEnglish')}>
+            <Tooltip content={t('languageEnglishHover')}>
               <button
                 onClick={() => setLanguage('en')}
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
@@ -78,7 +78,7 @@ export default function Header({
                 {t('languageEnglish')}
               </button>
             </Tooltip>
-            <Tooltip content={t('languageGerman')}>
+            <Tooltip content={t('languageGermanHover')}>
               <button
                 onClick={() => setLanguage('de')}
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${

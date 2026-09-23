@@ -279,12 +279,12 @@ export default function ComponentWizard({
         name: normalizedName,
         type: managedType,
         version: draft.version.trim() || defaultVersionForType[type] || '',
-        status: 'Active',
+        status: 'Deploying',
         deployedAt: new Date().toISOString(),
         db_name: `${normalizedName}-db`,
         auth: {
           db_username: `${normalizedName}-user`,
-          db_password: `${normalizedName}-password`,
+          db_password: '',
         },
       };
 
