@@ -20,32 +20,18 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useI18n } from '../i18n';
-import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
+import type { DashboardConnector, ManagedComponent } from '../../types';
 
-interface Props {
-  status: string;
-  detail?: string;
-}
+export type ConnectorRow = DashboardConnector & { connectorType: string };
 
-export default function StatusBadge({ status, detail }: Props) {
-  const { t } = useI18n();
-  const badge = (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
-    >
-      {statusLabel(status, t)}
-    </span>
-  );
+export type ComponentRow = ManagedComponent & { endpointLabel: string };
 
-  if (!detail?.trim()) {
-    return badge;
-  }
+export type EventSeverity = 'critical' | 'warning' | 'healthy';
 
-  return (
-    <Tooltip content={detail} position="top">
-      <span className="inline-flex cursor-help">{badge}</span>
-    </Tooltip>
-  );
+export interface MonitorEvent {
+  id: string;
+  title: string;
+  body: string;
+  timestamp?: string;
+  severity: EventSeverity;
 }

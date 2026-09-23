@@ -20,32 +20,26 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useI18n } from '../i18n';
-import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
+import { useI18n } from '../../i18n';
 
-interface Props {
-  status: string;
-  detail?: string;
-}
-
-export default function StatusBadge({ status, detail }: Props) {
+export default function MonitorRecommendations({ recommendations }: { recommendations: string[] }) {
   const { t } = useI18n();
-  const badge = (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
-    >
-      {statusLabel(status, t)}
-    </span>
-  );
-
-  if (!detail?.trim()) {
-    return badge;
-  }
 
   return (
-    <Tooltip content={detail} position="top">
-      <span className="inline-flex cursor-help">{badge}</span>
-    </Tooltip>
+    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
+        {t('recommendationsTitle')}
+      </h3>
+      <div className="mt-4 space-y-3">
+        {recommendations.map((item) => (
+          <div
+            key={item}
+            className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm leading-6 text-orange-800 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

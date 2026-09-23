@@ -20,32 +20,8 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useI18n } from '../i18n';
-import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
+import AppShell from './app/AppShell';
 
-interface Props {
-  status: string;
-  detail?: string;
-}
-
-export default function StatusBadge({ status, detail }: Props) {
-  const { t } = useI18n();
-  const badge = (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
-    >
-      {statusLabel(status, t)}
-    </span>
-  );
-
-  if (!detail?.trim()) {
-    return badge;
-  }
-
-  return (
-    <Tooltip content={detail} position="top">
-      <span className="inline-flex cursor-help">{badge}</span>
-    </Tooltip>
-  );
+export default function App() {
+  return <AppShell />;
 }
