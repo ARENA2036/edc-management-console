@@ -20,32 +20,31 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import { useI18n } from '../i18n';
-import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
-
-interface Props {
-  status: string;
-  detail?: string;
-}
-
-export default function StatusBadge({ status, detail }: Props) {
-  const { t } = useI18n();
-  const badge = (
-    <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
-    >
-      {statusLabel(status, t)}
-    </span>
-  );
-
-  if (!detail?.trim()) {
-    return badge;
+export function formatTimestamp(
+  value: string | undefined,
+  language: 'de' | 'en',
+  fallbackLabel: string,
+) {
+  if (!value) {
+    return fallbackLabel;
   }
 
-  return (
-    <Tooltip content={detail} position="top">
-      <span className="inline-flex cursor-help">{badge}</span>
-    </Tooltip>
-  );
+  try {
+    return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+export function formatClockTime(value: string, language: 'de' | 'en') {
+  try {
+    return new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-US', {
+      timeStyle: 'medium',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }

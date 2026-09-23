@@ -112,3 +112,69 @@ export function needsAttention(raw?: string | null): boolean {
   const tone = statusTone(raw);
   return tone === 'error' || tone === 'warn' || tone === 'muted';
 }
+
+
+export type SystemHealth =
+  | 'empty'
+  | 'critical'
+  | 'warning'
+  | 'deploying'
+  | 'healthy';
+
+export function computeSystemHealth(
+  statuses: Array<string | null | undefined>,
+): SystemHealth {
+  if (statuses.length === 0) {
+    return 'empty';
+  }
+
+  const tones = statuses.map(statusTone);
+
+  if (tones.includes('error')) {
+    return 'critical';
+  }
+
+  if (tones.includes('warn') || tones.includes('muted')) {
+    return 'warning';
+  }
+
+  if (tones.includes('progress')) {
+    return 'deploying';
+  }
+
+  return 'healthy';
+}
+
+const SYSTEM_HEALTH_TONES: Record<SystemHealth, StatusTone> = {
+  empty: 'muted',
+  critical: 'error',
+  warning: 'warn',
+  deploying: 'progress',
+  healthy: 'ok',
+};
+
+export function systemHealthTone(health: SystemHealth): StatusTone {
+  return SYSTEM_HEALTH_TONES[health];
+}
+
+export function systemHealthBadgeClass(health: SystemHealth): string {
+  return BADGE_CLASSES[systemHealthTone(health)];
+}
+
+const SYSTEM_HEALTH_LABEL_KEYS: Record<SystemHealth, Parameters<Translate>[0]> = {
+  empty: 'statusNothingDeployed',
+  critical: 'statusCritical',
+  warning: 'statusWarning',
+  deploying: 'componentPhaseDeploying',
+  healthy: 'statusHealthy',
+};
+
+export function systemHealthLabel(health: SystemHealth, t: Translate): string {
+  return t(SYSTEM_HEALTH_LABEL_KEYS[health]);
+}
+
+export function countInProgress(
+  statuses: Array<string | null | undefined>,
+): number {
+  return statuses.filter((status) => statusTone(status) === 'progress').length;
+}
