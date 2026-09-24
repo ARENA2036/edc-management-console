@@ -29,7 +29,7 @@ metadata:
   name: {{ .Values.frontend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
-    comqponent: frontend
+    component: frontend
 spec:
   {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}

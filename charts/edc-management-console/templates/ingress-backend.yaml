@@ -27,8 +27,8 @@ metadata:
   name: {{ $.Values.backend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+    component: backend
   {{- with .Values.backend.ingress.annotations }}
-  component: backend
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

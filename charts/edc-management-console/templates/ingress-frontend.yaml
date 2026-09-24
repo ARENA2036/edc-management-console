@@ -28,8 +28,8 @@ metadata:
   name: {{ $.Values.frontend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+    component: frontend
   {{- with .Values.frontend.ingress.annotations }}
-  component: frontend
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

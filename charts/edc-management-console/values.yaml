@@ -100,7 +100,7 @@ backend:
     # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
     type: ClusterIP
     # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-    port: 80
+    port: 8080
 
   authorization:
     enabled: true
@@ -212,6 +212,13 @@ backend:
     # runAsNonRoot: true
     # runAsUser: 1000
 
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
+
   ## Additional volumes on the output Deployment definition.
   volumes:
     # -- persist the backend configuration
@@ -221,7 +228,7 @@ backend:
     # -- persist the backend data directories
     - name: pvc-emc-backend
       persistentVolumeClaim:
-        claimName: "pvc-emc-backend-data"
+        claimName: "{{ .Release.Name }}-pvc-emc-backend-data"
     # -- temporary file system mount
     - name: tmpfs
       emptyDir: {}
@@ -268,7 +275,7 @@ frontend:
 
   service:
     type: ClusterIP
-    port: 8080
+    port: 8001
   ingress:
     enabled: true
     ingressClassName: "webapprouting.kubernetes.azure.com"

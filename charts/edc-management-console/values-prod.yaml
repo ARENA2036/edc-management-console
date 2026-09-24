@@ -513,6 +513,12 @@ backend:
           key: token
 
   ## Additional volumes on the output Deployment definition.
+  persistence:
+    enabled: true
+    storageClass: premium-perf1-stackit
+    size: 1Gi
+    accessModes:
+      - ReadWriteOnce
   volumes:
     # -- persist the backend configuration
     - name: emc-backend-config
