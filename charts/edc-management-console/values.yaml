@@ -242,9 +242,9 @@ backend:
 
     # -- specifies the volume mounts for the backend deployment
   volumeMounts:
-    # -- mounted path for the backend configuration added in the config maps
     - name: emc-backend-config
-      mountPath: /backend/config
+      mountPath: /backend/config/configuration.yml
+      subPath: configuration.yml
     # -- contains the location for the process data directory
     - name: pvc-emc-backend
       mountPath: /backend/data
