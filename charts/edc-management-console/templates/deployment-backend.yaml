@@ -28,7 +28,7 @@ metadata:
   name: {{ .Values.backend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
-    comqponent: backend
+    component: backend
 spec:
   {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicaCount }}
@@ -77,8 +77,10 @@ spec:
             {{- end }}
             - name: EMC_ALLOWED_ORIGINS
               value: {{ include "chart.allowedOrigins" . | quote }}
+          {{- with .Values.backend.envFrom }}
           envFrom:
-            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.port }}
