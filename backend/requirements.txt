@@ -33,8 +33,13 @@ rpds-py==0.30.0
 typer==0.15.4
 
 
-durationpy==0.9
+# Pinned to versions the Eclipse IP team has already approved: durationpy 0.8
+# and websocket-client 1.6.4 (#15014) are approved, every later release is
+# still 'restricted'. Both satisfy kubernetes 31.0.0 (durationpy>=0.7,
+# websocket-client>=0.32.0) and neither has runtime dependencies of its own,
+# so raising either one needs a dash review request first.
+durationpy==0.8
 google-auth==2.34.0
 oauthlib==3.2.2
 pyasn1-modules==0.4.0
-websocket-client==1.8.0
+websocket-client==1.6.4
