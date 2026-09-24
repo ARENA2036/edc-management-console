@@ -100,7 +100,8 @@ backend:
     # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
     type: ClusterIP
     # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-    port: 8080
+    # The backend image serves on 8001 (backend/Dockerfile).
+    port: 8001
 
   authorization:
     enabled: true
@@ -224,7 +225,7 @@ backend:
     # -- persist the backend configuration
     - name: emc-backend-config
       configMap:
-        name: "emc-backend-config"
+        name: "{{ .Release.Name }}-backend-config"
     # -- persist the backend data directories
     - name: pvc-emc-backend
       persistentVolumeClaim:
@@ -275,7 +276,7 @@ frontend:
 
   service:
     type: ClusterIP
-    port: 8001
+    port: 8080
   ingress:
     enabled: true
     ingressClassName: "webapprouting.kubernetes.azure.com"
