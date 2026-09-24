@@ -48,20 +48,19 @@ if ! command -v kubectl >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ -z "$VAULT_ADDR" ] && [ -z "$VAULT_TOKEN" ]; then
+  echo "No Vault configured: using the pod's in-cluster credentials."
+  exec "$@"
+fi
+
+if [ -z "$VAULT_ADDR" ] || [ -z "$VAULT_TOKEN" ]; then
+  echo "ERROR: VAULT_ADDR and VAULT_TOKEN have to be set together; one of them is missing."
+  exit 1
+fi
+
 # Check if vault is installed
 if ! command -v vault >/dev/null 2>&1; then
   echo "vault could not be found, please install it."
-  exit 1
-fi
-
-# Validate required Vault env vars
-if [ -z "$VAULT_ADDR" ]; then
-  echo "ERROR: VAULT_ADDR is not set"
-  exit 1
-fi
-
-if [ -z "$VAULT_TOKEN" ]; then
-  echo "ERROR: VAULT_TOKEN is not set"
   exit 1
 fi
 
