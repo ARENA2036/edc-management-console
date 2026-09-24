@@ -10,7 +10,7 @@ npm/npmjs/-/anymatch/3.1.3, ISC, approved, #5050
 npm/npmjs/-/arg/5.0.2, MIT, approved, clearlydefined
 npm/npmjs/-/argparse/2.0.1, Python-2.0, approved, CQ22954
 npm/npmjs/-/array-buffer-byte-length/1.0.2, MIT, approved, #7548
-npm/npmjs/-/array-includes/3.1.9, MIT, approved, #4577
+npm/npmjs/-/array-includes/3.2.0, , restricted, clearlydefined
 npm/npmjs/-/array.prototype.findlastindex/1.2.6, MIT, approved, #9900
 npm/npmjs/-/array.prototype.flat/1.3.3, MIT, approved, #4574
 npm/npmjs/-/array.prototype.flatmap/1.3.3, MIT, approved, #4651
@@ -138,7 +138,7 @@ npm/npmjs/-/is-bigint/1.1.0, MIT, approved, #17715
 npm/npmjs/-/is-binary-path/2.1.0, MIT, approved, clearlydefined
 npm/npmjs/-/is-boolean-object/1.2.2, MIT, approved, #18408
 npm/npmjs/-/is-callable/1.2.7, MIT, approved, clearlydefined
-npm/npmjs/-/is-core-module/2.16.1, MIT, approved, #18369
+npm/npmjs/-/is-core-module/2.17.0, , restricted, clearlydefined
 npm/npmjs/-/is-data-view/1.0.2, MIT, approved, #18375
 npm/npmjs/-/is-date-object/1.1.0, MIT, approved, #18365
 npm/npmjs/-/is-document.all/1.0.0, MIT, approved, #28658
@@ -366,7 +366,7 @@ npm/npmjs/@eslint-community/regexpp/4.12.2, MIT, approved, clearlydefined
 npm/npmjs/@eslint/config-array/0.21.2, Apache-2.0 AND MIT, approved, #23571
 npm/npmjs/@eslint/config-helpers/0.4.2, Apache-2.0, approved, clearlydefined
 npm/npmjs/@eslint/core/0.17.0, Apache-2.0, approved, clearlydefined
-npm/npmjs/@eslint/eslintrc/3.3.6, MIT, approved, clearlydefined
+npm/npmjs/@eslint/eslintrc/3.3.7, , restricted, clearlydefined
 npm/npmjs/@eslint/js/9.39.5, MIT, approved, clearlydefined
 npm/npmjs/@eslint/object-schema/2.1.7, Apache-2.0, approved, clearlydefined
 npm/npmjs/@eslint/plugin-kit/0.4.1, Apache-2.0, approved, clearlydefined
