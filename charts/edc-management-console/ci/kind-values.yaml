@@ -20,18 +20,32 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 ---
-apiVersion: v1
-kind: Pod
-metadata:
-  name: "{{ include "chart.fullname" . }}-test-connection"
-  labels:
-    {{- include "chart.labels" . | nindent 4 }}
-  annotations:
-    "helm.sh/hook": test
-spec:
-  containers:
-    - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ .Values.frontend.name }}:{{ .Values.frontend.service.port }}']
-  restartPolicy: Never
+# Values used by chart-testing (ct install) in CI, on a throwaway kind cluster.
+#
+# The cluster has no image registry credentials, no ingress controller and no
+# environment-specific StorageClass, so this file replaces exactly those parts
+# of the default values. Everything else stays at its default so CI exercises
+# the configuration the chart actually ships.
+
+backend:
+  image:
+    repository: emc-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  envFrom: []
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+  ingress:
+    enabled: false
+
+frontend:
+  image:
+    repository: emc-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  ingress:
+    enabled: false
