@@ -71,14 +71,14 @@ class EdcManager:
             "healthy": False
         }
         try:
-            liveness_response = requests.get(liveness_endpoint, timeout=5, verify=False)
+            liveness_response = requests.get(liveness_endpoint, timeout=5)
             result["liveness"] = "healthy" if liveness_response.status_code == 200 else "unhealthy"
         except Exception as e:
             logger.error(f"[EdcManager] Liveness check failed: {str(e)}")
             result["liveness"] = "unhealthy"
 
         try:
-            readiness_response = requests.get(readiness_endpoint, timeout=5, verify=False)
+            readiness_response = requests.get(readiness_endpoint, timeout=5)
             result["readiness"] = "ready" if readiness_response.status_code == 200 else "not ready"
         except Exception as e:
             logger.error(f"[EdcManager] Readiness check failed: {str(e)}")
@@ -93,7 +93,7 @@ class EdcManager:
         return its JSON, or ``{error}`` on failure."""
         target = (connector_url or self.default_url) + self.endpoints.get(endpoint_key, default_path)
         try:
-            response = requests.get(target, timeout=10, verify=False)
+            response = requests.get(target, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -103,7 +103,7 @@ class EdcManager:
     def _http_status(self, url: str) -> Optional[int]:
         """GET a URL and return its HTTP status code, or None if unreachable."""
         try:
-            return requests.get(url, timeout=5, verify=False).status_code
+            return requests.get(url, timeout=5).status_code
         except Exception as e:
             logger.warning("[EdcManager] Health probe failed for %s: %s", url, e)
             return None

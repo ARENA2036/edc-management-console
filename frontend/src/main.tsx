@@ -70,8 +70,8 @@ const renderAuthStatus = (title: string, message: string, actionLabel?: string) 
 };
 
 const initKeycloak = async () => {
+  localStorage.removeItem('token');
   if (isAuthDisabled()) {
-    localStorage.removeItem('token');
     renderApp();
     return;
   }
@@ -99,14 +99,8 @@ const initKeycloak = async () => {
     });
 
     if (authenticated) {
-      localStorage.setItem('token', keycloak.token || '');
-      
       keycloak.onTokenExpired = () => {
-        keycloak.updateToken(30).then((refreshed) => {
-          if (refreshed) {
-            localStorage.setItem('token', keycloak.token || '');
-          }
-        }).catch(() => {
+        keycloak.updateToken(30).catch(() => {
           keycloak.login();
         });
       };
