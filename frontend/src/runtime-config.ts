@@ -51,12 +51,12 @@ export function getRuntimeConfigValue(
   runtimeValue: string | undefined,
   fallback = '',
 ): string {
-  if (isUsableValue(envValue)) {
-    return envValue as string;
-  }
-
   if (isUsableValue(runtimeValue)) {
     return runtimeValue as string;
+  }
+
+  if (isUsableValue(envValue)) {
+    return envValue as string;
   }
 
   return fallback;
@@ -87,14 +87,14 @@ export function getRuntimeConfigBoolean(
   runtimeValue: boolean | string | undefined,
   fallback = false,
 ) {
-  const envBoolean = parseBoolean(envValue);
-  if (envBoolean !== undefined) {
-    return envBoolean;
-  }
-
   const runtimeBoolean = parseBoolean(runtimeValue);
   if (runtimeBoolean !== undefined) {
     return runtimeBoolean;
+  }
+
+  const envBoolean = parseBoolean(envValue);
+  if (envBoolean !== undefined) {
+    return envBoolean;
   }
 
   return fallback;

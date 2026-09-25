@@ -21,6 +21,7 @@
 ********************************************************************************/
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
+import keycloak, { isAuthDisabled } from '../auth/keycloak';
 import type { DeployRequest } from '../types';
 import { toApiError } from './errors';
 
@@ -59,6 +60,31 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => Promise.reject(toApiError(error)),
 );
+
+apiClient.interceptors.request.use(async (config) => {
+  if (isAuthDisabled()) {
+    return config;
+  }
+
+  if (keycloak.authenticated) {
+    try {
+      const refreshed = await keycloak.updateToken(30);
+      if (refreshed) {
+        localStorage.setItem('token', keycloak.token || '');
+      }
+    } catch (error) {
+
+      console.warn('Failed to refresh the Keycloak token', error);
+    }
+  }
+
+  const token = keycloak.token || localStorage.getItem('token') || '';
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  return config;
+});
 
 
 export const edcClient = (name: string) => {
