@@ -117,8 +117,13 @@ backend:
     minReplicas: 1
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
-  podSecurityContext: {}
-  securityContext: {}
+  podSecurityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
+    fsGroup: 10001
+  securityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
   envFrom: []
   env:
     - name: CLUSTER_SECRET

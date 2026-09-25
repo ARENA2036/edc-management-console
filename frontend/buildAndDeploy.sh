@@ -21,25 +21,34 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 
-CONTAINER_NAME=$1
-IMAGE_NAME="ifs-frontend"
+CONTAINER_NAME=${1:-emc-frontend}
+IMAGE_NAME="emc-frontend"
 IMAGE_TAG="latest"
-BACKEND_URL="https://TODO__XXX__YOUR_VALUE___XXX"
-ENDPOINT_GET_MY_FLAGS="/flags"
-ENDPOINT_SEARCH_FLAGS_BY_BPN="/flags/search"
-ENDPOINT_GET_MY_FLAG_PROOF="/flags"
-ENDPOINT_GET_FLAG_PROOF_BY_BPN="/flags/proof"
-API_KEY="ifs-api-key"
 
+VITE_BACKEND_URL="${VITE_BACKEND_URL:-http://localhost:8001}"
+VITE_API_KEY="${VITE_API_KEY:-emc-api-key}"
+VITE_EDC_HOSTNAME="${VITE_EDC_HOSTNAME:-localhost}"
+VITE_KEYCLOAK_URL="${VITE_KEYCLOAK_URL:-http://localhost:8080/auth}"
+VITE_KEYCLOAK_REALM="${VITE_KEYCLOAK_REALM:-CX-Central}"
+VITE_KEYCLOAK_CLIENT_ID="${VITE_KEYCLOAK_CLIENT_ID:-A36-EMC}"
+VITE_SDE_URL="${VITE_SDE_URL:-}"
+VITE_PORTAL_URL="${VITE_PORTAL_URL:-}"
 
-docker rm -f ${CONTAINER_NAME}
+docker rm -f "${CONTAINER_NAME}" 2>/dev/null
 
 echo "Build docker image..."
-docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
 echo "Run docker container..."
-docker run --name ${CONTAINER_NAME} -p 8080:8080 -d -e BACKEND_URL=${BACKEND_URL} -e ENDPOINT_GET_MY_FLAGS=${ENDPOINT_GET_MY_FLAGS} -e ENDPOINT_SEARCH_FLAGS_BY_BPN=${ENDPOINT_SEARCH_FLAGS_BY_BPN} \
-            -e ENDPOINT_GET_MY_FLAG_PROOF=${ENDPOINT_GET_MY_FLAG_PROOF} -e ENDPOINT_GET_FLAG_PROOF_BY_BPN=${ENDPOINT_GET_FLAG_PROOF_BY_BPN} \
-            -e API_KEY=${API_KEY}  ${IMAGE_NAME}:${IMAGE_TAG}
+docker run --name "${CONTAINER_NAME}" -p 8080:8080 -d \
+    -e VITE_BACKEND_URL="${VITE_BACKEND_URL}" \
+    -e VITE_API_KEY="${VITE_API_KEY}" \
+    -e VITE_EDC_HOSTNAME="${VITE_EDC_HOSTNAME}" \
+    -e VITE_KEYCLOAK_URL="${VITE_KEYCLOAK_URL}" \
+    -e VITE_KEYCLOAK_REALM="${VITE_KEYCLOAK_REALM}" \
+    -e VITE_KEYCLOAK_CLIENT_ID="${VITE_KEYCLOAK_CLIENT_ID}" \
+    -e VITE_SDE_URL="${VITE_SDE_URL}" \
+    -e VITE_PORTAL_URL="${VITE_PORTAL_URL}" \
+    "${IMAGE_NAME}:${IMAGE_TAG}"
 
 echo "Done"
