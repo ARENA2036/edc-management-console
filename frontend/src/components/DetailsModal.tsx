@@ -20,6 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import { X, Copy } from 'lucide-react';
+import { statusBadgeClass, statusLabel } from '../utils/status';
 import type { Connector } from '../types';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
@@ -90,12 +91,11 @@ export default function DetailsModal({ connector, onClose }: Props) {
           <div className="border-b border-gray-200 pb-4 dark:border-slate-800">
             <label className="block text-sm font-medium text-gray-500">Status</label>
             <p
-              className={`text-lg font-semibold ${connector.status === 'healthy' || connector.status === 'unhealthy'
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-gray-600 dark:text-slate-300'
-                }`}
+              className={`rounded-full px-3 py-1 text-lg font-semibold ${statusBadgeClass(
+                connector.status,
+              )}`}
             >
-              {connector.status === 'unhealthy' ? 'Active' : connector.status}
+              {statusLabel(connector.status)}
             </p>
           </div>
         </div>

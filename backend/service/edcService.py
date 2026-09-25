@@ -148,7 +148,7 @@ class EdcService:
         logger.info(f"[EdcService] Performing GET request to {counter_party_address}{path}")
         try:
             url = f"{counter_party_address}{path}"
-            response = requests.get(url, headers=headers or {}, timeout=30, verify=False)
+            response = requests.get(url, headers=headers or {}, timeout=30)
             return response
         except Exception as e:
             logger.error(f"[EdcService] GET request failed: {str(e)}")
@@ -166,7 +166,7 @@ class EdcService:
             if headers is None:
                 headers = {}
             headers["Content-Type"] = content_type
-            response = requests.post(url, json=body, headers=headers, timeout=30, verify=False)
+            response = requests.post(url, json=body, headers=headers, timeout=30)
             return response
         except Exception as e:
             logger.error(f"[EdcService] POST request failed: {str(e)}")

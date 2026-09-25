@@ -37,7 +37,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utilities.auth_utils import (assert_safe_external_url,  # noqa: E402
-                                  get_oauth2_token)
+                                  build_external_url, get_oauth2_token)
 from utilities.errors import EmcError  # noqa: E402
 
 
@@ -183,3 +183,40 @@ def test_upstream_failures_surface_as_502_not_a_keyerror(monkeypatch):
         get_oauth2_token({"accessTokenUrl": "https://idp.example.com/token",
                           "clientId": "cid", "clientSecret": "wrong"})
     assert error.value.status == 502
+
+
+def test_rejects_a_query_string_or_fragment_on_a_base_url(monkeypatch):
+    """`https://host/?x=` + `/api/health` collapses to `https://host/?x=/api/health`,
+    which lets the caller pick where on the host the probe lands."""
+    _resolves_to(monkeypatch, "93.184.216.34")
+
+    for url in ("https://svc.example.com/?next=", "https://svc.example.com/#frag"):
+        with pytest.raises(EmcError) as error:
+            assert_safe_external_url(url, field="url")
+        assert error.value.code == "UNSAFE_URL"
+
+
+def test_token_endpoints_may_carry_a_query_string(monkeypatch):
+    """Some IdPs do; the token URL is used whole, never concatenated."""
+    _resolves_to(monkeypatch, "93.184.216.34")
+    url = "https://idp.example.com/token?tenant=acme"
+    assert assert_safe_external_url(url, field="accessTokenUrl", allow_query=True) == url
+
+
+@pytest.mark.parametrize("base, expected", [
+    ("https://svc.example.com", "https://svc.example.com/api/health"),
+    ("https://svc.example.com/", "https://svc.example.com/api/health"),
+    ("https://svc.example.com/sub", "https://svc.example.com/sub/api/health"),
+    ("https://svc.example.com/sub/", "https://svc.example.com/sub/api/health"),
+])
+def test_probe_url_is_the_vetted_origin_plus_a_literal_path(monkeypatch, base, expected):
+    _resolves_to(monkeypatch, "93.184.216.34")
+    assert build_external_url(base, "api/health", field="url") == expected
+
+
+def test_probe_url_refuses_an_internal_base(monkeypatch):
+    _resolves_to(monkeypatch, "10.0.0.5")
+
+    with pytest.raises(EmcError) as error:
+        build_external_url("https://svc.example.com", "api/health", field="url")
+    assert error.value.code == "UNSAFE_URL"

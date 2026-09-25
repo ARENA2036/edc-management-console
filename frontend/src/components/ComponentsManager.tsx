@@ -24,33 +24,13 @@ import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
+import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
 function ComponentStatusBadge({ status }: { status: string }) {
-  if (status === 'Active' || status === 'active' || status === 'healthy') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'Deploying' || status === 'deploying') {
-    return (
-      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-        Active
-      </span>
-    );
-  }
-  if (status === 'Inactive' || status === 'inactive') {
-    return (
-      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-slate-700 dark:text-slate-300">
-        Inactive
-      </span>
-    );
-  }
   return (
-    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
-      {status || 'Unknown'}
+    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
+      {statusLabel(status)}
     </span>
   );
 }
