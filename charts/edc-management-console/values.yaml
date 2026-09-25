@@ -179,16 +179,13 @@ backend:
     maxReplicas: 100
     targetCPUUtilizationPercentage: 80
     # targetMemoryUtilizationPercentage: 80
-  podSecurityContext: {}
-    # fsGroup: 2000
-
-  securityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
-    # runAsUser: 1000
+  podSecurityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
+    fsGroup: 10001
+  securityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
 
   ## Additional volumes on the output Deployment definition.
   volumes:
@@ -277,6 +274,16 @@ frontend:
   #   cpu: 100m
   #   memory: 128Mi
   volumeMounts: []
+
+  # User/group IDs recommended by TRG 4.07, matching the IDs the frontend image
+  # is built with. https://eclipse-tractusx.github.io/docs/release/trg-4/trg-4-07
+  podSecurityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
+    fsGroup: 10001
+  securityContext:
+    runAsUser: 10000
+    runAsGroup: 10001
 
   # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
   autoscaling:
