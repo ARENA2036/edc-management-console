@@ -29,7 +29,7 @@ metadata:
   name: {{ .Values.frontend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
-    comqponent: frontend
+    component: frontend
 spec:
   {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}
@@ -80,7 +80,7 @@ spec:
           {{- end }}
           volumeMounts:
             {{- toYaml .Values.frontend.volumeMounts | nindent 12 }}
-      {{- with .Values.backend.volumes }}
+      {{- with .Values.frontend.volumes }}
       volumes:
         {{- tpl (toYaml $.Values.frontend.volumes | nindent 12) $ }}
       {{- end }}

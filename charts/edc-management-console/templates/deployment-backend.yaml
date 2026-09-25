@@ -28,10 +28,14 @@ metadata:
   name: {{ .Values.backend.name }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
-    comqponent: backend
+    component: backend
 spec:
   {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.backend.replicaCount }}
+  {{- end }}
+  {{- with .Values.backend.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
@@ -68,9 +72,15 @@ spec:
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           env:
-            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- with .Values.backend.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - name: EMC_ALLOWED_ORIGINS
+              value: {{ include "chart.allowedOrigins" . | quote }}
+          {{- with .Values.backend.envFrom }}
           envFrom:
-            {{- toYaml .Values.backend.envFrom | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.backend.service.port }}

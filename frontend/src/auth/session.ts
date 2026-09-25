@@ -21,7 +21,7 @@
 ********************************************************************************/
 
 import { useEffect, useState } from 'react';
-import { isAuthDisabled } from './keycloak';
+
 import { dataspaceApi } from '../api/client';
 
 export interface SessionIdentity {
@@ -29,8 +29,8 @@ export interface SessionIdentity {
   name: string;
   bpn: string;
   company: string;
-  /** Whether the backend refuses a deployment that is not under the caller's BPN. */
-  enforceSessionBpn: boolean;
+  roles: string[];
+  isAdmin: boolean;
 }
 
 export const EMPTY_IDENTITY: SessionIdentity = {
@@ -38,14 +38,11 @@ export const EMPTY_IDENTITY: SessionIdentity = {
   name: '',
   bpn: '',
   company: '',
-  enforceSessionBpn: false,
+  roles: [],
+  isAdmin: false,
 };
 
 export async function fetchSessionIdentity(): Promise<SessionIdentity | null> {
-  if (isAuthDisabled()) {
-    return null;
-  }
-
   try {
     const response = await dataspaceApi.getDataspace();
     const session = response.data?.data?.session as Partial<SessionIdentity> | undefined;
