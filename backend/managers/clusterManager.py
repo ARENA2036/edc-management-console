@@ -278,20 +278,6 @@ class ClusterManager:
         return ReleaseStatus(Phase.DEGRADED, workloads,
                              detail=f"{ready} of {desired} replica(s) ready.")
 
-    def statuses(self) -> Optional[Dict[str, ReleaseStatus]]:
-        """Every release in the namespace, keyed by release name.
-
-        An empty mapping means "the cluster could not be asked" — callers
-        should treat a missing key as :attr:`Phase.UNKNOWN` rather than as
-        "not deployed", which is why ``status`` exists.
-        """
-        facts = self._collect()
-        return None if facts is None else self.statuses_from(facts)
-
-    def status(self, release_name: str) -> ReleaseStatus:
-        """The state of one release."""
-        return self.resolve(self.statuses(), release_name)
-
     def resolve(self, statuses: Optional[Dict[str, ReleaseStatus]],
                 release_name: str) -> ReleaseStatus:
         """Look one release up in a previously collected mapping.
@@ -309,21 +295,15 @@ class ClusterManager:
         return statuses.get(release_name) or ReleaseStatus(
             Phase.NOT_FOUND, detail="No workloads carry this release's label.")
 
-    def internal_base_url(self, release_name: str) -> Optional[str]:
+    @staticmethod
+    def internal_base_url_from(facts: Dict[str, _ReleaseFacts],
+                               release_name: str) -> Optional[str]:
         """In-cluster base URL for probing this release's own API, if any.
 
         Resolved from the release's Services so it needs no per-component
         configuration, and keeps the probe inside the cluster — the public
         ingress deliberately does not route health paths.
         """
-        facts = self._collect()
-        if not facts:
-            return None
-        return self.internal_base_url_from(facts, release_name)
-
-    @staticmethod
-    def internal_base_url_from(facts: Dict[str, _ReleaseFacts],
-                               release_name: str) -> Optional[str]:
         candidates = (facts.get(release_name) or _ReleaseFacts()).services
         if not candidates:
             return None

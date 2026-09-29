@@ -19,7 +19,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
-import base64
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
