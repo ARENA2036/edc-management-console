@@ -37,6 +37,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth.keycloak_config import keycloak_openid
+from auth.roles import is_admin, require_admin
 
 from models.connector import DeploymentRequest
 from models.database import ConnectorDB
@@ -507,13 +508,8 @@ def _assert_within_component_limits(components, scope: ComponentScope):
             )
 
 
-def _session_bpn_enforcement_enabled() -> bool:
-    identity_config = app_configuration.get("dataspaceConfig", {}).get("identity", {}) or {}
-    return bool(identity_config.get("enforceSessionBpn", False))
-
-
 def _scope_for(user: Optional[dict]) -> ComponentScope:
-    return ComponentScope.for_user(user, _session_bpn_enforcement_enabled())
+    return ComponentScope.for_user(user)
 
 
 def _apply_owner_bpn(components, scope: ComponentScope):
@@ -529,14 +525,9 @@ def _apply_owner_bpn(components, scope: ComponentScope):
     identity. No other component's value mappings read `bpn`, so stamping it
     leaves what is deployed for those unchanged.
     """
-    if scope.is_unscoped:
-        logger.warning("[deploy] No BPN in the caller's token; deploying without a "
-                       "recorded owner.")
-        return
-
     for comp in components:
         requested = normalize_bpn(getattr(comp, "bpn", ""))
-        if requested and requested != scope.bpn and _session_bpn_enforcement_enabled():
+        if requested and requested != scope.bpn:
             raise EmcError(
                 f"Component '{comp.name}' was requested with BPN {requested}, but your "
                 f"account belongs to {scope.bpn}.",
@@ -631,7 +622,7 @@ async def _deploy_components(components, namespace, scope: ComponentScope):
 
 @app.post("/api/component", tags=["Components"])
 async def add_components(payload: DeploymentRequest,
-                         user=Depends(keycloak_openid.get_current_user)):
+                         user=Depends(require_admin)):
     """Deploy the components in the request.
 
     The payload is a list of components, each selected by its `type`
@@ -651,7 +642,7 @@ async def add_components(payload: DeploymentRequest,
 
 @app.put("/api/components/{component_id}", tags=["Components"])
 async def upgrade_components(component_id: str, payload: DeploymentRequest,
-                             user=Depends(keycloak_openid.get_current_user)):
+                             user=Depends(require_admin)):
     """Upgrade (or install) the components in the request. Same array payload and
     config-driven path as POST — Helm install-or-upgrade is the same operation, so
     this re-renders each component's values and rolls the release forward."""
@@ -669,7 +660,7 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest,
 
 @app.delete("/api/components/{component_name}", tags=["Components"])
 async def delete_component(component_name: str,
-                           user=Depends(keycloak_openid.get_current_user)):
+                           user=Depends(require_admin)):
     """Delete exactly one component by name and uninstall its Helm release.
 
     Components are independent, so deleting a connector never touches a digital
@@ -700,7 +691,7 @@ async def delete_component(component_name: str,
 
 
 @app.post("/api/submodel", tags=["Submodel"])
-async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
+async def add_submodel_service(data: dict, user=Depends(require_admin)):
     """Deploy a submodel service independently"""
     try:
         url = data.get("url")
@@ -743,7 +734,7 @@ async def add_submodel_service(data: dict, user=Depends(keycloak_openid.get_curr
         return HttpUtils.error_response(exc, stage=Stage.UPSTREAM, log=logger)
 
 @app.post("/api/submodel/{submodel_service_id}", tags=["Submodel"])
-async def add_existing_submodel_service(data: dict, user=Depends(keycloak_openid.get_current_user)):
+async def add_existing_submodel_service(data: dict, user=Depends(require_admin)):
     """Register a submodel service independently"""
     try:
         url = data.get("url")
@@ -934,7 +925,8 @@ async def get_dataspace_settings(user=Depends(keycloak_openid.get_current_user))
                 "name": user.get("name", ""),
                 "bpn": user.get("bpn", ""),
                 "company": user.get("company", ""),
-                "enforceSessionBpn": _session_bpn_enforcement_enabled(),
+                "roles": list(user.get("roles", ())),
+                "isAdmin": is_admin(user),
             },
             "deployment": {
                 "connector": _component_versions("connector"),

@@ -103,6 +103,9 @@ class BadRequest(EmcError):
 class NotAuthorized(EmcError):
     status, code, stage = 401, "NOT_AUTHORIZED", Stage.AUTH
 
+class Forbidden(EmcError):
+    status, code, stage = 403, "FORBIDDEN", Stage.AUTH
+
 class NotFound(EmcError):
     status, code, stage = 404, "NOT_FOUND", Stage.REQUEST
 

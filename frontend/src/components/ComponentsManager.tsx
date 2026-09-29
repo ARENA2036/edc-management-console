@@ -47,6 +47,7 @@ function localizeComponentType(
 interface Props {
   components: ManagedComponent[];
   onDelete: (component: ManagedComponent) => Promise<void> | void;
+  canManage?: boolean;
 }
 
 function ComponentDetailsModal({
@@ -162,7 +163,7 @@ function DeleteComponentModal({
   );
 }
 
-export default function ComponentsManager({ components, onDelete }: Props) {
+export default function ComponentsManager({ components, onDelete, canManage = true }: Props) {
   const { t } = useI18n();
   const [selectedComponent, setSelectedComponent] = useState<ManagedComponent | null>(null);
   const [componentToDelete, setComponentToDelete] = useState<ManagedComponent | null>(null);
@@ -237,6 +238,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
+                        {canManage ? (
                         <Tooltip
                           content={t('deleteComponentTooltip')}
                         >
@@ -247,6 +249,7 @@ export default function ComponentsManager({ components, onDelete }: Props) {
                             <Trash2 size={16} />
                           </button>
                         </Tooltip>
+                        ) : null}
                         <Tooltip content={t('tableMore')}>
                           <button
                             onClick={() => setSelectedComponent(component)}

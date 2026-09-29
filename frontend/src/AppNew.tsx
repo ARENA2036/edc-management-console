@@ -792,6 +792,7 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
           />
         </div>
 
+        {identity.isAdmin ? (
         <div className="mb-6 flex flex-wrap justify-end gap-3">
           <Tooltip
             title={statsGuidance.add.title}
@@ -809,16 +810,19 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
             </button>
           </Tooltip>
         </div>
+        ) : null}
 
         <div className="space-y-6">
           <ConnectorsManager
             connectors={connectors}
             onDelete={handleDeleteConnector}
             onAddComponent={() => openComponentWizard()}
+            canManage={identity.isAdmin}
           />
           <ComponentsManager
             components={components}
             onDelete={handleDeleteComponent}
+            canManage={identity.isAdmin}
           />
         </div>
       </div>
@@ -854,7 +858,6 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
         defaultVersion={dataspaceDetails?.deployment?.connector?.defaultVersion}
         availableVersions={dataspaceDetails?.deployment?.connector?.availableVersions}
         prefilledBpn={identity.bpn}
-        bpnRequired={identity.enforceSessionBpn}
         defaultApiEndpoint={
           dataspaceDetails?.edc?.controlplane_url || dataspaceDetails?.edc?.default_url
         }

@@ -29,8 +29,8 @@ export interface SessionIdentity {
   name: string;
   bpn: string;
   company: string;
-  /** Whether the backend refuses a deployment that is not under the caller's BPN. */
-  enforceSessionBpn: boolean;
+  roles: string[];
+  isAdmin: boolean;
 }
 
 export const EMPTY_IDENTITY: SessionIdentity = {
@@ -38,12 +38,13 @@ export const EMPTY_IDENTITY: SessionIdentity = {
   name: '',
   bpn: '',
   company: '',
-  enforceSessionBpn: false,
+  roles: [],
+  isAdmin: false,
 };
 
 export async function fetchSessionIdentity(): Promise<SessionIdentity | null> {
   if (isAuthDisabled()) {
-    return null;
+    return { ...EMPTY_IDENTITY, isAdmin: true };
   }
 
   try {
@@ -76,7 +77,7 @@ export function useSessionIdentity() {
       }
 
       setIdentity(resolved ?? EMPTY_IDENTITY);
-      if (resolved && !resolved.bpn) {
+      if (resolved && !resolved.bpn && !isAuthDisabled()) {
         console.warn(
           '[EMC] No BPN in the session. Add "bpn" and "organisation" User Attribute ' +
             'mappers to this application\'s client in the identity provider.',

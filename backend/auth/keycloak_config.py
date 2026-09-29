@@ -40,6 +40,9 @@ ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256"]
 
 BPN_CLAIM = "bpn"
 COMPANY_CLAIM = "organisation"
+ROLES_CLAIM = "roles"
+RESOURCE_ACCESS_CLAIM = "resource_access"
+REALM_ACCESS_CLAIM = "realm_access"
 
 
 def _clean(value: Optional[str]) -> str:
@@ -52,6 +55,18 @@ def _clean(value: Optional[str]) -> str:
         return ""
 
     return stripped
+
+
+def _names(value: Any) -> list:
+    """Every non-empty string in a claim that may hold one value or a list."""
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+
+    if isinstance(value, (list, tuple)):
+        return [entry.strip() for entry in value
+                if isinstance(entry, str) and entry.strip()]
+
+    return []
 
 
 def _first(value: Any) -> str:
@@ -190,14 +205,38 @@ class KeycloakOpenID:
         self._assert_issued_for_this_client(claims)
         return claims
 
+    def roles_from(self, claims: dict) -> tuple:
+        """Role names this token carries, in assignment order, de-duplicated.
+
+        Keycloak puts an application's own roles under
+        ``resource_access.<client>.roles`` and realm-wide ones under
+        ``realm_access.roles``. Both are read, so a deployment can model
+        Admin/User as client roles on this client or as realm roles without the
+        backend caring which.
+        """
+        granted = []
+
+        resource_access = claims.get(RESOURCE_ACCESS_CLAIM)
+        if self.client_id and isinstance(resource_access, dict):
+            client_roles = resource_access.get(self.client_id)
+            if isinstance(client_roles, dict):
+                granted.extend(_names(client_roles.get(ROLES_CLAIM)))
+
+        realm_access = claims.get(REALM_ACCESS_CLAIM)
+        if isinstance(realm_access, dict):
+            granted.extend(_names(realm_access.get(ROLES_CLAIM)))
+
+        return tuple(dict.fromkeys(granted))
+
     def build_user(self, claims: dict, token: str = "") -> dict:
-        """The caller and the company they act for, from verified claims."""
+        """The caller, the company they act for and what they may do."""
         return {
             "preferred_username": _first(claims.get("preferred_username")) or "unknown",
             "name": _first(claims.get("name")),
             "email": _first(claims.get("email")),
             "bpn": _first(claims.get(BPN_CLAIM)).upper(),
             "company": _first(claims.get(COMPANY_CLAIM)),
+            "roles": self.roles_from(claims),
             "token": token,
         }
 
