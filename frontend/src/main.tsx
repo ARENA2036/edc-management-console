@@ -21,24 +21,22 @@
 ********************************************************************************/
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-
 import './index.css'
-import ErrorBoundary from './app/ErrorBoundary'
-import App from './App.tsx'
+import AppNew from './AppNew.tsx'
 import keycloak, {
   getKeycloakConfig,
+  isAuthDisabled,
   validateKeycloakConfig,
 } from './auth/keycloak'
 import { I18nProvider } from './i18n'
-
-const root = createRoot(document.getElementById('root')!);
+import ErrorBoundary from './components/ErrorBoundary'
 
 const renderApp = () => {
-  root.render(
+  createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <I18nProvider>
         <ErrorBoundary>
-          <App />
+          <AppNew />
         </ErrorBoundary>
       </I18nProvider>
     </StrictMode>,
@@ -46,7 +44,7 @@ const renderApp = () => {
 };
 
 const renderAuthStatus = (title: string, message: string, actionLabel?: string) => {
-  root.render(
+  createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto flex min-h-[70vh] max-w-xl flex-col justify-center">
@@ -72,6 +70,12 @@ const renderAuthStatus = (title: string, message: string, actionLabel?: string) 
 };
 
 const initKeycloak = async () => {
+  localStorage.removeItem('token');
+  if (isAuthDisabled()) {
+    renderApp();
+    return;
+  }
+
   renderAuthStatus(
     'Connecting to Keycloak',
     'Your login session is being prepared. If authentication is required, the application will redirect you to Keycloak automatically.',

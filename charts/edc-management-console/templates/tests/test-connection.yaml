@@ -33,5 +33,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ .Values.frontend.name }}:{{ .Values.frontend.service.port }}']
+      args: ['{{ include "chart.fullname" . }}:{{ .Values.frontend.service.port }}']
   restartPolicy: Never

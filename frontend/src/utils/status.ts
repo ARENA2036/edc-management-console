@@ -20,10 +20,6 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-import type { useI18n } from '../i18n';
-
-type Translate = ReturnType<typeof useI18n>['t'];
-
 export type ComponentPhase =
   | 'active'
   | 'deploying'
@@ -48,7 +44,6 @@ const ALIASES: Record<string, ComponentPhase> = {
   inactive: 'failed',
   not_found: 'not_found',
   notfound: 'not_found',
-  'not found': 'not_found',
   missing: 'not_found',
 };
 
@@ -75,17 +70,17 @@ export function statusTone(raw?: string | null): StatusTone {
   return TONES[normalizeStatus(raw)];
 }
 
-const LABEL_KEYS: Record<ComponentPhase, Parameters<Translate>[0]> = {
-  active: 'componentPhaseActive',
-  deploying: 'componentPhaseDeploying',
-  degraded: 'componentPhaseDegraded',
-  failed: 'componentPhaseFailed',
-  not_found: 'componentPhaseNotFound',
-  unknown: 'componentPhaseUnknown',
+const LABELS: Record<ComponentPhase, string> = {
+  active: 'Active',
+  deploying: 'Deploying',
+  degraded: 'Degraded',
+  failed: 'Failed',
+  not_found: 'Not found',
+  unknown: 'Unknown',
 };
 
-export function statusLabel(raw: string | null | undefined, t: Translate): string {
-  return t(LABEL_KEYS[normalizeStatus(raw)]);
+export function statusLabel(raw?: string | null): string {
+  return LABELS[normalizeStatus(raw)];
 }
 
 const BADGE_CLASSES: Record<StatusTone, string> = {
@@ -100,81 +95,11 @@ export function statusBadgeClass(raw?: string | null): string {
   return BADGE_CLASSES[statusTone(raw)];
 }
 
-export function emptyBadgeClass(): string {
-  return BADGE_CLASSES.muted;
-}
-
 export function isHealthy(raw?: string | null): boolean {
   return statusTone(raw) === 'ok';
 }
 
 export function needsAttention(raw?: string | null): boolean {
   const tone = statusTone(raw);
-  return tone === 'error' || tone === 'warn' || tone === 'muted';
-}
-
-
-export type SystemHealth =
-  | 'empty'
-  | 'critical'
-  | 'warning'
-  | 'deploying'
-  | 'healthy';
-
-export function computeSystemHealth(
-  statuses: Array<string | null | undefined>,
-): SystemHealth {
-  if (statuses.length === 0) {
-    return 'empty';
-  }
-
-  const tones = statuses.map(statusTone);
-
-  if (tones.includes('error')) {
-    return 'critical';
-  }
-
-  if (tones.includes('warn') || tones.includes('muted')) {
-    return 'warning';
-  }
-
-  if (tones.includes('progress')) {
-    return 'deploying';
-  }
-
-  return 'healthy';
-}
-
-const SYSTEM_HEALTH_TONES: Record<SystemHealth, StatusTone> = {
-  empty: 'muted',
-  critical: 'error',
-  warning: 'warn',
-  deploying: 'progress',
-  healthy: 'ok',
-};
-
-export function systemHealthTone(health: SystemHealth): StatusTone {
-  return SYSTEM_HEALTH_TONES[health];
-}
-
-export function systemHealthBadgeClass(health: SystemHealth): string {
-  return BADGE_CLASSES[systemHealthTone(health)];
-}
-
-const SYSTEM_HEALTH_LABEL_KEYS: Record<SystemHealth, Parameters<Translate>[0]> = {
-  empty: 'statusNothingDeployed',
-  critical: 'statusCritical',
-  warning: 'statusWarning',
-  deploying: 'componentPhaseDeploying',
-  healthy: 'statusHealthy',
-};
-
-export function systemHealthLabel(health: SystemHealth, t: Translate): string {
-  return t(SYSTEM_HEALTH_LABEL_KEYS[health]);
-}
-
-export function countInProgress(
-  statuses: Array<string | null | undefined>,
-): number {
-  return statuses.filter((status) => statusTone(status) === 'progress').length;
+  return tone === 'error' || tone === 'warn';
 }

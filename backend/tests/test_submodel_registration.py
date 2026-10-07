@@ -35,9 +35,8 @@ import socket
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main
-from app.api.dependencies import get_admin_user, get_database
-from app.api.routers import submodels
+import init
+from auth.roles import require_admin
 
 ADMIN = {"preferred_username": "tester", "bpn": "BPNL0000000TEST", "roles": ("Admin",)}
 PUBLIC_ADDRESS = "93.184.216.34"
@@ -74,8 +73,10 @@ class Response:
 
 
 @pytest.fixture
-def activity():
-    return RecordingActivityLog()
+def activity(monkeypatch):
+    recorder = RecordingActivityLog()
+    monkeypatch.setattr(init, "databaseManager", recorder, raising=False)
+    return recorder
 
 
 @pytest.fixture
@@ -90,13 +91,10 @@ def resolves_public(monkeypatch):
 
 
 @pytest.fixture
-def client(activity):
-    """Both collaborators arrive through Depends, so the test substitutes them
-    instead of reaching into module state."""
-    main.app.dependency_overrides[get_admin_user] = lambda: ADMIN
-    main.app.dependency_overrides[get_database] = lambda: activity
-    yield TestClient(main.app)
-    main.app.dependency_overrides.clear()
+def client():
+    init.app.dependency_overrides[require_admin] = lambda: ADMIN
+    yield TestClient(init.app)
+    init.app.dependency_overrides.clear()
 
 
 def register(client, **payload):
@@ -109,7 +107,7 @@ def register(client, **payload):
 def test_registration_succeeds_and_is_written_to_the_activity_log(
         client, activity, resolves_public, monkeypatch):
     probe = Recorder(result=Response(200))
-    monkeypatch.setattr(submodels.requests, "get", probe)
+    monkeypatch.setattr(init.requests, "get", probe)
 
     response = register(client, url="https://sms.example.com", bpn="BPNL0000000TEST")
 
@@ -128,8 +126,8 @@ def test_registration_succeeds_and_is_written_to_the_activity_log(
 
 def test_a_service_that_does_not_answer_is_reported_not_raised(
         client, activity, resolves_public, monkeypatch):
-    monkeypatch.setattr(submodels.requests, "get",
-                        Recorder(raises=submodels.requests.ConnectionError("refused")))
+    monkeypatch.setattr(init.requests, "get",
+                        Recorder(raises=init.requests.ConnectionError("refused")))
 
     response = register(client, url="https://sms.example.com", bpn="BPNL0000000TEST")
 
@@ -143,7 +141,7 @@ def test_a_service_that_does_not_answer_is_reported_not_raised(
 # ---------------------------------------------------------------------------
 def test_a_request_without_a_bpn_is_refused(client, activity, monkeypatch):
     probe = Recorder(result=Response(200))
-    monkeypatch.setattr(submodels.requests, "get", probe)
+    monkeypatch.setattr(init.requests, "get", probe)
 
     response = register(client, url="https://sms.example.com")
 
@@ -160,7 +158,7 @@ def test_oauth2_credentials_are_not_spent_on_an_incomplete_request(
     incomplete request still shipped the client secret to whatever the caller
     named as the token endpoint."""
     token_request = Recorder(result=Response(200))
-    monkeypatch.setattr(submodels.requests, "post", token_request)
+    monkeypatch.setattr(init.requests, "post", token_request)
 
     response = register(client,
                         url="https://sms.example.com",
@@ -179,7 +177,7 @@ def test_a_missing_api_key_is_a_bad_request_not_an_unreachable_service(
     turned into "the service is unreachable" - blaming the service for the
     caller's omission."""
     probe = Recorder(result=Response(200))
-    monkeypatch.setattr(submodels.requests, "get", probe)
+    monkeypatch.setattr(init.requests, "get", probe)
 
     response = register(client, url="https://sms.example.com",
                         bpn="BPNL0000000TEST", authType="apiKey")
@@ -199,7 +197,7 @@ def test_a_service_resolving_inward_is_refused(client, activity, monkeypatch):
                                   socket.IPPROTO_TCP, "", ("169.254.169.254", 443))],
     )
     probe = Recorder(result=Response(200))
-    monkeypatch.setattr(submodels.requests, "get", probe)
+    monkeypatch.setattr(init.requests, "get", probe)
 
     response = register(client, url="https://metadata.example.com",
                         bpn="BPNL0000000TEST")
