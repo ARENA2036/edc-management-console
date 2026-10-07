@@ -3,6 +3,42 @@ entries:
   edc-management-console:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-10-07T07:04:33.280807042Z"
+    dependencies:
+    - alias: prometheus
+      condition: prometheus.enabled
+      name: prometheus
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 27.1.0
+    - alias: loki
+      condition: loki.enabled
+      name: loki
+      repository: https://grafana.github.io/helm-charts
+      version: 6.27.0
+    - alias: grafana
+      condition: grafana.enabled
+      name: grafana
+      repository: https://grafana.github.io/helm-charts
+      version: 8.10.1
+    - alias: jaeger
+      condition: jaeger.enabled
+      name: jaeger
+      repository: https://jaegertracing.github.io/helm-charts
+      version: 3.0.7
+    - alias: opentelemetry-collector
+      condition: opentelemetry-collector.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.126.0
+    description: A Helm chart for Kubernetes
+    digest: baa92fed2d8429dddb427122abc460b5bedd9d92ac15c5f1486145ba87289c11
+    name: edc-management-console
+    type: application
+    urls:
+    - https://github.com/ARENA2036/edc-management-console/releases/download/edc-management-console-3.16.1/edc-management-console-3.16.1.tgz
+    version: 3.16.1
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-09-25T10:14:13.080508514Z"
     dependencies:
     - alias: prometheus
@@ -83,4 +119,4 @@ entries:
     urls:
     - https://github.com/ARENA2036/edc-management-console/releases/download/edc-management-console-3.14.0/edc-management-console-3.14.0.tgz
     version: 3.14.0
-generated: "2026-09-25T10:14:13.080523361Z"
+generated: "2026-10-07T07:04:33.280825121Z"
