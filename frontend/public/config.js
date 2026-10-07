@@ -28,5 +28,4 @@ window.__RUNTIME_CONFIG__ = {
   clientId: "__KEYCLOAK_CLIENT_ID__",
   sdeUrl: "__SDE_URL__",
   portalUrl: "__PORTAL_URL__",
-  ichUrl: "__ICH_URL__",
 };

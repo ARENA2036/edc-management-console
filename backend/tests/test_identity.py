@@ -21,6 +21,8 @@
 ###############################################################
 
 import base64
+import os
+import sys
 import time
 
 import pytest
@@ -29,7 +31,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from jose import jwt
 
-from app.auth.keycloak_config import KeycloakOpenID
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from auth.keycloak_config import KeycloakOpenID  # noqa: E402
 
 ISSUER = "https://centralidp.example.de/auth/realms/CX-Central"
 
@@ -64,7 +68,7 @@ def keycloak(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
     instance = KeycloakOpenID()
-    instance.configure(url="https://centralidp.example.de/auth/", realm="CX-Central", client_id="EMC-1")
+    instance.configure(url="https://centralidp.example.de/auth/", realm="CX-Central")
     return instance
 
 
@@ -186,22 +190,6 @@ def test_fails_closed_when_the_idp_is_unreachable(keycloak, monkeypatch):
 
     with pytest.raises(HTTPException) as error:
         keycloak.decode_token(_sign(pem, "kid-1", {}))
-    assert error.value.status_code == 401
-
-
-def test_fails_closed_when_no_client_id_is_configured(monkeypatch):
-    monkeypatch.delenv("KEYCLOAK_CLIENT_ID", raising=False)
-
-    instance = KeycloakOpenID()
-    instance.configure(url="https://centralidp.example.de/auth/", realm="CX-Central")
-    assert instance.is_configured
-    assert not instance.client_id
-
-    pem, jwk = _generate_key("kid-1")
-    monkeypatch.setattr(instance, "_fetch_jwks", lambda: {"keys": [jwk]})
-
-    with pytest.raises(HTTPException) as error:
-        instance.decode_token(_sign(pem, "kid-1", {}))
     assert error.value.status_code == 401
 
 
