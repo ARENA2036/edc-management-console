@@ -21,18 +21,13 @@
 ********************************************************************************/
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
-import keycloak, { isAuthDisabled } from '../auth/keycloak';
+import keycloak from '../auth/keycloak';
 import type { DeployRequest } from '../types';
 import { toApiError } from './errors';
 
 const backendUrl = getRuntimeConfigValue(
   import.meta.env.VITE_BACKEND_URL,
   window.__RUNTIME_CONFIG__?.apiUrl,
-  '',
-);
-const apiKey = getRuntimeConfigValue(
-  import.meta.env.VITE_API_KEY,
-  window.__RUNTIME_CONFIG__?.apiKey,
   '',
 );
 const edcHost = getRuntimeConfigValue(
@@ -46,10 +41,6 @@ const apiClientHeaders: Record<string, string> = {
   'Content-Type': 'application/json',
 };
 
-if (apiKey) {
-  apiClientHeaders['X-Api-Key'] = apiKey;
-}
-
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: apiClientHeaders,
@@ -62,10 +53,6 @@ apiClient.interceptors.response.use(
 );
 
 apiClient.interceptors.request.use(async (config) => {
-  if (isAuthDisabled()) {
-    return config;
-  }
-
   if (keycloak.authenticated) {
     try {
       await keycloak.updateToken(30);
@@ -111,10 +98,6 @@ export const componentApi = {
 export const healthApi = {
   checkHealth: () => apiClient.get('/health'),
   checkEdcHealth: () => apiClient.get('/edc/health'),
-};
-
-export const activityApi = {
-  getRecentLogs: (limit = 50) => apiClient.get(`/logs?limit=${limit}`),
 };
 
 export const configApi = {

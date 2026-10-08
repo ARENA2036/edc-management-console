@@ -30,10 +30,11 @@ import {
   Server,
   SquareActivity,
 } from 'lucide-react';
-import { activityApi, componentApi, dataspaceApi } from './api/client';
-import { isHealthy, needsAttention, statusLabel, statusTone } from './utils/status';
+import { componentApi, dataspaceApi } from './api/client';
+import { emptyBadgeClass, isHealthy, needsAttention, statusLabel, statusTone }
+  from './utils/status';
 import { ApiError, toApiError } from './api/errors';
-import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
+import type { DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
@@ -46,10 +47,13 @@ import type { ComponentType } from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import DeploymentStatusModal from './components/DeploymentStatusModal';
+import EndpointWithCopy from './components/EndpointWithCopy';
+import PlaneEndpoints from './components/PlaneEndpoints';
+import StatusBadge from './components/StatusBadge';
 import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
-import keycloak, { isAuthDisabled } from './auth/keycloak';
+import keycloak from './auth/keycloak';
 import { useSessionIdentity, type SessionIdentity } from './auth/session';
 import { resolveComponentLimit } from './utils/nameRules';
 
@@ -88,6 +92,9 @@ interface DataspaceSettingsPayload {
     url?: string;
   };
   portal?: {
+    url?: string;
+  };
+  ich?: {
     url?: string;
   };
   sde?: {
@@ -168,18 +175,6 @@ function getConnectorType(connector: DashboardConnector) {
   return typeof connectorType === 'string' ? connectorType : 'EDC Connector';
 }
 
-function getConnectorEndpoint(connector: DashboardConnector) {
-  if (connector.url) {
-    return connector.url;
-  }
-
-  if (connector.urls.length > 0) {
-    return connector.urls[0];
-  }
-
-  return '';
-}
-
 function getManagedComponentLabel(
   type: ManagedComponent['type'],
   t: ReturnType<typeof useI18n>['t'],
@@ -225,7 +220,8 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     name: record.name,
     type: recordType,
     version: record.version || '',
-    status: statusLabel(record.status) as ManagedComponent['status'],
+    status: record.status,
+    detail: record.health?.detail,
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
     endpoint: record.url,
     db_name: '',
@@ -249,8 +245,6 @@ async function fetchDeploymentState(): Promise<{
   components: ManagedComponent[];
   error?: ApiError | null;
 }> {
-  const cached = getCachedDeployments();
-
   try {
     const response = await componentApi.getAll();
     const apiRows = Array.isArray(response.data.data)
@@ -270,17 +264,14 @@ async function fetchDeploymentState(): Promise<{
   } catch (error) {
     const apiError = toApiError(error, 'The list of deployed components could not be loaded.');
     console.error('Failed to load deployments:', apiError);
-    return { ...cached, error: apiError };
-  }
-}
 
-async function fetchActivityLogs() {
-  try {
-    const response = await activityApi.getRecentLogs(20);
-    return response.data.data || [];
-  } catch (error) {
-    console.error('Failed to load activity logs:', toApiError(error));
-    return [];
+    if (apiError.stage === 'auth') {
+      saveLocalStorage(CONNECTORS_STORAGE_KEY, []);
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, []);
+      return { connectors: [], components: [], error: apiError };
+    }
+
+    return { ...getCachedDeployments(), error: apiError };
   }
 }
 
@@ -332,6 +323,7 @@ function getHealthTone(
     critical: string;
     unknown: string;
   },
+  t: ReturnType<typeof useI18n>['t'],
 ) {
   const tone = statusTone(status);
 
@@ -345,7 +337,7 @@ function getHealthTone(
 
   if (tone === 'progress') {
     return {
-      label: statusLabel(status),
+      label: statusLabel(status, t),
       badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
     };
   }
@@ -370,6 +362,10 @@ function getHealthTone(
     badge:
       'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   };
+}
+
+function getEmptyTone(t: ReturnType<typeof useI18n>['t']) {
+  return { label: t('statusNothingDeployed'), badge: emptyBadgeClass() };
 }
 
 function resolveComponentLimits(details: DataspaceSettingsPayload | null) {
@@ -401,7 +397,6 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
   const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [authorityBpn, setAuthorityBpn] = useState('');
   const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
@@ -437,11 +432,6 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
     setLoadError(deploymentState.error ?? null);
   }, []);
 
-  const loadActivityLogs = async () => {
-    const logs = await fetchActivityLogs();
-    setActivityLogs(logs);
-  };
-
   const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
@@ -451,13 +441,9 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
 
   useEffect(() => {
     loadDeployments();
-    loadActivityLogs();
     loadDataspace();
 
-    const interval = setInterval(() => {
-      loadDeployments();
-      loadActivityLogs();
-    }, 30000);
+    const interval = setInterval(loadDeployments, 30000);
 
     return () => clearInterval(interval);
   }, [loadDataspace, loadDeployments, t]);
@@ -662,7 +648,10 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
     };
   }, [components]);
 
-  const activityValue = activityLogs.length > 0 ? t('statusActive') : t('statusHealthy');
+  const activityValue =
+    connectors.length + components.length > 0
+      ? t('statusActive')
+      : t('statusNothingDeployed');
   const statsGuidance = {
     dataSpace: {
       title: t('statsDataSpaceTitle'),
@@ -953,7 +942,6 @@ function Monitor() {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
     authorityBpn: '',
@@ -964,9 +952,8 @@ function Monitor() {
     let active = true;
 
     const load = async () => {
-      const [loadedConnectors, loadedActivityLogs, loadedDataspace] = await Promise.all([
+      const [loadedConnectors, loadedDataspace] = await Promise.all([
         fetchDeploymentState(),
-        fetchActivityLogs(),
         fetchDataspaceSummary(t('dataspaceFallback')),
       ]);
 
@@ -976,7 +963,6 @@ function Monitor() {
 
       setConnectors(loadedConnectors.connectors);
       setComponents(loadedConnectors.components);
-      setActivityLogs(loadedActivityLogs);
       setDataspace(loadedDataspace);
     };
 
@@ -1001,19 +987,14 @@ function Monitor() {
 
   const connectorRows = useMemo(
     () =>
-      connectors.map((connector) => {
-        const tone = getHealthTone(connector.status, healthLabels);
-        return {
-          ...connector,
-          connectorType:
-            getConnectorType(connector) === 'EDC Connector'
-              ? t('connectorTypeDefault')
-              : getConnectorType(connector),
-          endpoint: getConnectorEndpoint(connector),
-          tone,
-        };
-      }),
-    [connectors, healthLabels, t],
+      connectors.map((connector) => ({
+        ...connector,
+        connectorType:
+          getConnectorType(connector) === 'EDC Connector'
+            ? t('connectorTypeDefault')
+            : getConnectorType(connector),
+      })),
+    [connectors, t],
   );
 
   const componentRows = useMemo(
@@ -1021,34 +1002,11 @@ function Monitor() {
       components.map((component) => ({
         ...component,
         endpointLabel: component.endpoint || t('standaloneDeployment'),
-        statusCode: 'healthy' as const,
-        tone: getHealthTone('healthy', healthLabels),
-        statusLabel: t('standaloneReady'),
       })),
-    [components, healthLabels, t],
+    [components, t],
   );
 
   const derivedEvents = useMemo(() => {
-    if (activityLogs.length > 0) {
-      return activityLogs
-        .slice(0, 8)
-        .map((log) => ({
-          id: `log-${log.id}`,
-          title: log.action || t('eventActivityTitle'),
-          body:
-            log.details ||
-            log.connector_name ||
-            t('eventBackendActivityRecorded'),
-          timestamp: log.timestamp,
-          severity:
-            log.status === 'error' || log.status === 'failed'
-              ? 'critical'
-              : log.status === 'warning'
-              ? 'warning'
-              : 'healthy',
-        }));
-    }
-
     const connectorEvents = connectors.slice(0, 4).map((connector) => ({
       id: `connector-${connector.id}`,
       title: t('eventConnectorAvailable', { name: connector.name }),
@@ -1066,13 +1024,13 @@ function Monitor() {
         type: getManagedComponentLabel(component.type, t),
       }),
       timestamp: component.deployedAt,
-      severity: 'healthy',
+      severity: needsAttention(component.status) ? 'critical' : 'healthy',
     }));
 
     return [...connectorEvents, ...componentEvents]
       .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
       .slice(0, 8);
-  }, [activityLogs, components, connectors, t]);
+  }, [components, connectors, t]);
 
   const recommendations = useMemo(() => {
     const items: string[] = [];
@@ -1125,12 +1083,15 @@ function Monitor() {
   const healthyConnectors = connectorRows.filter((connector) =>
     isHealthy(connector.status),
   ).length;
-  const overallHealth =
-    connectorRows.some((connector) => needsAttention(connector.status))
-      ? getHealthTone('critical', healthLabels)
-      : recommendations.length > 1 || connectorRows.length === 0
-      ? getHealthTone('warning', healthLabels)
-      : getHealthTone('healthy', healthLabels);
+  const nothingDeployed = connectorRows.length === 0 && componentRows.length === 0;
+  const overallHealth = nothingDeployed
+    ? getEmptyTone(t)
+    : connectorRows.some((connector) => needsAttention(connector.status))
+      || components.some((component) => needsAttention(component.status))
+    ? getHealthTone('critical', healthLabels, t)
+    : recommendations.length > 1
+    ? getHealthTone('warning', healthLabels, t)
+    : getHealthTone('healthy', healthLabels, t);
 
   return (
     <div className="p-4 md:p-6">
@@ -1165,7 +1126,7 @@ function Monitor() {
             title: t('statusHealthyConnectorsTitle'),
             value: `${healthyConnectors}/${connectorRows.length}`,
             subtitle: t('statusHealthyConnectorsSubtitle'),
-            tone: getHealthTone('healthy', healthLabels).badge,
+            tone: getHealthTone('healthy', healthLabels, t).badge,
           },
           {
             title: t('statusLinkedServicesTitle'),
@@ -1173,22 +1134,21 @@ function Monitor() {
             subtitle: serviceCapacityBadges
               .map((badge) => `${badge.label} ${badge.count}/${badge.limit}`)
               .join(' · '),
-            tone: getHealthTone(
-              componentRows.length === 0 ? 'warning' : 'healthy',
-              healthLabels,
-            ).badge,
+            tone:
+              componentRows.length === 0
+                ? emptyBadgeClass()
+                : getHealthTone('healthy', healthLabels, t).badge,
           },
           {
             title: t('statusRecentEventsTitle'),
             value: `${derivedEvents.length}`,
-            subtitle:
-              activityLogs.length > 0
-                ? t('statusRecentEventsSubtitleBackend')
-                : t('statusRecentEventsSubtitleDerived'),
-            tone: getHealthTone(
-              activityLogs.length > 0 ? 'healthy' : 'warning',
-              healthLabels,
-            ).badge,
+            subtitle: t('statusRecentEventsSubtitleDerived'),
+            // Having no events to show is not a fault either; where they came
+            // from is what the subtitle is for.
+            tone:
+              derivedEvents.length === 0
+                ? emptyBadgeClass()
+                : getHealthTone('healthy', healthLabels, t).badge,
           },
         ].map((card) => (
           <div
@@ -1240,9 +1200,10 @@ function Monitor() {
                         {connector.connectorType}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connector.tone.badge}`}>
-                          {connector.tone.label}
-                        </span>
+                        <StatusBadge
+                          status={connector.status}
+                          detail={connector.health?.detail}
+                        />
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {formatTimestamp(
@@ -1252,9 +1213,7 @@ function Monitor() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {connector.endpoint || t('noValue')}
-                        </span>
+                        <PlaneEndpoints connector={connector} />
                       </td>
                     </tr>
                   ))}
@@ -1291,7 +1250,7 @@ function Monitor() {
                     <span
                       key={badge.key}
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(full ? 'warning' : 'healthy', healthLabels).badge
+                        getHealthTone(full ? 'warning' : 'healthy', healthLabels, t).badge
                       }`}
                     >
                       {badge.label} {badge.count}/{badge.limit}
@@ -1320,14 +1279,13 @@ function Monitor() {
                         {getManagedComponentLabel(component.type, t)}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${component.tone.badge}`}>
-                          {component.statusLabel}
-                        </span>
+                        <StatusBadge status={component.status} detail={component.detail} />
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {component.endpointLabel}
-                        </span>
+                        <EndpointWithCopy
+                          endpoint={component.endpoint}
+                          fallback={t('standaloneDeployment')}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1385,7 +1343,7 @@ function Monitor() {
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(event.severity, healthLabels).badge
+                        getHealthTone(event.severity, healthLabels, t).badge
                       }`}
                     >
                       {event.severity === 'critical'
@@ -1501,6 +1459,14 @@ function Settings({
     loadSettings();
   }, []);
 
+  // Same precedence as the /ich route: an explicit env / runtime-config value
+  // wins, the dataspace config is the fallback.
+  const ichUrlFromConfig = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    dataspaceDetails?.ich?.url ?? '',
+  );
+
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
       return value ? t('yes') : t('no');
@@ -1542,6 +1508,7 @@ function Settings({
       fields: [
         { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
         { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
+        { label: t('settingsLabelIchUrl'), value: ichUrlFromConfig },
         { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
@@ -1626,7 +1593,6 @@ function Settings({
 
 function AppShell() {
   const { t } = useI18n();
-  const authDisabled = isAuthDisabled();
   const { identity } = useSessionIdentity();
   const firstName = keycloak.tokenParsed?.given_name || '';
   const lastName = keycloak.tokenParsed?.family_name || '';
@@ -1651,9 +1617,15 @@ function AppShell() {
     window.__RUNTIME_CONFIG__?.portalUrl,
     '',
   );
+  const envIchUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    '',
+  );
 
   const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
   const [portalUrl, setPortalUrl] = useState(envPortalUrl);
+  const [ichUrl, setIchUrl] = useState(envIchUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1675,6 +1647,9 @@ function AppShell() {
         }
         if (!envPortalUrl && response.data?.data?.portal?.url) {
           setPortalUrl(response.data.data.portal.url);
+        }
+        if (!envIchUrl && response.data?.data?.ich?.url) {
+          setIchUrl(response.data.data.ich.url);
         }
       } catch (error) {
         console.error('Failed to load external app URLs:', error);
@@ -1709,7 +1684,7 @@ function AppShell() {
                 name: fullName,
                 role: t('userAdministrator'),
               }}
-              onLogout={authDisabled ? undefined : () => keycloak.logout()}
+              onLogout={() => keycloak.logout()}
               onMenuToggle={() => setIsSidebarOpen((current) => !current)}
               onHelpClick={() => setShowGuide(true)}
               theme={theme}
@@ -1753,10 +1728,18 @@ function AppShell() {
                     <Route
                       path="/ich"
                       element={
-                        <AppPlaceholder
-                          title={t('ichNavLabel')}
-                          description={t('ichPlaceholderDescription')}
-                        />
+                        ichUrl ? (
+                          <ExternalAppRedirect
+                            url={ichUrl}
+                            title={t('ichRedirectTitle')}
+                            description={t('ichRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('ichNavLabel')}
+                            description={t('ichPlaceholderDescription')}
+                          />
+                        )
                       }
                     />
                     <Route
@@ -1770,7 +1753,7 @@ function AppShell() {
                     />
                   </Routes>
                 </div>
-                <footer className="mt-8 bg-black px-6 py-4 text-center text-sm text-white dark:border-t dark:border-slate-800 dark:bg-slate-950">
+                <footer className="mt-8 border-t border-gray-200 bg-gray-100 px-6 py-4 text-center text-sm text-black dark:border-slate-800 dark:bg-slate-950 dark:text-white">
                   {t('footerCopyright')}
                 </footer>
               </div>
