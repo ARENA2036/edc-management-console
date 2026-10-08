@@ -19,17 +19,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
----
-{{- if .Values.serviceAccount.create }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ include "chart.serviceAccountName" . }}
-  labels:
-    {{- include "chart.labels" . | nindent 4 }}
-  {{- with .Values.serviceAccount.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
-{{- end }}
+"""Liveness of this backend itself. Unauthenticated by design."""
+from fastapi import APIRouter
+
+from app.utils.http_utils import HttpUtils
+from app.utils.operators import op
+
+router = APIRouter(tags=["Health"])
+
+
+@router.get("/health")
+def get_health():
+    return HttpUtils.response({
+        "message": "EDC Management Console Backend",
+        "status": "RUNNING",
+        "timestamp": op.timestamp(),
+    })

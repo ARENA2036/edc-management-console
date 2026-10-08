@@ -46,10 +46,11 @@ import type { ComponentType } from './components/ComponentWizard';
 import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import DeploymentStatusModal from './components/DeploymentStatusModal';
+import EndpointWithCopy from './components/EndpointWithCopy';
 import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
-import keycloak, { isAuthDisabled } from './auth/keycloak';
+import keycloak from './auth/keycloak';
 import { useSessionIdentity, type SessionIdentity } from './auth/session';
 import { resolveComponentLimit } from './utils/nameRules';
 
@@ -88,6 +89,9 @@ interface DataspaceSettingsPayload {
     url?: string;
   };
   portal?: {
+    url?: string;
+  };
+  ich?: {
     url?: string;
   };
   sde?: {
@@ -225,7 +229,7 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     name: record.name,
     type: recordType,
     version: record.version || '',
-    status: statusLabel(record.status) as ManagedComponent['status'],
+    status: record.status,
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
     endpoint: record.url,
     db_name: '',
@@ -249,8 +253,6 @@ async function fetchDeploymentState(): Promise<{
   components: ManagedComponent[];
   error?: ApiError | null;
 }> {
-  const cached = getCachedDeployments();
-
   try {
     const response = await componentApi.getAll();
     const apiRows = Array.isArray(response.data.data)
@@ -270,7 +272,14 @@ async function fetchDeploymentState(): Promise<{
   } catch (error) {
     const apiError = toApiError(error, 'The list of deployed components could not be loaded.');
     console.error('Failed to load deployments:', apiError);
-    return { ...cached, error: apiError };
+
+    if (apiError.stage === 'auth') {
+      saveLocalStorage(CONNECTORS_STORAGE_KEY, []);
+      saveLocalStorage(COMPONENTS_STORAGE_KEY, []);
+      return { connectors: [], components: [], error: apiError };
+    }
+
+    return { ...getCachedDeployments(), error: apiError };
   }
 }
 
@@ -332,6 +341,7 @@ function getHealthTone(
     critical: string;
     unknown: string;
   },
+  t: ReturnType<typeof useI18n>['t'],
 ) {
   const tone = statusTone(status);
 
@@ -345,7 +355,7 @@ function getHealthTone(
 
   if (tone === 'progress') {
     return {
-      label: statusLabel(status),
+      label: statusLabel(status, t),
       badge: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300',
     };
   }
@@ -1002,7 +1012,7 @@ function Monitor() {
   const connectorRows = useMemo(
     () =>
       connectors.map((connector) => {
-        const tone = getHealthTone(connector.status, healthLabels);
+        const tone = getHealthTone(connector.status, healthLabels, t);
         return {
           ...connector,
           connectorType:
@@ -1022,7 +1032,7 @@ function Monitor() {
         ...component,
         endpointLabel: component.endpoint || t('standaloneDeployment'),
         statusCode: 'healthy' as const,
-        tone: getHealthTone('healthy', healthLabels),
+        tone: getHealthTone('healthy', healthLabels, t),
         statusLabel: t('standaloneReady'),
       })),
     [components, healthLabels, t],
@@ -1066,7 +1076,7 @@ function Monitor() {
         type: getManagedComponentLabel(component.type, t),
       }),
       timestamp: component.deployedAt,
-      severity: 'healthy',
+      severity: needsAttention(component.status) ? 'critical' : 'healthy',
     }));
 
     return [...connectorEvents, ...componentEvents]
@@ -1127,10 +1137,11 @@ function Monitor() {
   ).length;
   const overallHealth =
     connectorRows.some((connector) => needsAttention(connector.status))
-      ? getHealthTone('critical', healthLabels)
+    || components.some((component) => needsAttention(component.status))
+      ? getHealthTone('critical', healthLabels, t)
       : recommendations.length > 1 || connectorRows.length === 0
-      ? getHealthTone('warning', healthLabels)
-      : getHealthTone('healthy', healthLabels);
+      ? getHealthTone('warning', healthLabels, t)
+      : getHealthTone('healthy', healthLabels, t);
 
   return (
     <div className="p-4 md:p-6">
@@ -1165,7 +1176,7 @@ function Monitor() {
             title: t('statusHealthyConnectorsTitle'),
             value: `${healthyConnectors}/${connectorRows.length}`,
             subtitle: t('statusHealthyConnectorsSubtitle'),
-            tone: getHealthTone('healthy', healthLabels).badge,
+            tone: getHealthTone('healthy', healthLabels, t).badge,
           },
           {
             title: t('statusLinkedServicesTitle'),
@@ -1176,6 +1187,7 @@ function Monitor() {
             tone: getHealthTone(
               componentRows.length === 0 ? 'warning' : 'healthy',
               healthLabels,
+              t,
             ).badge,
           },
           {
@@ -1188,6 +1200,7 @@ function Monitor() {
             tone: getHealthTone(
               activityLogs.length > 0 ? 'healthy' : 'warning',
               healthLabels,
+              t,
             ).badge,
           },
         ].map((card) => (
@@ -1252,9 +1265,7 @@ function Monitor() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {connector.endpoint || t('noValue')}
-                        </span>
+                        <EndpointWithCopy endpoint={connector.endpoint} fallback={t('noValue')} />
                       </td>
                     </tr>
                   ))}
@@ -1291,7 +1302,7 @@ function Monitor() {
                     <span
                       key={badge.key}
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(full ? 'warning' : 'healthy', healthLabels).badge
+                        getHealthTone(full ? 'warning' : 'healthy', healthLabels, t).badge
                       }`}
                     >
                       {badge.label} {badge.count}/{badge.limit}
@@ -1325,9 +1336,10 @@ function Monitor() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className="block max-w-[260px] truncate">
-                          {component.endpointLabel}
-                        </span>
+                        <EndpointWithCopy
+                          endpoint={component.endpoint}
+                          fallback={t('standaloneDeployment')}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1385,7 +1397,7 @@ function Monitor() {
                     </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
-                        getHealthTone(event.severity, healthLabels).badge
+                        getHealthTone(event.severity, healthLabels, t).badge
                       }`}
                     >
                       {event.severity === 'critical'
@@ -1501,6 +1513,14 @@ function Settings({
     loadSettings();
   }, []);
 
+  // Same precedence as the /ich route: an explicit env / runtime-config value
+  // wins, the dataspace config is the fallback.
+  const ichUrlFromConfig = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    dataspaceDetails?.ich?.url ?? '',
+  );
+
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
       return value ? t('yes') : t('no');
@@ -1542,6 +1562,7 @@ function Settings({
       fields: [
         { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
         { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
+        { label: t('settingsLabelIchUrl'), value: ichUrlFromConfig },
         { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
@@ -1626,7 +1647,6 @@ function Settings({
 
 function AppShell() {
   const { t } = useI18n();
-  const authDisabled = isAuthDisabled();
   const { identity } = useSessionIdentity();
   const firstName = keycloak.tokenParsed?.given_name || '';
   const lastName = keycloak.tokenParsed?.family_name || '';
@@ -1651,9 +1671,15 @@ function AppShell() {
     window.__RUNTIME_CONFIG__?.portalUrl,
     '',
   );
+  const envIchUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    '',
+  );
 
   const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
   const [portalUrl, setPortalUrl] = useState(envPortalUrl);
+  const [ichUrl, setIchUrl] = useState(envIchUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1675,6 +1701,9 @@ function AppShell() {
         }
         if (!envPortalUrl && response.data?.data?.portal?.url) {
           setPortalUrl(response.data.data.portal.url);
+        }
+        if (!envIchUrl && response.data?.data?.ich?.url) {
+          setIchUrl(response.data.data.ich.url);
         }
       } catch (error) {
         console.error('Failed to load external app URLs:', error);
@@ -1709,7 +1738,7 @@ function AppShell() {
                 name: fullName,
                 role: t('userAdministrator'),
               }}
-              onLogout={authDisabled ? undefined : () => keycloak.logout()}
+              onLogout={() => keycloak.logout()}
               onMenuToggle={() => setIsSidebarOpen((current) => !current)}
               onHelpClick={() => setShowGuide(true)}
               theme={theme}
@@ -1753,10 +1782,18 @@ function AppShell() {
                     <Route
                       path="/ich"
                       element={
-                        <AppPlaceholder
-                          title={t('ichNavLabel')}
-                          description={t('ichPlaceholderDescription')}
-                        />
+                        ichUrl ? (
+                          <ExternalAppRedirect
+                            url={ichUrl}
+                            title={t('ichRedirectTitle')}
+                            description={t('ichRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('ichNavLabel')}
+                            description={t('ichPlaceholderDescription')}
+                          />
+                        )
                       }
                     />
                     <Route

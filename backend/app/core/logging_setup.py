@@ -19,17 +19,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
----
-{{- if .Values.serviceAccount.create }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ include "chart.serviceAccountName" . }}
-  labels:
-    {{- include "chart.labels" . | nindent 4 }}
-  {{- with .Values.serviceAccount.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
-{{- end }}
+"""Logging configuration, applied before the application starts serving."""
+import logging
+import logging.config
+
+import yaml
+
+from app.core.config import CONFIG_DIR
+from app.utils.operators import op
+
+
+def configure_logging() -> None:
+    op.make_dir("logs")
+    with open(CONFIG_DIR / "logging.yml", "rt", encoding="utf-8") as handle:
+        log_config = yaml.safe_load(handle.read())
+
+    date = op.get_filedate()
+    op.make_dir(f"logs/{date}")
+    log_config["handlers"]["file"]["filename"] = (
+        f"logs/{date}/{op.get_filedatetime()}-emc.log")
+    logging.config.dictConfig(log_config)
+    logging.captureWarnings(True)

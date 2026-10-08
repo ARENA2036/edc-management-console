@@ -19,17 +19,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
----
-{{- if .Values.serviceAccount.create }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ include "chart.serviceAccountName" . }}
-  labels:
-    {{- include "chart.labels" . | nindent 4 }}
-  {{- with .Values.serviceAccount.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
-{{- end }}
+"""settings.yaml, served to the frontend as-is."""
+from fastapi import APIRouter, Depends
+
+from app.api.dependencies import get_current_user
+from app.core import config
+
+router = APIRouter(prefix="/api", tags=["Config"])
+
+
+@router.get("/config")
+async def get_config(user: dict = Depends(get_current_user)):
+    return {"user": user["preferred_username"], "data": config.settings}
