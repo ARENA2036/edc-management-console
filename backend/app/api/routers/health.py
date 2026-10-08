@@ -1,4 +1,4 @@
-/********************************************************************************
+###############################################################
 # Tractus-X - EDC Management Console
 #
 # Copyright (c) 2026 ARENA2036 e.V.
@@ -18,15 +18,20 @@
 # under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-********************************************************************************/
-window.__RUNTIME_CONFIG__ = {
-  apiUrl: "__BACKEND_URL__",
-  apiKey: "__API_KEY__",
-  edcHost: "__EDC_HOSTNAME__",
-  keycloakUrl: "__KEYCLOAK_URL__",
-  realm: "__KEYCLOAK_REALM__",
-  clientId: "__KEYCLOAK_CLIENT_ID__",
-  sdeUrl: "__SDE_URL__",
-  portalUrl: "__PORTAL_URL__",
-  ichUrl: "__ICH_URL__",
-};
+###############################################################
+"""Liveness of this backend itself. Unauthenticated by design."""
+from fastapi import APIRouter
+
+from app.utils.http_utils import HttpUtils
+from app.utils.operators import op
+
+router = APIRouter(tags=["Health"])
+
+
+@router.get("/health")
+def get_health():
+    return HttpUtils.response({
+        "message": "EDC Management Console Backend",
+        "status": "RUNNING",
+        "timestamp": op.timestamp(),
+    })
