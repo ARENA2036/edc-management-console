@@ -19,6 +19,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
+{{- if .Values.backend.persistence.enabled }}
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1
@@ -27,9 +28,12 @@ metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
 spec:
-  storageClassName: premium-perf1-stackit
+  {{- with .Values.backend.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
   accessModes:
-    - ReadWriteOnce
+    {{- toYaml .Values.backend.persistence.accessModes | nindent 4 }}
   resources:
     requests:
-      storage: 1Gi
+      storage: {{ .Values.backend.persistence.size }}
+{{- end }}

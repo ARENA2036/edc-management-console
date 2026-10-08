@@ -20,6 +20,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 from sqlalchemy import create_engine, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker, Session, Query
 from app.models.database import Base, ConnectorDB, ActivityLog
 from typing import List, Optional
@@ -50,7 +51,9 @@ class DatabaseManager:
             session.refresh(connector)
             logger.info(f"[DatabaseManager] Created connector: {connector.name}")
             return connector
-            # Add exception catch and session rollback
+        except IntegrityError:
+            session.rollback()
+            raise
         finally:
             session.close()
 
