@@ -1,4 +1,4 @@
-/********************************************************************************
+###############################################################
 # Tractus-X - EDC Management Console
 #
 # Copyright (c) 2026 ARENA2036 e.V.
@@ -18,15 +18,25 @@
 # under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-********************************************************************************/
-window.__RUNTIME_CONFIG__ = {
-  apiUrl: "__BACKEND_URL__",
-  apiKey: "__API_KEY__",
-  edcHost: "__EDC_HOSTNAME__",
-  keycloakUrl: "__KEYCLOAK_URL__",
-  realm: "__KEYCLOAK_REALM__",
-  clientId: "__KEYCLOAK_CLIENT_ID__",
-  sdeUrl: "__SDE_URL__",
-  portalUrl: "__PORTAL_URL__",
-  ichUrl: "__ICH_URL__",
-};
+###############################################################
+"""Logging configuration, applied before the application starts serving."""
+import logging
+import logging.config
+
+import yaml
+
+from app.core.config import CONFIG_DIR
+from app.utils.operators import op
+
+
+def configure_logging() -> None:
+    op.make_dir("logs")
+    with open(CONFIG_DIR / "logging.yml", "rt", encoding="utf-8") as handle:
+        log_config = yaml.safe_load(handle.read())
+
+    date = op.get_filedate()
+    op.make_dir(f"logs/{date}")
+    log_config["handlers"]["file"]["filename"] = (
+        f"logs/{date}/{op.get_filedatetime()}-emc.log")
+    logging.config.dictConfig(log_config)
+    logging.captureWarnings(True)
