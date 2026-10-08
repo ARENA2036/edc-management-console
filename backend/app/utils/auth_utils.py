@@ -27,7 +27,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
-from utilities.errors import EmcError, Stage
+from app.utils.errors import EmcError, Stage
 
 logger = logging.getLogger('app')
 
@@ -37,7 +37,7 @@ REQUEST_TIMEOUT_SECONDS = 10
 def _allowed_schemes() -> set:
     """``https`` only, unless the deployment already runs plain HTTP.
 
-    Mirrors ``EMC_URL_SCHEME`` (see ``managers/edcManager.py``) so a local or
+    Mirrors ``EMC_URL_SCHEME`` (see ``app/managers/edc_manager.py``) so a local or
     on-cluster HTTP setup is not silently broken by this check.
     """
     if os.getenv("EMC_URL_SCHEME", "https").strip().lower() == "http":

@@ -47,7 +47,7 @@ CENTRALIDP_CLIENT_SECRET=your-client-secret
 
 **Run Backend:**
 ```bash
-uvicorn init:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Backend will be available at: `http://localhost:8000`  
@@ -128,7 +128,7 @@ The application automatically creates tables on startup. For manual migration:
 
 ```bash
 cd backend
-python -c "from managers.databaseManager import DatabaseManager; import os; DatabaseManager(os.getenv('DATABASE_URL')).create_tables()"
+python -c "from app.managers.database_manager import DatabaseManager; import os; DatabaseManager(os.getenv('DATABASE_URL')).create_tables()"
 ```
 
 ## Helm Charts

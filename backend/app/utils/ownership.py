@@ -26,7 +26,7 @@ BPN may list it, health-check it, upgrade it or delete it - and an unauthorised
 lookup is answered "not found" rather than "forbidden", so the API never
 confirms that another company's component exists.
 
-This decides what a caller may *see*; :mod:`auth.roles` decides what they may
+This decides what a caller may *see*; :mod:`app.auth.roles` decides what they may
 *do*. The two are independent, so an Admin still only manages the components of
 the company they act for.
 """
@@ -34,7 +34,7 @@ the company they act for.
 from dataclasses import dataclass
 from typing import Optional
 
-from utilities.errors import Forbidden
+from app.utils.errors import Forbidden
 
 
 def normalize_bpn(value) -> str:
