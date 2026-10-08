@@ -30,7 +30,7 @@ declare global {
       clientId?: string;
       sdeUrl?: string;
       portalUrl?: string;
-      disableAuth?: boolean;
+      ichUrl?: string;
     };
   }
 }
@@ -62,40 +62,3 @@ export function getRuntimeConfigValue(
   return fallback;
 }
 
-function parseBoolean(value: boolean | string | undefined) {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-    return true;
-  }
-  if (['0', 'false', 'no', 'off'].includes(normalized)) {
-    return false;
-  }
-
-  return undefined;
-}
-
-export function getRuntimeConfigBoolean(
-  envValue: string | undefined,
-  runtimeValue: boolean | string | undefined,
-  fallback = false,
-) {
-  const runtimeBoolean = parseBoolean(runtimeValue);
-  if (runtimeBoolean !== undefined) {
-    return runtimeBoolean;
-  }
-
-  const envBoolean = parseBoolean(envValue);
-  if (envBoolean !== undefined) {
-    return envBoolean;
-  }
-
-  return fallback;
-}

@@ -19,10 +19,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
+import contextlib
 import ipaddress
 import logging
 import os
 import socket
+import threading
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
@@ -46,8 +48,8 @@ def _allowed_schemes() -> set:
     return {"https"}
 
 
-def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) -> str:
-    """Return ``raw_url`` once it is known to name a public endpoint.
+def _validate_external_url(raw_url, *, field: str, allow_query: bool = False):
+    """Check ``raw_url`` names a public endpoint and return ``(url, host, port, resolved)``.
 
     Every caller here builds an outbound request out of a URL the API caller
     supplied, and attaches credentials to it. Unchecked, that is a server-side
@@ -65,7 +67,12 @@ def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) 
                        status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST)
 
     url = raw_url.strip()
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError as exception:
+        raise EmcError(f"{field} is not a valid URL.",
+                       status=400, code="UNSAFE_URL", stage=Stage.REQUEST,
+                       detail=str(exception))
     schemes = _allowed_schemes()
 
     if parts.scheme not in schemes:
@@ -83,7 +90,12 @@ def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) 
         raise EmcError(f"{field} must not carry a query string or fragment.",
                        status=400, code="UNSAFE_URL", stage=Stage.REQUEST)
 
-    host = parts.hostname
+    try:
+        host = parts.hostname
+    except ValueError as exception:
+        raise EmcError(f"{field} has an invalid host.",
+                       status=400, code="UNSAFE_URL", stage=Stage.REQUEST,
+                       detail=str(exception))
     if not host:
         raise EmcError(f"{field} must include a hostname.",
                        status=400, code="UNSAFE_URL", stage=Stage.REQUEST)
@@ -112,7 +124,32 @@ def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) 
                            hint="Only endpoints reachable on the public internet "
                                 "can be registered here.")
 
-    return url
+    return url, host, port, resolved
+
+
+def assert_safe_external_url(raw_url, *, field: str, allow_query: bool = False) -> str:
+    return _validate_external_url(raw_url, field=field, allow_query=allow_query)[0]
+
+
+_dns_pin_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def pinned_connection(raw_url, *, field: str, allow_query: bool = False):
+    url, host, _port, resolved = _validate_external_url(raw_url, field=field, allow_query=allow_query)
+    real_getaddrinfo = socket.getaddrinfo
+
+    def _pinned(node, *args, **kwargs):
+        if node == host:
+            return resolved
+        return real_getaddrinfo(node, *args, **kwargs)
+
+    with _dns_pin_lock:
+        socket.getaddrinfo = _pinned
+        try:
+            yield url
+        finally:
+            socket.getaddrinfo = real_getaddrinfo
 
 
 def build_external_url(base_url, path: str, *, field: str) -> str:
@@ -125,11 +162,12 @@ def build_external_url(base_url, path: str, *, field: str) -> str:
 
 def get_oauth2_token(oauth_config: dict) -> str:
     """Fetch an OAuth2 access token using the client-credentials grant."""
-    token_url = assert_safe_external_url(oauth_config.get("accessTokenUrl"),
-                                         field="submodelOAuthAccessTokenUrl",
-                                         allow_query=True)
     client_id = oauth_config.get("clientId")
     client_secret = oauth_config.get("clientSecret")
+    if not client_id or not client_secret:
+        raise EmcError("submodelOAuthClientId and submodelOAuthClientSecret are required.",
+                       status=400, code="MISSING_REQUIRED_FIELD", stage=Stage.REQUEST)
+
     scope = oauth_config.get("scope", "openid")
     client_auth = oauth_config.get("clientAuth", "basic")
 
@@ -142,13 +180,15 @@ def get_oauth2_token(oauth_config: dict) -> str:
         data["client_id"] = client_id
         data["client_secret"] = client_secret
 
-    try:
-        response = requests.post(token_url, data=data, auth=auth,
-                                 timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=False)
-    except requests.RequestException as exception:
-        raise EmcError("Could not reach the submodel service's token endpoint.",
-                       status=502, code="OAUTH_TOKEN_UNREACHABLE", stage=Stage.UPSTREAM,
-                       detail=str(exception))
+    with pinned_connection(oauth_config.get("accessTokenUrl"),
+                          field="submodelOAuthAccessTokenUrl", allow_query=True) as token_url:
+        try:
+            response = requests.post(token_url, data=data, auth=auth,
+                                     timeout=REQUEST_TIMEOUT_SECONDS, allow_redirects=False)
+        except requests.RequestException as exception:
+            raise EmcError("Could not reach the submodel service's token endpoint.",
+                           status=502, code="OAUTH_TOKEN_UNREACHABLE", stage=Stage.UPSTREAM,
+                           detail=str(exception))
 
     if response.status_code != 200:
         raise EmcError("The token endpoint rejected the client credentials.",
@@ -156,13 +196,14 @@ def get_oauth2_token(oauth_config: dict) -> str:
                        detail=f"HTTP {response.status_code} from the token endpoint.")
 
     try:
-        token = response.json().get("access_token")
+        payload = response.json()
     except ValueError as exception:
         raise EmcError("The token endpoint did not return JSON.",
                        status=502, code="OAUTH_TOKEN_MALFORMED", stage=Stage.UPSTREAM,
                        detail=str(exception))
 
-    if not token:
+    token = payload.get("access_token") if isinstance(payload, dict) else None
+    if not token or not isinstance(token, str):
         raise EmcError("The token endpoint returned no access_token.",
                        status=502, code="OAUTH_TOKEN_MALFORMED", stage=Stage.UPSTREAM)
 

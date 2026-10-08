@@ -20,13 +20,14 @@
 # SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 import { FileText, MoreHorizontal, PencilLine, Plus, Trash2, Zap } from 'lucide-react';
-import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useCallback, useMemo, useState } from 'react';
 import type { DashboardConnector } from '../types';
 import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
 import DetailsModal from './DetailsModal';
+import PlaneEndpoints from './PlaneEndpoints';
 import Tooltip from './Tooltip';
+import StatusBadge from './StatusBadge';
 import YamlViewModal from './YamlViewModal';
 
 interface Props {
@@ -43,27 +44,7 @@ function getConnectorType(connector: DashboardConnector) {
     return config.connectorType;
   }
 
-  return 'EDC Connector';
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
-      {statusLabel(status)}
-    </span>
-  );
-}
-
-function getConnectorEndpoint(connector: DashboardConnector) {
-  if (connector.url) {
-    return connector.url;
-  }
-
-  if (connector.urls.length > 0) {
-    return connector.urls[0];
-  }
-
-  return '';
+  return 'Connector';
 }
 
 export default function ConnectorsManager({
@@ -78,7 +59,7 @@ export default function ConnectorsManager({
   const [yamlConnector, setYamlConnector] = useState<DashboardConnector | null>(null);
   const [deleteConnector, setDeleteConnector] = useState<DashboardConnector | null>(null);
   const localizeConnectorType = useCallback(
-    (type: string) => (type === 'EDC Connector' ? t('connectorTypeDefault') : type),
+    (type: string) => (type === 'Connector' ? t('connectorTypeDefault') : type),
     [t],
   );
 
@@ -87,7 +68,6 @@ export default function ConnectorsManager({
       connectors.map((connector) => ({
         ...connector,
         connectorType: localizeConnectorType(getConnectorType(connector)),
-        endpoint: getConnectorEndpoint(connector),
       })),
     [connectors, localizeConnectorType],
   );
@@ -154,25 +134,14 @@ export default function ConnectorsManager({
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <StatusBadge status={connector.status} />
+                      <StatusBadge status={connector.status} detail={connector.health?.detail} />
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <span className="block max-w-[260px] truncate">
-                        {connector.endpoint || t('noValue')}
-                      </span>
+                      <PlaneEndpoints connector={connector} />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        {canManage ? (
-                        <Tooltip content={t('connectorAddComponentTooltip')}>
-                          <button
-                            onClick={() => onAddComponent(connector)}
-                            className="rounded-lg p-2 text-blue-500 transition-colors hover:bg-blue-50"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </Tooltip>
-                        ) : null}
+                        
                         <Tooltip content={t('tableManage')}>
                           <button
                             onClick={() => setYamlConnector(connector)}

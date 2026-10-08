@@ -37,7 +37,7 @@ Reads only. Nothing here mutates the cluster.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +113,22 @@ class _ReleaseFacts:
     services: List[Tuple[str, int, str]] = field(default_factory=list)
 
 
+@dataclass
+class _Snapshot:
+    releases: Dict[str, _ReleaseFacts] = field(default_factory=dict)
+    workloads: Dict[str, Workload] = field(default_factory=dict)
+
+    def facts(self, release: str) -> _ReleaseFacts:
+        return self.releases.get(release) or _ReleaseFacts()
+
+
 class ClusterManager:
     """Reports the real state of released workloads in one namespace.
 
     The Kubernetes APIs are injected, so the derivation logic can be exercised
     without a cluster, and so a caller may supply an already-authenticated
-    client. Left unset, in-cluster credentials are used (the backend pod's
-    service account), falling back to the developer's kubeconfig.
+    client. Left unset, the kubeconfig is used - the same credentials every Helm
+    call runs with - falling back to the pod's own service account.
 
     Every method fails soft: an unreachable or forbidden API surfaces as
     ``Phase.UNKNOWN``, never as an exception. A component whose state cannot be
@@ -149,29 +158,55 @@ class ClusterManager:
                          "component status cannot be determined.")
             return False
 
-        try:
-            config.load_incluster_config()
-        except Exception:
-            try:
-                config.load_kube_config()
-            except Exception as exception:
-                self.last_error = f"no usable Kubernetes credentials ({exception})"
-                logger.error("[ClusterManager] No usable Kubernetes credentials: %s",
-                             exception)
-                return False
+        if not self._load_credentials(config):
+            return False
 
         self._apps_api = self._apps_api or client.AppsV1Api()
         self._core_api = self._core_api or client.CoreV1Api()
         self._configured = True
         return True
 
+    def _load_credentials(self, config) -> bool:
+        """Authenticate as whoever Helm deploys as, not as whoever we run as.
+
+        The container entrypoint fetches a cluster kubeconfig into KUBECONFIG and
+        every Helm call inherits it, so components are created with that
+        identity. Reading their status has to use the same one: the moment
+        components live in a namespace other than the pod's own, the pod's
+        service account has no rights there and the deploy succeeds while the
+        status read comes back 403 - which the dashboard then shows as
+        "unknown" for a component that is running perfectly well.
+
+        In-cluster config is therefore the fallback, not the first choice. It
+        always succeeds inside a pod, so trying it first masks the kubeconfig
+        entirely and there is no way to notice.
+        """
+        attempts = (("kubeconfig", config.load_kube_config),
+                    ("in-cluster", config.load_incluster_config))
+        failures = []
+
+        for name, load in attempts:
+            try:
+                load()
+            except Exception as exception:
+                failures.append(f"{name}: {exception}")
+                continue
+
+            logger.info("[ClusterManager] Authenticated with %s credentials.", name)
+            return True
+
+        detail = "; ".join(failures)
+        self.last_error = f"no usable Kubernetes credentials ({detail})"
+        logger.error("[ClusterManager] No usable Kubernetes credentials: %s", detail)
+        return False
+
     @staticmethod
     def _release_of(item) -> str:
         labels = getattr(getattr(item, "metadata", None), "labels", None) or {}
         return labels.get(RELEASE_LABEL, "")
 
-    def _collect(self) -> Optional[Dict[str, _ReleaseFacts]]:
-        """One pass over the namespace, grouped by release. None on failure.
+    def _collect(self) -> Optional[_Snapshot]:
+        """One pass over the namespace. None on failure.
 
         Listing the namespace once and grouping locally keeps a dashboard
         refresh at a fixed four API calls regardless of how many components
@@ -180,7 +215,8 @@ class ClusterManager:
         if not self._ensure_clients():
             return None
 
-        facts: Dict[str, _ReleaseFacts] = {}
+        snapshot = _Snapshot()
+        facts = snapshot.releases
 
         def bucket(release: str) -> _ReleaseFacts:
             return facts.setdefault(release, _ReleaseFacts())
@@ -196,16 +232,19 @@ class ClusterManager:
                 workload_errors.append(f"{kind.lower()}s ({exception})")
                 continue
             for item in listing.items:
-                release = self._release_of(item)
-                if not release:
-                    continue
                 spec, status = item.spec, item.status
-                bucket(release).workloads.append(Workload(
+                workload = Workload(
                     name=item.metadata.name,
                     kind=kind,
                     desired=int(getattr(spec, "replicas", 0) or 0),
                     ready=int(getattr(status, "ready_replicas", 0) or 0),
-                ))
+                )
+                snapshot.workloads[workload.name] = workload
+
+                release = self._release_of(item)
+                if not release:
+                    continue
+                bucket(release).workloads.append(workload)
                 for condition in (getattr(status, "conditions", None) or []):
                     if (condition.type == "Progressing" and condition.status == "False"
                             and condition.reason == "ProgressDeadlineExceeded"):
@@ -216,9 +255,12 @@ class ClusterManager:
             logger.warning("[ClusterManager] Could not read workloads in '%s': %s",
                            self.namespace, self.last_error)
             return None
+
+        incomplete_reason = None
         if workload_errors:
-            logger.warning("[ClusterManager] Partial workload read in '%s': could not list %s",
-                           self.namespace, "; ".join(workload_errors))
+            incomplete_reason = "could not list " + " or ".join(workload_errors)
+            logger.warning("[ClusterManager] Partial workload read in '%s': %s",
+                           self.namespace, incomplete_reason)
 
         try:
             for pod in self._core_api.list_namespaced_pod(self.namespace).items:
@@ -249,15 +291,26 @@ class ClusterManager:
             logger.warning("[ClusterManager] Could not read services in '%s': %s",
                            self.namespace, exception)
 
-        self.last_error = None
-        return facts
+        self.last_error = incomplete_reason
+        return snapshot
 
     @staticmethod
-    def _phase_of(release_facts: _ReleaseFacts) -> ReleaseStatus:
-        workloads = tuple(release_facts.workloads)
+    def _workloads_of(release_facts: _ReleaseFacts, expected: Sequence[str],
+                      by_name: Mapping[str, Workload]) -> Tuple[Workload, ...]:
+        found = {w.name: w for w in release_facts.workloads}
+        for name in expected:
+            workload = by_name.get(name)
+            if workload is not None:
+                found.setdefault(name, workload)
+        return tuple(found.values())
+
+    @classmethod
+    def _phase_of(cls, release_facts: _ReleaseFacts, expected: Sequence[str] = (),
+                  by_name: Optional[Mapping[str, Workload]] = None) -> ReleaseStatus:
+        workloads = cls._workloads_of(release_facts, expected, by_name or {})
         if not workloads:
             return ReleaseStatus(Phase.NOT_FOUND,
-                                 detail="No workloads carry this release's label.")
+                                 detail="This release has no workloads in the namespace.")
 
         if release_facts.failures:
             return ReleaseStatus(Phase.FAILED, workloads,
@@ -267,6 +320,13 @@ class ClusterManager:
                 Phase.FAILED, workloads,
                 detail="Rollout exceeded its progress deadline: "
                        + ", ".join(sorted(set(release_facts.progress_failures))))
+
+        present = {w.name for w in workloads}
+        missing = sorted(name for name in expected if name not in present)
+        if missing:
+            return ReleaseStatus(Phase.DEPLOYING, workloads,
+                                 detail="Waiting for " + ", ".join(missing)
+                                        + " to be created.")
 
         desired = sum(w.desired for w in workloads)
         ready = sum(w.ready for w in workloads)
@@ -292,11 +352,17 @@ class ClusterManager:
         if statuses is None:
             reason = self.last_error or "the cluster could not be reached"
             return ReleaseStatus(Phase.UNKNOWN, detail=f"Status unavailable: {reason}.")
-        return statuses.get(release_name) or ReleaseStatus(
-            Phase.NOT_FOUND, detail="No workloads carry this release's label.")
+
+        found = statuses.get(release_name)
+        if found:
+            return found
+        if self.last_error:
+            return ReleaseStatus(Phase.UNKNOWN,
+                                 detail=f"Status unavailable: {self.last_error}.")
+        return ReleaseStatus(Phase.NOT_FOUND, detail="No workloads carry this release's label.")
 
     @staticmethod
-    def internal_base_url_from(facts: Dict[str, _ReleaseFacts],
+    def internal_base_url_from(snapshot: Optional["_Snapshot"],
                                release_name: str) -> Optional[str]:
         """In-cluster base URL for probing this release's own API, if any.
 
@@ -304,7 +370,7 @@ class ClusterManager:
         configuration, and keeps the probe inside the cluster — the public
         ingress deliberately does not route health paths.
         """
-        candidates = (facts.get(release_name) or _ReleaseFacts()).services
+        candidates = snapshot.facts(release_name).services if snapshot else []
         if not candidates:
             return None
 
@@ -329,10 +395,15 @@ class ClusterManager:
         name, port, _ = min(usable, key=rank)
         return f"http://{name}:{port}"
 
-    def collect(self) -> Optional[Dict[str, _ReleaseFacts]]:
+    def collect(self) -> Optional[_Snapshot]:
         """Raw facts for callers that need both statuses and probe URLs from a
         single pass over the namespace."""
         return self._collect()
 
-    def statuses_from(self, facts: Dict[str, _ReleaseFacts]) -> Dict[str, ReleaseStatus]:
-        return {release: self._phase_of(f) for release, f in facts.items()}
+    def statuses_from(self, snapshot: _Snapshot,
+                      expected: Optional[Mapping[str, Sequence[str]]] = None,
+                      ) -> Dict[str, ReleaseStatus]:
+        wanted = expected or {}
+        return {release: self._phase_of(snapshot.facts(release), wanted.get(release, ()),
+                                        snapshot.workloads)
+                for release in set(snapshot.releases) | set(wanted)}

@@ -21,7 +21,6 @@
 ********************************************************************************/
 
 import { useEffect, useState } from 'react';
-import { isAuthDisabled } from './keycloak';
 import { dataspaceApi } from '../api/client';
 
 export interface SessionIdentity {
@@ -43,10 +42,6 @@ export const EMPTY_IDENTITY: SessionIdentity = {
 };
 
 export async function fetchSessionIdentity(): Promise<SessionIdentity | null> {
-  if (isAuthDisabled()) {
-    return { ...EMPTY_IDENTITY, isAdmin: true };
-  }
-
   try {
     const response = await dataspaceApi.getDataspace();
     const session = response.data?.data?.session as Partial<SessionIdentity> | undefined;
@@ -77,7 +72,7 @@ export function useSessionIdentity() {
       }
 
       setIdentity(resolved ?? EMPTY_IDENTITY);
-      if (resolved && !resolved.bpn && !isAuthDisabled()) {
+      if (resolved && !resolved.bpn) {
         console.warn(
           '[EMC] No BPN in the session. Add "bpn" and "organisation" User Attribute ' +
             'mappers to this application\'s client in the identity provider.',
