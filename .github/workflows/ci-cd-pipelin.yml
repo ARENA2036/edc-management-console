@@ -193,7 +193,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
@@ -523,7 +523,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
@@ -733,7 +733,7 @@ jobs:
 
     steps:
       - name: Checkout develop
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: develop
           fetch-depth: 0
@@ -895,7 +895,7 @@ jobs:
 
     steps:
       - name: Checkout develop
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: develop
           fetch-depth: 0
@@ -1052,7 +1052,7 @@ jobs:
 
     steps:
       - name: Checkout selected release branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
