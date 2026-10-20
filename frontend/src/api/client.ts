@@ -48,7 +48,7 @@ const apiClientHeaders: Record<string, string> = {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: apiClientHeaders,
-  timeout: 120_000,
+  timeout: 240_000,
 });
 
 apiClient.interceptors.response.use(
