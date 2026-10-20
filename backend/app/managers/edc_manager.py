@@ -26,7 +26,7 @@ from typing import Dict
 from urllib.parse import urlparse
 
 from app.utils.common import (render_values, render_template, render_structure,
-                              resolve_version_entry, merge_value_mappings,
+                              resolve_version_entry, version_value_mappings,
                               condition_met, as_context)
 
 logger = logging.getLogger(__name__)
@@ -202,8 +202,7 @@ class EdcManager:
         values_yaml = (entry or cfg).get("valuesYaml", "")
         template_path = (cfg.get("templatesDir", "") + values_yaml) if values_yaml else None
         logger.debug("Preparing deployment for component = %s", component)
-        mappings = (merge_value_mappings(cfg.get("valueMappings"), entry.get("valueMappings"))
-                    if entry else cfg.get("valueMappings", []))
+        mappings = version_value_mappings(cfg.get("valueMappings"), entry)
 
         if chart_directory:
             # Local chart: ref = the directory (kept as configured, i.e. relative to

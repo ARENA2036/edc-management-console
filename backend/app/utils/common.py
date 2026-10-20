@@ -23,6 +23,7 @@
 import os
 import re
 import urllib.parse
+import uuid
 import yaml
 import logging
 
@@ -108,6 +109,21 @@ def merge_value_mappings(base: list, override: list) -> list:
     return merged
 
 
+def version_value_mappings(base: list, entry: dict) -> list:
+    """The value mappings to apply for one `versions` entry.
+
+    By default the entry's `valueMappings` are merged onto the component's base
+    list (see `merge_value_mappings`). A chart version whose values layout breaks
+    with the base (e.g. renamed blocks) sets ``replaceValueMappings: true`` so its
+    own list is used alone and no stale base path leaks into the rendered values.
+    """
+    if not entry:
+        return list(base or [])
+    if entry.get("replaceValueMappings"):
+        return list(entry.get("valueMappings") or [])
+    return merge_value_mappings(base, entry.get("valueMappings"))
+
+
 def _field(source, name):
     """Read a named field from a dict or an object."""
     if isinstance(source, dict):
@@ -159,6 +175,10 @@ def _resolve_mapping_value(mapping: dict, source):
     transform = mapping.get("transform")
     if transform == "urlencode":
         value = urllib.parse.quote_plus(str(value))
+    elif transform == "uuid5":
+        # A stable UUID derived from the value: the same input always yields the
+        # same id, so a redeploy keeps e.g. the connector's participant context id.
+        value = str(uuid.uuid5(uuid.NAMESPACE_URL, str(value)))
     elif transform == "listtomap":
         # Adapt a list of single-/multi-key maps into one map, e.g. annotations
         # authored as a YAML list -> the map shape Helm ingress values expect.

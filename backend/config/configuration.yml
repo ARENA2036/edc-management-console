@@ -142,8 +142,88 @@ components:
       repo: tractusx-dev    # name resolved against connector.helmRepositories
     templatesDir: config/connector-templates
     versions:
-      - version: "0.12.1"
-        valuesYaml: /values-0.12.1.yaml
+      # 0.13.0 breaks the values layout (iatp.* -> dcp.*, participant.id is the
+      # DID with the BPN in participant.bpnl, CloudPirates postgres with a custom
+      # DB user), so it carries its OWN full mapping list instead of merging onto
+      # the base list below (which describes 0.11.x/0.12.x).
+      # In-place upgrade from 0.12.x is not supported: the bundled postgres
+      # subchart changed (Bitnami -> CloudPirates). Deploy 0.13.0 as a new connector.
+      - version: "0.13.0"
+        valuesYaml: /values-0.13.0.yaml
+        replaceValueMappings: true
+        valueMappings:
+          - path: participant.id            # the DID (was the BPN up to 0.12.x)
+            from: iatp_id
+          - path: participant.bpnl
+            from: bpn
+          # Stable per connector: derived from bpn + name, so a redeploy keeps it.
+          - path: participant.contextId
+            from: participant_context_seed
+            transform: uuid5
+          - path: dcp.trustedIssuers
+            from: trustedIssuers
+            mode: append
+          - path: dcp.sts.div.url           # renamed from iatp.sts.dim.url
+            from: sts_dim_url
+          - path: dcp.sts.oauth.token_url
+            from: sts_oauth_tokenUrl
+          - path: dcp.sts.oauth.client.id
+            from: sts_oauth_client_id
+          - path: dcp.sts.oauth.client.secret_alias
+            from: sts_oauth_secretAlias
+          - path: imagePullSecrets
+            from: imagePullSecrets
+          - path: controlplane.bdrs.server.url
+            from: cp_bdrs_server_url
+          - path: controlplane.ingresses[0].enabled
+            value: true
+          - path: controlplane.ingresses[0].endpoints[0]
+            value: 'protocol'
+          - path: controlplane.ingresses[0].endpoints[1]
+            value: 'management'
+          - path: controlplane.ingresses[0].hostname
+            from: cp_hostname
+          - path: controlplane.ingresses[0].certManager.clusterIssuer
+            value: 'letsencrypt-int'
+          - path: controlplane.ingresses[0].className
+            value: 'nginx'
+          - path: controlplane.ingresses[0].annotations
+            from: controlplane_annotations
+          - path: controlplane.ingresses[0].tls.enabled
+            value: true
+          - path: controlplane.ingresses[0].tls.secretName
+            template: "{name}-cp-tls"
+          - path: dataplane.ingresses[0].enabled
+            value: true
+          - path: dataplane.ingresses[0].hostname
+            from: dp_hostname
+          - path: dataplane.ingresses[0].certManager.clusterIssuer
+            value: 'letsencrypt-int'
+          - path: dataplane.ingresses[0].className
+            value: 'nginx'
+          - path: dataplane.ingresses[0].annotations
+            from: dataplane_annotations
+          - path: dataplane.ingresses[0].tls.enabled
+            value: true
+          - path: dataplane.ingresses[0].tls.secretName
+            template: "{name}-dp-tls"
+          - path: dataplane.token.signer.privatekey_alias
+            value: "tokenSignerPrivateKey"
+          - path: dataplane.token.verifier.publickey_alias
+            value: "tokenSignerPublicKey"
+          # With install.postgresql the chart ignores postgresql.jdbcUrl and reads
+          # the DB user/password/name from the CloudPirates custom-user secret,
+          # which the subchart creates from customUser.* below.
+          - path: postgresql.auth.password  # postgres admin user
+            from: auth.db_password
+          - path: postgresql.customUser.name
+            from: auth.db_username
+          - path: postgresql.customUser.password
+            from: auth.db_password
+          - path: postgresql.customUser.database
+            from: db_name
+      - version: "0.12.2"
+        valuesYaml: /values-0.12.2.yaml
       - version: "0.11.2"
         valuesYaml: /values-0.11.2.yaml
       # - version: "0.10.3"
@@ -160,6 +240,9 @@ components:
       cp_bdrs_server_url: "{wallet_url}{bdrs_endpoint}"
       cp_hostname: "{name}-{controlplane_hostname}"
       dp_hostname: "{name}-{dataplane_hostname}"
+      # Seed for the participant context id (0.13.0+), turned into a UUID by the
+      # `uuid5` transform so it is stable for a given connector.
+      participant_context_seed: "{bpn}/{name}"
       # Per-plane ingress annotations — each points external-dns at that plane's
       # OWN host. Authored as maps (the shape Helm ingress annotations expect),
       # with templated values resolved against the derivation context.

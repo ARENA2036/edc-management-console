@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file see also the
 - Status reference in the user guide, explaining every connector/component phase, the aggregated health values and the activity card ([docs/user-guide](./docs/user-guide/README.md#status-reference))
 - arc42 sections filled in: building block view, cross-cutting concepts, architecture decisions, glossary, and an index of the architecture documentation
 - Frontend README describing the project structure, configuration and conventions
+- Tractus-X EDC connector 0.13.0 can be deployed. Its values use the renamed `dcp.*` block, the DID as `participant.id` with the BPN in `participant.bpnl`, a stable per-connector `participant.contextId` and the CloudPirates custom DB user. Deploy it as a new connector: an in-place upgrade from 0.12.x is not supported because the bundled PostgreSQL subchart changed
+- `replaceValueMappings` on a component version entry, so a chart version with a changed values layout uses only its own mappings, and a `uuid5` value-mapping transform for stable generated ids
 
 ### Changed
 
@@ -24,6 +26,7 @@ All notable changes to this project will be documented in this file see also the
 - Frontend restructured for maintainability: every screen and dialog now has a single responsibility, wizard state moved into hooks (`useComponentWizard`, `useConnectorDraft`, `useDeploymentDialogs`), and repeated markup became shared primitives in `components/ui` (`Modal`, `ConfirmDialog`, `Button`, `Notice`, form fields, `DataTable`, `SectionCard`, `EmptyState`, `DetailList`)
 - Dataspace configuration is fetched once per session through a provider instead of separately on each screen
 - ESLint now enforces import order and grouping, no duplicate imports, explicit `type` imports and unused-symbol checks
+- Connector 0.12.1 replaced by its bugfix release 0.12.2 (identical chart values)
 
 ### Removed
 
