@@ -24,17 +24,9 @@ import { useMemo, useState } from 'react';
 import type { ManagedComponent } from '../types';
 import { useI18n } from '../i18n';
 import Tooltip from './Tooltip';
-import { statusBadgeClass, statusLabel } from '../utils/status';
+import StatusBadge from './StatusBadge';
+import { statusLabel } from '../utils/status';
 import { useLockBodyScroll } from '../useLockBodyScroll';
-
-function ComponentStatusBadge({ status }: { status: string }) {
-  const { t } = useI18n();
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
-      {statusLabel(status, t)}
-    </span>
-  );
-}
 
 function localizeComponentType(
   type: ManagedComponent['type'],
@@ -235,7 +227,7 @@ export default function ComponentsManager({ components, onDelete, canManage = tr
                       {component.version}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                      <ComponentStatusBadge status={component.status} />
+                      <StatusBadge status={component.status} detail={component.detail} />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

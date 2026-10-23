@@ -30,10 +30,11 @@ import {
   Server,
   SquareActivity,
 } from 'lucide-react';
-import { activityApi, componentApi, dataspaceApi } from './api/client';
-import { isHealthy, needsAttention, statusLabel, statusTone } from './utils/status';
+import { componentApi, dataspaceApi } from './api/client';
+import { emptyBadgeClass, isHealthy, needsAttention, statusLabel, statusTone }
+  from './utils/status';
 import { ApiError, toApiError } from './api/errors';
-import type { ActivityLog, DashboardConnector, ManagedComponent } from './types';
+import type { DashboardConnector, ManagedComponent } from './types';
 import { useI18n } from './i18n';
 import { getRuntimeConfigValue } from './runtime-config';
 import Sidebar from './components/Sidebar';
@@ -47,6 +48,8 @@ import ConnectorsManager from './components/ConnectorsManager';
 import ComponentsManager from './components/ComponentsManager';
 import DeploymentStatusModal from './components/DeploymentStatusModal';
 import EndpointWithCopy from './components/EndpointWithCopy';
+import PlaneEndpoints from './components/PlaneEndpoints';
+import StatusBadge from './components/StatusBadge';
 import { ErrorBanner } from './components/ErrorDetails';
 import OnboardingGuide from './components/OnboardingGuide';
 import Tooltip from './components/Tooltip';
@@ -172,18 +175,6 @@ function getConnectorType(connector: DashboardConnector) {
   return typeof connectorType === 'string' ? connectorType : 'EDC Connector';
 }
 
-function getConnectorEndpoint(connector: DashboardConnector) {
-  if (connector.url) {
-    return connector.url;
-  }
-
-  if (connector.urls.length > 0) {
-    return connector.urls[0];
-  }
-
-  return '';
-}
-
 function getManagedComponentLabel(
   type: ManagedComponent['type'],
   t: ReturnType<typeof useI18n>['t'],
@@ -230,6 +221,7 @@ function mapApiComponent(record: DashboardConnector): ManagedComponent | null {
     type: recordType,
     version: record.version || '',
     status: record.status,
+    detail: record.health?.detail,
     deployedAt: record.updated_at || record.created_at || new Date().toISOString(),
     endpoint: record.url,
     db_name: '',
@@ -280,16 +272,6 @@ async function fetchDeploymentState(): Promise<{
     }
 
     return { ...getCachedDeployments(), error: apiError };
-  }
-}
-
-async function fetchActivityLogs() {
-  try {
-    const response = await activityApi.getRecentLogs(20);
-    return response.data.data || [];
-  } catch (error) {
-    console.error('Failed to load activity logs:', toApiError(error));
-    return [];
   }
 }
 
@@ -382,6 +364,10 @@ function getHealthTone(
   };
 }
 
+function getEmptyTone(t: ReturnType<typeof useI18n>['t']) {
+  return { label: t('statusNothingDeployed'), badge: emptyBadgeClass() };
+}
+
 function resolveComponentLimits(details: DataspaceSettingsPayload | null) {
   return {
     connector: resolveComponentLimit('connector', details?.deployment?.connector?.maxInstances),
@@ -411,7 +397,6 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
   const { t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspaceName, setDataspaceName] = useState(t('dataspaceFallback'));
   const [authorityBpn, setAuthorityBpn] = useState('');
   const [dataspaceDetails, setDataspaceDetails] = useState<DataspaceSettingsPayload | null>(null);
@@ -447,11 +432,6 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
     setLoadError(deploymentState.error ?? null);
   }, []);
 
-  const loadActivityLogs = async () => {
-    const logs = await fetchActivityLogs();
-    setActivityLogs(logs);
-  };
-
   const loadDataspace = useCallback(async () => {
     const summary = await fetchDataspaceSummary(t('dataspaceFallback'));
     setDataspaceName(summary.name);
@@ -461,13 +441,9 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
 
   useEffect(() => {
     loadDeployments();
-    loadActivityLogs();
     loadDataspace();
 
-    const interval = setInterval(() => {
-      loadDeployments();
-      loadActivityLogs();
-    }, 30000);
+    const interval = setInterval(loadDeployments, 30000);
 
     return () => clearInterval(interval);
   }, [loadDataspace, loadDeployments, t]);
@@ -672,7 +648,10 @@ function Dashboard({ identity }: { identity: SessionIdentity }) {
     };
   }, [components]);
 
-  const activityValue = activityLogs.length > 0 ? t('statusActive') : t('statusHealthy');
+  const activityValue =
+    connectors.length + components.length > 0
+      ? t('statusActive')
+      : t('statusNothingDeployed');
   const statsGuidance = {
     dataSpace: {
       title: t('statsDataSpaceTitle'),
@@ -963,7 +942,6 @@ function Monitor() {
   const { language, t } = useI18n();
   const [connectors, setConnectors] = useState<DashboardConnector[]>([]);
   const [components, setComponents] = useState<ManagedComponent[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [dataspace, setDataspace] = useState<DataspaceSummary>({
     name: t('dataspaceFallback'),
     authorityBpn: '',
@@ -974,9 +952,8 @@ function Monitor() {
     let active = true;
 
     const load = async () => {
-      const [loadedConnectors, loadedActivityLogs, loadedDataspace] = await Promise.all([
+      const [loadedConnectors, loadedDataspace] = await Promise.all([
         fetchDeploymentState(),
-        fetchActivityLogs(),
         fetchDataspaceSummary(t('dataspaceFallback')),
       ]);
 
@@ -986,7 +963,6 @@ function Monitor() {
 
       setConnectors(loadedConnectors.connectors);
       setComponents(loadedConnectors.components);
-      setActivityLogs(loadedActivityLogs);
       setDataspace(loadedDataspace);
     };
 
@@ -1011,19 +987,14 @@ function Monitor() {
 
   const connectorRows = useMemo(
     () =>
-      connectors.map((connector) => {
-        const tone = getHealthTone(connector.status, healthLabels, t);
-        return {
-          ...connector,
-          connectorType:
-            getConnectorType(connector) === 'EDC Connector'
-              ? t('connectorTypeDefault')
-              : getConnectorType(connector),
-          endpoint: getConnectorEndpoint(connector),
-          tone,
-        };
-      }),
-    [connectors, healthLabels, t],
+      connectors.map((connector) => ({
+        ...connector,
+        connectorType:
+          getConnectorType(connector) === 'EDC Connector'
+            ? t('connectorTypeDefault')
+            : getConnectorType(connector),
+      })),
+    [connectors, t],
   );
 
   const componentRows = useMemo(
@@ -1031,34 +1002,11 @@ function Monitor() {
       components.map((component) => ({
         ...component,
         endpointLabel: component.endpoint || t('standaloneDeployment'),
-        statusCode: 'healthy' as const,
-        tone: getHealthTone('healthy', healthLabels, t),
-        statusLabel: t('standaloneReady'),
       })),
-    [components, healthLabels, t],
+    [components, t],
   );
 
   const derivedEvents = useMemo(() => {
-    if (activityLogs.length > 0) {
-      return activityLogs
-        .slice(0, 8)
-        .map((log) => ({
-          id: `log-${log.id}`,
-          title: log.action || t('eventActivityTitle'),
-          body:
-            log.details ||
-            log.connector_name ||
-            t('eventBackendActivityRecorded'),
-          timestamp: log.timestamp,
-          severity:
-            log.status === 'error' || log.status === 'failed'
-              ? 'critical'
-              : log.status === 'warning'
-              ? 'warning'
-              : 'healthy',
-        }));
-    }
-
     const connectorEvents = connectors.slice(0, 4).map((connector) => ({
       id: `connector-${connector.id}`,
       title: t('eventConnectorAvailable', { name: connector.name }),
@@ -1082,7 +1030,7 @@ function Monitor() {
     return [...connectorEvents, ...componentEvents]
       .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
       .slice(0, 8);
-  }, [activityLogs, components, connectors, t]);
+  }, [components, connectors, t]);
 
   const recommendations = useMemo(() => {
     const items: string[] = [];
@@ -1135,13 +1083,15 @@ function Monitor() {
   const healthyConnectors = connectorRows.filter((connector) =>
     isHealthy(connector.status),
   ).length;
-  const overallHealth =
-    connectorRows.some((connector) => needsAttention(connector.status))
-    || components.some((component) => needsAttention(component.status))
-      ? getHealthTone('critical', healthLabels, t)
-      : recommendations.length > 1 || connectorRows.length === 0
-      ? getHealthTone('warning', healthLabels, t)
-      : getHealthTone('healthy', healthLabels, t);
+  const nothingDeployed = connectorRows.length === 0 && componentRows.length === 0;
+  const overallHealth = nothingDeployed
+    ? getEmptyTone(t)
+    : connectorRows.some((connector) => needsAttention(connector.status))
+      || components.some((component) => needsAttention(component.status))
+    ? getHealthTone('critical', healthLabels, t)
+    : recommendations.length > 1
+    ? getHealthTone('warning', healthLabels, t)
+    : getHealthTone('healthy', healthLabels, t);
 
   return (
     <div className="p-4 md:p-6">
@@ -1184,24 +1134,21 @@ function Monitor() {
             subtitle: serviceCapacityBadges
               .map((badge) => `${badge.label} ${badge.count}/${badge.limit}`)
               .join(' · '),
-            tone: getHealthTone(
-              componentRows.length === 0 ? 'warning' : 'healthy',
-              healthLabels,
-              t,
-            ).badge,
+            tone:
+              componentRows.length === 0
+                ? emptyBadgeClass()
+                : getHealthTone('healthy', healthLabels, t).badge,
           },
           {
             title: t('statusRecentEventsTitle'),
             value: `${derivedEvents.length}`,
-            subtitle:
-              activityLogs.length > 0
-                ? t('statusRecentEventsSubtitleBackend')
-                : t('statusRecentEventsSubtitleDerived'),
-            tone: getHealthTone(
-              activityLogs.length > 0 ? 'healthy' : 'warning',
-              healthLabels,
-              t,
-            ).badge,
+            subtitle: t('statusRecentEventsSubtitleDerived'),
+            // Having no events to show is not a fault either; where they came
+            // from is what the subtitle is for.
+            tone:
+              derivedEvents.length === 0
+                ? emptyBadgeClass()
+                : getHealthTone('healthy', healthLabels, t).badge,
           },
         ].map((card) => (
           <div
@@ -1253,9 +1200,10 @@ function Monitor() {
                         {connector.connectorType}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connector.tone.badge}`}>
-                          {connector.tone.label}
-                        </span>
+                        <StatusBadge
+                          status={connector.status}
+                          detail={connector.health?.detail}
+                        />
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         {formatTimestamp(
@@ -1265,7 +1213,7 @@ function Monitor() {
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <EndpointWithCopy endpoint={connector.endpoint} fallback={t('noValue')} />
+                        <PlaneEndpoints connector={connector} />
                       </td>
                     </tr>
                   ))}
@@ -1331,9 +1279,7 @@ function Monitor() {
                         {getManagedComponentLabel(component.type, t)}
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${component.tone.badge}`}>
-                          {component.statusLabel}
-                        </span>
+                        <StatusBadge status={component.status} detail={component.detail} />
                       </td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-slate-300">
                         <EndpointWithCopy
@@ -1807,7 +1753,7 @@ function AppShell() {
                     />
                   </Routes>
                 </div>
-                <footer className="mt-8 bg-black px-6 py-4 text-center text-sm text-white dark:border-t dark:border-slate-800 dark:bg-slate-950">
+                <footer className="mt-8 border-t border-gray-200 bg-gray-100 px-6 py-4 text-center text-sm text-black dark:border-slate-800 dark:bg-slate-950 dark:text-white">
                   {t('footerCopyright')}
                 </footer>
               </div>

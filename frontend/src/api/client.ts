@@ -100,10 +100,6 @@ export const healthApi = {
   checkEdcHealth: () => apiClient.get('/edc/health'),
 };
 
-export const activityApi = {
-  getRecentLogs: (limit = 50) => apiClient.get(`/logs?limit=${limit}`),
-};
-
 export const configApi = {
   getConfig: () => apiClient.get('/config'),
 };
