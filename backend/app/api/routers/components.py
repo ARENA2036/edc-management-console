@@ -89,7 +89,7 @@ async def upgrade_components(component_id: str, payload: DeploymentRequest,
                              scope: ComponentScope = Depends(get_admin_scope)):
     """Upgrade (or install) the components in the request - Helm
     install-or-upgrade is the same operation, so this shares the deploy path."""
-    upgraded = await service.deploy(payload.components, scope)
+    upgraded = await service.deploy(payload.components, scope, component_id=component_id)
     return HttpUtils.response(status=200, message="Components upgraded",
                               data={"upgraded": upgraded})
 

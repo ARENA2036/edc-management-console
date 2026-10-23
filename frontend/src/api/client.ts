@@ -21,7 +21,7 @@
 ********************************************************************************/
 import axios from 'axios';
 import { getRuntimeConfigValue } from '../runtime-config';
-import keycloak, { isAuthDisabled } from '../auth/keycloak';
+import keycloak from '../auth/keycloak';
 import type { DeployRequest } from '../types';
 import { toApiError } from './errors';
 
@@ -53,10 +53,6 @@ apiClient.interceptors.response.use(
 );
 
 apiClient.interceptors.request.use(async (config) => {
-  if (isAuthDisabled()) {
-    return config;
-  }
-
   if (keycloak.authenticated) {
     try {
       await keycloak.updateToken(30);

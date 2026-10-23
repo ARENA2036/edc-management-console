@@ -22,6 +22,7 @@
 import { X, Copy } from 'lucide-react';
 import { statusBadgeClass, statusLabel } from '../utils/status';
 import type { Connector } from '../types';
+import { useI18n } from '../i18n';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export default function DetailsModal({ connector, onClose }: Props) {
+  const { t } = useI18n();
   useLockBodyScroll(true);
 
   const copyToClipboard = (text: string) => {
@@ -95,7 +97,7 @@ export default function DetailsModal({ connector, onClose }: Props) {
                 connector.status,
               )}`}
             >
-              {statusLabel(connector.status)}
+              {statusLabel(connector.status, t)}
             </p>
           </div>
         </div>

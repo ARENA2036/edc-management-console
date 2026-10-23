@@ -24,6 +24,7 @@ import { statusBadgeClass, statusLabel } from '../utils/status';
 import { Trash2, Edit, FileText, Info } from 'lucide-react';
 import type { Connector } from '../types';
 import { componentApi } from '../api/client';
+import { useI18n } from '../i18n';
 import DeleteModal from './DeleteModal';
 import EditModal from './EditModal';
 import YamlViewModal from './YamlViewModal';
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export default function ConnectorTable({ connectors, onConnectorDeleted, onConnectorUpdated }: Props) {
+  const { t } = useI18n();
   const [deleteConnector, setDeleteConnector] = useState<Connector | null>(null);
   const [editConnector, setEditConnector] = useState<Connector | null>(null);
   const [yamlConnector, setYamlConnector] = useState<Connector | null>(null);
@@ -93,7 +95,7 @@ export default function ConnectorTable({ connectors, onConnectorDeleted, onConne
                       connector.status,
                     )}`}
                   >
-                    {statusLabel(connector.status)}
+                    {statusLabel(connector.status, t)}
                   </span>
                 </td>
                 <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm text-gray-500">

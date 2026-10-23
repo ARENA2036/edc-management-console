@@ -28,9 +28,10 @@ import { statusBadgeClass, statusLabel } from '../utils/status';
 import { useLockBodyScroll } from '../useLockBodyScroll';
 
 function ComponentStatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
-      {statusLabel(status)}
+      {statusLabel(status, t)}
     </span>
   );
 }
@@ -99,7 +100,7 @@ function ComponentDetailsModal({
           )}
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('tableStatus')}</p>
-            <p>{component.status}</p>
+            <p>{statusLabel(component.status, t)}</p>
           </div>
           <div>
             <p className="font-medium text-gray-900 dark:text-slate-100">{t('deployedLabel')}</p>
