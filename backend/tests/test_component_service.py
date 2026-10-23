@@ -114,7 +114,7 @@ class FakeCluster:
 class FakeEdcManager:
     def prepare_deployment(self, component_type, source):
         return {"release_name": source.name, "chart": "chart", "repo": "repo",
-                "version": "1.0.0", "values": {}}
+                "version": "1.0.0", "chart_version": "1.0.0", "values": {}}
 
     def component_reachable(self, record, base_url):
         return {"url": base_url, "status_code": 200, "reachable": True, "detail": ""}

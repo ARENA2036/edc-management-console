@@ -160,7 +160,13 @@ class EdcManager:
           * the latest listed entry (`versions[0]`).
         Per-version `valuesYaml`/`valueMappings` overrides are picked up from the
         matching `versions` entry. Returns
-        ``{release_name, values, chart, repo, version}`` or ``{error}``.
+        ``{release_name, values, chart, repo, version, chart_version}`` or
+        ``{error}``.
+
+        `version` is the resolved, validated version - what was deployed, so what
+        callers record and display. `chart_version` is what Helm may be *told*,
+        which is None for a local chart directory. Keep them apart: conflating
+        them loses the version of every locally-charted component.
         """
         cfg = self.components.get(component)
         if not cfg:
@@ -203,15 +209,19 @@ class EdcManager:
             # Local chart: ref = the directory (kept as configured, i.e. relative to
             # the app's working dir). NOT abspath'd — pyhelm3 shells the command out
             # via shlex/cmd.exe, which mangles Windows absolute paths that contain
-            # spaces (e.g. "C:\Users\Saud Khan\..."). repo/version come from Chart.yaml.
-            chart_ref, repo, release_version = chart_directory, None, None
+            # spaces (e.g. "C:\Users\Saud Khan\..."). The chart's own Chart.yaml
+            # supplies repo/version, so Helm must not be given --version here.
+            chart_ref, repo, chart_version = chart_directory, None, None
         else:
-            chart_ref, repo, release_version = chart.get("name"), chart.get("repo"), version
+            chart_ref, repo, chart_version = chart.get("name"), chart.get("repo"), version
 
         return {
             "release_name": render_template(cfg.get("releaseName", "{name}"), render_source),
             "values": render_values(render_source, template_path, mappings),
             "chart": chart_ref,
             "repo": repo,
-            "version": release_version,
+            # What was deployed — recorded on the row and shown in the console.
+            "version": version,
+            # What Helm may be told; None for a local chart directory.
+            "chart_version": chart_version,
         }
