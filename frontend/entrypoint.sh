@@ -36,6 +36,7 @@ do
 	sed -i "s|__KEYCLOAK_CLIENT_ID__|${VITE_KEYCLOAK_CLIENT_ID}|g" "$file"
 	sed -i "s|__SDE_URL__|${VITE_SDE_URL}|g" "$file"
 	sed -i "s|__PORTAL_URL__|${VITE_PORTAL_URL}|g" "$file"
+	sed -i "s|__ICH_URL__|${VITE_ICH_URL}|g" "$file"
 done
 
 exec "$@"

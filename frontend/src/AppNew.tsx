@@ -90,6 +90,9 @@ interface DataspaceSettingsPayload {
   portal?: {
     url?: string;
   };
+  ich?: {
+    url?: string;
+  };
   sde?: {
     url?: string;
     client_id?: string;
@@ -1501,6 +1504,14 @@ function Settings({
     loadSettings();
   }, []);
 
+  // Same precedence as the /ich route: an explicit env / runtime-config value
+  // wins, the dataspace config is the fallback.
+  const ichUrlFromConfig = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    dataspaceDetails?.ich?.url ?? '',
+  );
+
   const formatValue = (value?: string | boolean) => {
     if (typeof value === 'boolean') {
       return value ? t('yes') : t('no');
@@ -1542,6 +1553,7 @@ function Settings({
       fields: [
         { label: t('settingsLabelPortalUrl'), value: dataspaceDetails?.portal?.url },
         { label: t('settingsLabelSdeUrl'), value: dataspaceDetails?.sde?.url },
+        { label: t('settingsLabelIchUrl'), value: ichUrlFromConfig },
         { label: t('settingsLabelManufacturerId'), value: dataspaceDetails?.sde?.manufacturerId },
       ],
     },
@@ -1651,9 +1663,15 @@ function AppShell() {
     window.__RUNTIME_CONFIG__?.portalUrl,
     '',
   );
+  const envIchUrl = getRuntimeConfigValue(
+    import.meta.env.VITE_ICH_URL,
+    window.__RUNTIME_CONFIG__?.ichUrl,
+    '',
+  );
 
   const [sdeUrl, setSdeUrl] = useState(envSdeUrl);
   const [portalUrl, setPortalUrl] = useState(envPortalUrl);
+  const [ichUrl, setIchUrl] = useState(envIchUrl);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     return storedTheme === 'dark' ? 'dark' : 'light';
@@ -1675,6 +1693,9 @@ function AppShell() {
         }
         if (!envPortalUrl && response.data?.data?.portal?.url) {
           setPortalUrl(response.data.data.portal.url);
+        }
+        if (!envIchUrl && response.data?.data?.ich?.url) {
+          setIchUrl(response.data.data.ich.url);
         }
       } catch (error) {
         console.error('Failed to load external app URLs:', error);
@@ -1753,10 +1774,18 @@ function AppShell() {
                     <Route
                       path="/ich"
                       element={
-                        <AppPlaceholder
-                          title={t('ichNavLabel')}
-                          description={t('ichPlaceholderDescription')}
-                        />
+                        ichUrl ? (
+                          <ExternalAppRedirect
+                            url={ichUrl}
+                            title={t('ichRedirectTitle')}
+                            description={t('ichRedirectDescription')}
+                          />
+                        ) : (
+                          <AppPlaceholder
+                            title={t('ichNavLabel')}
+                            description={t('ichPlaceholderDescription')}
+                          />
+                        )
                       }
                     />
                     <Route

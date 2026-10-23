@@ -72,7 +72,11 @@ spec:
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           env:
-            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- with .Values.backend.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - name: EMC_ALLOWED_ORIGINS
+              value: {{ include "chart.allowedOrigins" . | quote }}
           envFrom:
             {{- toYaml .Values.backend.envFrom | nindent 12 }}
           ports:

@@ -30,6 +30,7 @@ declare global {
       clientId?: string;
       sdeUrl?: string;
       portalUrl?: string;
+      ichUrl?: string;
       disableAuth?: boolean;
     };
   }

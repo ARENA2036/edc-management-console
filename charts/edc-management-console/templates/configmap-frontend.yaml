@@ -32,10 +32,11 @@ data:
   .env: |-
     VITE_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
     VITE_KEYCLOAK_REALM=CX-Central
-    VITE_KEYCLOAK_CLIENT_ID=A36-EMC
+    VITE_KEYCLOAK_CLIENT_ID=EMC
     VITE_BACKEND_URL=https://emc-backend.txcd.arena2036.app
     VITE_API_KEY=emc-api-key
     VITE_EDC_HOSTNAME=staging.arena2036-x.de
     VITE_SDE_URL=https://sde.txcd.arena2036.app
     VITE_PORTAL_URL=https://portal.staging.arena2036-x.de
+    VITE_ICH_URL=https://ichub1-ichub-frontend.txcd.arena2036.app
 {{- end }}
