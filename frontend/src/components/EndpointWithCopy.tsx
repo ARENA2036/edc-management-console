@@ -39,10 +39,15 @@ export default function EndpointWithCopy({ endpoint, fallback }: Props) {
     return <>{fallback}</>;
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(endpoint);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(endpoint);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      setCopied(false);
+      console.warn('Failed to copy endpoint', error);
+    }
   };
 
   return (
