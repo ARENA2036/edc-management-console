@@ -16,6 +16,8 @@ The console uses Keycloak for user login and shows dataspace-specific informatio
 - [Deploy an EDC Connector](#deploy-an-edc-connector)
 - [Add Components and Services](#add-components-and-services)
 - [Connector and Component Status](#connector-and-component-status)
+- [Status Reference](#status-reference)
+- [Monitor Page](#monitor-page)
 - [Dataspace Settings](#dataspace-settings)
 - [SDE Integration](#sde-integration)
 - [Short API Reference](#short-api-reference)
@@ -156,12 +158,73 @@ Component rows show:
 - Linked connector.
 - Actions such as details and delete.
 
-Status behavior depends on the current backend and frontend wiring:
+Two further notes:
 
-- Backend connector health is based on EDC health checks and may update connectors as `healthy` or `unhealthy`.
-- The frontend presents user-facing labels such as `Active`, `Healthy`, `Connected`, or `Disconnected` depending on the view and data source.
-- A newly deployed connector may appear before every backend health check has completed.
+- A newly deployed connector appears before the first status check has completed, so it shows `Deploying` for a while.
 - If a connector is deleted, linked components are also removed from the dashboard overview so the UI does not keep broken references.
+
+## Status Reference
+
+The console shows three different things, and they answer three different
+questions. Nothing on these cards is a fixed label: every value is derived from
+what the cluster reports.
+
+### Status of one connector or component
+
+This is the badge in the `Status` column of the tables and on the monitor page.
+Hover it when it carries a detail message - that message names the reason.
+
+| Badge | What it means | What to do |
+| --- | --- | --- |
+| **Active** | Running, and its own API answered. | Nothing. |
+| **Deploying** | Still rolling out. Normal for the first minutes after a deployment. | Wait. If it stays here for much longer, check the cluster. |
+| **Degraded** | Partly usable: some replicas are not ready, or all are ready but the component's API does not answer. | Read the detail on the badge; the component may still be starting or may be misconfigured. |
+| **Failed** | Not usable. A container cannot start, or the rollout gave up. | Check the deployment; redeploy after fixing the cause. |
+| **Not found** | Nothing is deployed for this entry any more, although the console still lists it. | The workloads were removed outside the console. Delete the entry, or redeploy it. |
+| **Unknown** | The console could not ask the cluster. | This says nothing about your component - it is the console's view that is broken. Report it to the platform team. |
+
+### System health (dashboard) and Overall health (monitor)
+
+Both cards summarise **everything** you have deployed, using the same rule. The
+worst state wins:
+
+| Value | When |
+| --- | --- |
+| **Nothing deployed** | You have no connectors and no components yet. |
+| **Critical** | At least one deployment is `Failed` or `Not found`. |
+| **Warning** | At least one deployment is `Degraded`, or its status could not be read. |
+| **Deploying** | At least one deployment is still rolling out, and nothing is worse. |
+| **Healthy** | Every deployment is `Active`. |
+
+The subtitle on the dashboard card (`3 of 4 deployments healthy`) tells you how
+many entries are behind that verdict.
+
+### Activity (dashboard)
+
+Activity does **not** describe health. It answers "is something happening right
+now, and is this page still up to date":
+
+| What you see | What it means |
+| --- | --- |
+| **N deploying** | `N` connectors or components are currently rolling out. |
+| **Idle** | Nothing is rolling out. A broken connector is still "Idle". |
+| **Last sync 12:57:03** | The moment the page last reached the backend successfully. |
+| **Waiting for first sync** | The page has not reached the backend yet in this session. |
+
+The console re-reads the state once a minute. If the sync time stops advancing,
+the backend is no longer answering - a yellow banner appears above the tables
+and the values you see are the last known ones.
+
+## Monitor Page
+
+`Monitor` in the sidebar gives the operational view over the same data as the
+dashboard, refreshed on the same one-minute interval:
+
+- **Overall health**, healthy connectors, linked services against capacity, and the number of recent events.
+- **Connector health**: per connector the type, status, last check and endpoints.
+- **Service health**: per component the status and endpoint, plus how much of each type's capacity is in use.
+- **Recommendations**: next steps derived from the current state, for example when connectors need attention or none exist yet.
+- **Recent activity**: the most recent deployments with the state they reported. It is derived from the deployment list; the backend does not keep an event log.
 
 ## Dataspace Settings
 

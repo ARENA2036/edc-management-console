@@ -32,7 +32,9 @@ interface Props {
 export default function StatusBadge({ status, detail }: Props) {
   const { t } = useI18n();
   const badge = (
-    <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass(status)}`}
+    >
       {statusLabel(status, t)}
     </span>
   );
@@ -43,7 +45,7 @@ export default function StatusBadge({ status, detail }: Props) {
 
   return (
     <Tooltip content={detail} position="top">
-      <span className="cursor-help border-b border-dotted border-current/40">{badge}</span>
+      <span className="inline-flex cursor-help">{badge}</span>
     </Tooltip>
   );
 }

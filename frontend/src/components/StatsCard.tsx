@@ -22,12 +22,20 @@
 import type { ReactNode } from 'react';
 import Tooltip from './Tooltip';
 
+export type StatsCardVariant =
+  | 'default'
+  | 'success'
+  | 'info'
+  | 'warning'
+  | 'critical'
+  | 'muted';
+
 interface Props {
   icon: ReactNode;
   title: string;
   value: string;
   subtitle: string;
-  variant?: 'default' | 'success' | 'info';
+  variant?: StatsCardVariant;
   tooltipTitle?: string;
   tooltipContent?: string;
   tooltipItems?: string[];
@@ -51,6 +59,12 @@ export default function StatsCard({
         return 'text-green-600 dark:text-emerald-400';
       case 'info':
         return 'text-blue-600 dark:text-sky-400';
+      case 'warning':
+        return 'text-amber-600 dark:text-amber-400';
+      case 'critical':
+        return 'text-red-600 dark:text-red-400';
+      case 'muted':
+        return 'text-gray-500 dark:text-slate-400';
       default:
         return 'text-gray-600 dark:text-slate-100';
     }
