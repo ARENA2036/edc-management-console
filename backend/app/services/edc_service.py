@@ -20,8 +20,15 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 import asyncio
+import hashlib
 import logging
+import os
+import shutil
+import tempfile
+from pathlib import Path
 from typing import Dict, List, Optional
+
+import yaml
 
 from pyhelm3 import Client, Command, ReleaseNotFoundError
 
@@ -60,6 +67,7 @@ class EdcService:
         # Serialize chart pulls + installs so concurrent deploys don't race on the
         # shared Helm repository cache.
         self._install_lock = asyncio.Lock()
+        self._prepared_charts: Dict[str, str] = {}
 
     def _repo_url(self, repo: Optional[str]) -> Optional[str]:
         """Resolve a repository reference to a URL: pass through an explicit URL,
@@ -104,6 +112,8 @@ class EdcService:
         up, so a failed deploy never leaves a broken release blocking the next.
         """
         async with self._install_lock:
+            if not repo:
+                chart_name = await self._with_dependencies(chart_name)
             chart = await self._client.get_chart(
                 chart_name, repo=self._repo_url(repo), version=version,
             )
@@ -122,6 +132,33 @@ class EdcService:
                 release_name, revision.revision, revision.status,
             )
             return revision
+
+    async def _with_dependencies(self, chart_dir: str) -> str:
+        """Build a local chart's subchart dependencies once; on a temp copy if read-only."""
+        if chart_dir in self._prepared_charts:
+            return self._prepared_charts[chart_dir]
+
+        source = Path(chart_dir)
+        chart_file = source / "Chart.yaml"
+        try:
+            dependencies = (yaml.safe_load(chart_file.read_text()) or {}).get("dependencies")
+        except OSError:
+            dependencies = None
+        if not dependencies:
+            self._prepared_charts[chart_dir] = chart_dir
+            return chart_dir
+
+        target = source
+        if not os.access(source, os.W_OK):
+            digest = hashlib.sha256(chart_file.read_bytes()).hexdigest()[:12]
+            target = Path(tempfile.gettempdir()) / "emc-charts" / f"{source.name}-{digest}"
+            if not target.exists():
+                shutil.copytree(source, target)
+
+        logger.info("[EdcService] helm dependency build %s", target)
+        await self._command.run(["dependency", "build", str(target)])
+        self._prepared_charts[chart_dir] = str(target)
+        return str(target)
 
     async def uninstall(self, release_name: str, namespace: str, wait: bool = True) -> None:
         """Uninstall a connector release. No-op if it does not exist."""

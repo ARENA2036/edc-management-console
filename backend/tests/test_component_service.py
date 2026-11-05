@@ -131,6 +131,9 @@ class FakeEdcManager:
     def component_reachable(self, record, base_url):
         return {"url": base_url, "status_code": 200, "reachable": True, "detail": ""}
 
+    def is_connector_type(self, component_type):
+        return component_type in ("connector", "constructxConnector")
+
 
 def service(database=None, edc_service=None):
     return ComponentService(database=database or FakeDatabase(),

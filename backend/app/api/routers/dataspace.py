@@ -98,6 +98,7 @@ async def get_dataspace_settings(user: dict = Depends(get_current_user)):
             },
             "deployment": {
                 "connector": config.component_versions("connector"),
+                "constructxConnector": config.component_versions("constructxConnector"),
                 "digitalTwinRegistry": config.component_versions("digitalTwinRegistry"),
                 "submodelServer": config.component_versions("submodelServer"),
             },

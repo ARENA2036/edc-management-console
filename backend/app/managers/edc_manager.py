@@ -67,11 +67,16 @@ class EdcManager:
         self.ssi_wallet_url = dataspace_config.get("ssi_wallet", {}).get("url", None)
         self.authority_id = dataspace_config.get("authority_id", "BPNL00000003CRHK")
 
+    def is_connector_type(self, component_type) -> bool:
+        if component_type == "connector":
+            return True
+        return (self.components.get(component_type) or {}).get("family") == "connector"
+
     def component_reachable(self, record, base_url: str) -> Dict:
         config = record.config or {}
         ctype = config.get("type") or ("connector" if record.cp_hostname else None)
         path = (self.endpoints.get("readiness", "/api/check/readiness")
-                if ctype == "connector"
+                if self.is_connector_type(ctype)
                 else self.components.get(ctype, {}).get("healthPath", "/"))
 
         target = base_url.rstrip("/") + path
@@ -100,9 +105,9 @@ class EdcManager:
         mutable dict — the request may be a model or a dict."""
         return dict(as_context(source))
 
-    def _derivation_context(self, source) -> dict:
+    def _derivation_context(self, source, overrides: dict = None) -> dict:
         """Flatten the request fields plus dataspace config into a single context
-        that the component's `derive` templates are rendered against."""
+        that the component's `derive` templates are rendered against"""
         context = self._as_dict(source)
         context.update({
             "wallet_url": self.ssi_wallet_url or "",
@@ -116,6 +121,8 @@ class EdcManager:
             "controlplane_hostname": self.hostname.get("controlplane", ""),
             "dataplane_hostname": self.hostname.get("dataplane", ""),
         })
+        for key, value in (overrides or {}).items():
+            context[key] = render_structure(value, context)
         return context
 
     def _derive(self, derive_config: dict, source) -> dict:
@@ -182,7 +189,12 @@ class EdcManager:
                     "error_code": "COMPONENT_CONFIG_INVALID"}
 
         # Render source = the request's own fields overlaid with the derived ones.
-        render_source = {**self._as_dict(source), **self._derive(cfg.get("derive", {}), source)}
+        own_context = cfg.get("context") or {}
+        context = self._derivation_context(source, own_context)
+        render_source = {**self._as_dict(source),
+                         **{key: context[key] for key in own_context},
+                         **{attr: render_structure(template, context)
+                            for attr, template in (cfg.get("derive") or {}).items()}}
 
         versions = cfg.get("versions") or []
         selector = cfg.get("version")

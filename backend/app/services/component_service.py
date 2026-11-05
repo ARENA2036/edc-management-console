@@ -420,6 +420,7 @@ class ComponentService:
         cp_host = hostnames.get("controlplane")
         dp_host = hostnames.get("dataplane")
         auth = getattr(comp, "auth", None) or {}
+        is_connector = self.edc_manager.is_connector_type(comp.type)
         row_config = {"type": comp.type, "release": plan["release_name"],
                       "chart": plan["chart"]}
 
@@ -436,9 +437,9 @@ class ComponentService:
                 status=Phase.DEPLOYING,
                 config=row_config,
                 cp_hostname=(f"{comp.name}-{cp_host}"
-                             if comp.type == "connector" and cp_host else None),
+                             if is_connector and cp_host else None),
                 dp_hostname=(f"{comp.name}-{dp_host}"
-                             if comp.type == "connector" and dp_host else None),
+                             if is_connector and dp_host else None),
                 db_name=getattr(comp, "db_name", None) or "edc",
                 db_username=auth.get("db_username"),
                 db_password=auth.get("db_password"),

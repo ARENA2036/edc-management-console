@@ -39,3 +39,5 @@ backend/.env
 *.db
 tractusx-connector/*edc*.yaml
 tractusx-connector/*.db
+config/*/charts/
+config/*/Chart.lock

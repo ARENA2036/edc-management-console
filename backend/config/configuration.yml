@@ -315,6 +315,138 @@ components:
       - path: postgresql.auth.password
         from: auth.db_password
 
+  # Construct-X EDC; chart from project-construct-x/constructx-edc@021daa74
+  constructxConnector:
+    family: connector
+    releaseName: "{name}"
+    maxInstances: 3
+    version: "{version}"
+    chart:
+      directory: config/constructx-connector
+    versions:
+      - version: "0.13.0-021daa74"
+    context:
+      cx_controlplane_image: ghcr.io/project-construct-x/con-x-controlplane-postgresql-hashicorp-vault
+      cx_dataplane_image: ghcr.io/project-construct-x/con-x-dataplane-postgresql-hashicorp-vault
+      cx_image_tag: "latest"
+      cx_image_pull_secrets:
+        - name: ghcr-creds
+      cx_wallet_host: "{name}-wallet.txcd.arena2036-x.de"
+      cx_did: "did:web:{cx_wallet_host}"
+      cx_sts_token_url: "http://{name}-wallet:9292/api/sts/token"
+      cx_sts_secret_alias: "sts-client-secret"
+      cx_trusted_issuer_did: "did:web:issuer.txcd.arena2036-x.de"
+      cx_did_web_https: "true"
+    derive:
+      cp_hostname: "{name}-{controlplane_hostname}"
+      dp_hostname: "{name}-{dataplane_hostname}"
+      controlplane_annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-{controlplane_hostname}"
+      dataplane_annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{name}-{dataplane_hostname}"
+    valueMappings:
+      - path: nameOverride
+        template: "{name}"
+      - path: participant.id
+        from: cx_did
+      - path: iatp.id
+        from: cx_did
+      - path: iatp.didService.selfRegistration.id
+        from: cx_did
+      - path: iatp.trustedIssuerId
+        from: cx_trusted_issuer_did
+      - path: iatp.trustedIssuers
+        from: cx_trusted_issuer_did
+        mode: append
+      - path: iatp.sts.oauth.token_url
+        from: cx_sts_token_url
+      - path: iatp.sts.oauth.client.id
+        from: cx_did
+      - path: iatp.sts.oauth.client.secret_alias
+        from: cx_sts_secret_alias
+      - path: controlplane.env.EDC_IAM_ISSUER_ID
+        from: cx_did
+      - path: controlplane.env.EDC_IAM_STS_OAUTH_CLIENT_SECRET_ALIAS
+        from: cx_sts_secret_alias
+      - path: controlplane.env.EDC_IAM_DID_WEB_USE_HTTPS
+        from: cx_did_web_https
+      - path: dataplane.env.EDC_IAM_ISSUER_ID
+        from: cx_did
+      - path: dataplane.env.EDC_IAM_STS_OAUTH_CLIENT_SECRET_ALIAS
+        from: cx_sts_secret_alias
+      - path: dataplane.env.EDC_IAM_DID_WEB_USE_HTTPS
+        from: cx_did_web_https
+      - path: dataplane.env.EDC_IAM_TRUSTED-ISSUER_EXAMPLE_ID
+        from: cx_trusted_issuer_did
+      - path: controlplane.image.repository
+        from: cx_controlplane_image
+      - path: controlplane.image.tag
+        from: cx_image_tag
+      - path: controlplane.imagePullSecrets
+        from: cx_image_pull_secrets
+      - path: dataplane.image.repository
+        from: cx_dataplane_image
+      - path: dataplane.image.tag
+        from: cx_image_tag
+      - path: dataplane.imagePullSecrets
+        from: cx_image_pull_secrets
+      - path: controlplane.ingresses[0].enabled
+        value: true
+      - path: controlplane.ingresses[0].endpoints[0]
+        value: 'protocol'
+      - path: controlplane.ingresses[0].endpoints[1]
+        value: 'management'
+      - path: controlplane.ingresses[0].hostname
+        from: cp_hostname
+      - path: controlplane.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: controlplane.ingresses[0].className
+        value: 'nginx'
+      - path: controlplane.ingresses[0].annotations
+        from: controlplane_annotations
+      - path: controlplane.ingresses[0].tls.enabled
+        value: true
+      - path: controlplane.ingresses[0].tls.secretName
+        template: "{name}-cp-tls"
+      - path: controlplane.ingresses[1].enabled
+        value: false
+      - path: dataplane.ingresses[0].enabled
+        value: true
+      - path: dataplane.ingresses[0].hostname
+        from: dp_hostname
+      - path: dataplane.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: dataplane.ingresses[0].className
+        value: 'nginx'
+      - path: dataplane.ingresses[0].annotations
+        from: dataplane_annotations
+      - path: dataplane.ingresses[0].tls.enabled
+        value: true
+      - path: dataplane.ingresses[0].tls.secretName
+        template: "{name}-dp-tls"
+      - path: dataplane.ingresses[1].enabled
+        value: false
+      - path: dataplane.token.signer.privatekey_alias
+        value: "tokenSignerPrivateKey"
+      - path: dataplane.token.verifier.publickey_alias
+        value: "tokenSignerPublicKey"
+      - path: postgresql.image.registry
+        value: "docker.io"
+      - path: postgresql.image.repository
+        value: "postgres"
+      - path: postgresql.image.tag
+        value: "18.3"
+      - path: postgresql.persistence.enabled
+        value: false
+      - path: postgresql.jdbcUrl
+        template: "jdbc:postgresql://{name}-postgresql:5432/{db_name}"
+      - path: postgresql.auth.database
+        from: db_name
+      - path: postgresql.auth.username
+        from: auth.db_username
+      - path: postgresql.auth.password
+        from: auth.db_password
+
   # Submodel Server — its own chart + release. Deployed when present in the
   # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
   submodelServer:
