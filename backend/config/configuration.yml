@@ -447,6 +447,61 @@ components:
       - path: postgresql.auth.password
         from: auth.db_password
 
+  # Construct-X wallet (IdentityHub); chart from project-construct-x/wallet@a184f3fd
+  constructxWallet:
+    releaseName: "{name}"
+    maxInstances: 3
+    version: "{version}"
+    chart:
+      directory: config/constructx-wallet
+    versions:
+      - version: "0.18.0-1"
+    context:
+      cx_wallet_host: "{name}.txcd.arena2036-x.de"
+      cx_wallet_image: ghcr.io/project-construct-x/wallet
+      cx_image_pull_secrets:
+        - name: ghcr-creds
+      cx_did_web_https: "true"
+    derive:
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{cx_wallet_host}"
+    valueMappings:
+      - path: fullnameOverride
+        template: "{name}"
+      - path: imagePullSecrets
+        from: cx_image_pull_secrets
+      - path: wallet.image.repository
+        from: cx_wallet_image
+      - path: wallet.image.tag
+        template: "{version}"
+      - path: wallet.hostname
+        from: cx_wallet_host
+      - path: wallet.didweb.https
+        from: cx_did_web_https
+      # superuser "admin" (base64 "YWRtaW4"), secret = the component's generated password
+      - path: wallet.superuser.apiKey
+        template: "YWRtaW4.{auth[db_password]}"
+      - path: wallet.ingresses[0].hostname
+        from: cx_wallet_host
+      - path: wallet.ingresses[0].className
+        value: 'nginx'
+      - path: wallet.ingresses[0].annotations
+        from: annotations
+      - path: wallet.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: wallet.ingresses[0].tls.secretName
+        template: "{name}-tls"
+      - path: postgresql.persistence.enabled
+        value: false
+      - path: postgresql.jdbcUrl
+        template: "jdbc:postgresql://{name}-postgresql:5432/{db_name}"
+      - path: postgresql.auth.database
+        from: db_name
+      - path: postgresql.auth.username
+        from: auth.db_username
+      - path: postgresql.auth.password
+        from: auth.db_password
+
   # Submodel Server — its own chart + release. Deployed when present in the
   # request's `components` array. `url` is its ingress host; `auth.*` its DB creds.
   submodelServer:
