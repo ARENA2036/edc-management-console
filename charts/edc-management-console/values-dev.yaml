@@ -317,6 +317,8 @@ backend:
   allowedOrigins: []
   envFrom: []
   env:
+    - name: HOME
+      value: /home/nonroot
     - name: CLUSTER_SECRET
       value: "cluster-int"
     - name: VAULT_ADDR
@@ -355,6 +357,10 @@ backend:
     # -- temporary file system mount
     - name: tmpfs-1
       emptyDir: {}
+    # -- writable home for the non-root user: setup_kube.sh writes the kubeconfig
+    #    and helm its cache/config here (the pod's uid does not own /home/nonroot)
+    - name: home
+      emptyDir: {}
   ## Volume mounts for the backend deployment.
   volumeMounts:
     # -- mounted path for the backend configuration added in the config maps
@@ -388,6 +394,9 @@ backend:
     - name: tmpfs-1
       mountPath: /backend/logs
       subPath: logs
+    # -- writable home (kubeconfig, helm cache/config)
+    - name: home
+      mountPath: /home/nonroot
 frontend:
   enabled: true
   name: "emc-frontend"
