@@ -25,7 +25,7 @@ import yaml
 
 from app.managers.edc_manager import EdcManager
 from app.services import onboarding as module
-from app.services.onboarding import onboard
+from app.services.onboarding import bootstrap_issuer, onboard
 
 ONBOARDING = {
     "wallet": "cx-1-wallet",
@@ -36,6 +36,27 @@ ONBOARDING = {
     "vaultUrl": "http://cx-1-vault:8200",
     "vaultToken": "root",
     "secretAlias": "sts-client-secret",
+    "issuer": "issuer",
+    "issuerAdminUrl": "http://issuer:15152/api/issuer",
+    "issuerContextId": "issuer",
+    "issuerDid": "did:web:issuer.example",
+    "credentialType": "MembershipCredential",
+    "credentialDefinitionId": "membership-credential",
+    "credentialFormat": "VC1_0_JWT",
+}
+
+ISSUER = {
+    "role": "issuer",
+    "wallet": "issuer",
+    "identityUrl": "http://issuer:15151/api/identity",
+    "adminUrl": "http://issuer:15152/api/issuer",
+    "participantContextId": "issuer",
+    "did": "did:web:issuer.example",
+    "issuanceServiceUrl": "https://issuer.example/api/issuance/v1beta/participants/issuer",
+    "attestationId": "membership-attestation",
+    "credentialDefinitionId": "membership-credential",
+    "credentialType": "MembershipCredential",
+    "credentialFormat": "VC1_0_JWT",
 }
 
 
@@ -113,7 +134,55 @@ def test_the_connector_plan_carries_its_onboarding():
         "vaultUrl": "http://cx-1-vault:8200",
         "vaultToken": "root",
         "secretAlias": "sts-client-secret",
+        "issuer": "issuer",
+        "issuerAdminUrl": "http://issuer:15152/api/issuer",
+        "issuerContextId": "issuer",
+        "issuerDid": "did:web:issuer.txcd.arena2036-x.de",
+        "credentialType":
+            "https://w3id.org/constructx/credentials/v1.0/ConstructXMembershipCredential",
+        "credentialDefinitionId": "membership-credential",
+        "credentialFormat": "VC1_0_JWT",
     }
+    issuer = manager.prepare_deployment("constructxIssuer", {
+        "name": "issuer", "version": "0.18.0-1", "db_name": "db",
+        "auth": {"db_username": "u", "db_password": "p"}})
+    assert issuer["onboarding"]["did"] == plan["onboarding"]["issuerDid"]
+    assert issuer["onboarding"]["credentialDefinitionId"] == plan["onboarding"]["credentialDefinitionId"]
+    assert issuer["values"]["wallet"]["hostname"] == "issuer.txcd.arena2036-x.de"
     assert manager.prepare_deployment("constructxWallet", {
         "name": "cx-1-wallet", "version": "0.18.0-1", "db_name": "db",
         "auth": {"db_username": "u", "db_password": "p"}})["onboarding"] is None
+
+
+def test_with_an_issuer_registers_the_holder_and_requests_the_credential(posts):
+    calls, replies = posts
+    replies += [_Response(200, {"clientSecret": "s3cret"}), _Response(204), _Response(201), _Response(201)]
+
+    assert onboard(ONBOARDING, "pw", "issuer-pw") is True
+
+    holder_url, holder, holder_headers = calls[2]
+    assert holder_url == "http://issuer:15152/api/issuer/v1beta/participants/issuer/holders"
+    assert holder == {"holderId": "did:web:cx-1-wallet.example", "did": "did:web:cx-1-wallet.example",
+                      "name": "cx-1"}
+    assert holder_headers == {"x-api-key": "YWRtaW4.issuer-pw"}
+    request_url, request, _ = calls[3]
+    assert request_url == ("http://cx-1-wallet:15151/api/identity/v1beta/participants/cx-1"
+                           "/credentials/request")
+    assert request["issuerDid"] == "did:web:issuer.example"
+    assert request["credentials"] == [{"format": "VC1_0_JWT", "type": "MembershipCredential",
+                                       "id": "membership-credential"}]
+
+
+def test_bootstrap_issuer_creates_participant_attestation_and_definition(posts):
+    calls, replies = posts
+    replies += [_Response(201), _Response(409), _Response(201)]
+
+    assert bootstrap_issuer(ISSUER, "pw") is True
+
+    assert [url for url, _, _ in calls] == [
+        "http://issuer:15151/api/identity/v1beta/participants",
+        "http://issuer:15152/api/issuer/v1beta/participants/issuer/attestations",
+        "http://issuer:15152/api/issuer/v1beta/participants/issuer/credentialdefinitions",
+    ]
+    assert calls[0][1]["serviceEndpoints"][0]["type"] == "IssuerService"
+    assert calls[2][1]["attestations"] == ["membership-attestation"]

@@ -346,6 +346,13 @@ components:
       vaultUrl: "http://{name}-vault:8200"
       vaultToken: "root"
       secretAlias: "{cx_sts_secret_alias}"
+      issuer: "issuer"
+      issuerAdminUrl: "http://issuer:15152/api/issuer"
+      issuerContextId: "issuer"
+      issuerDid: "{cx_trusted_issuer_did}"
+      credentialType: "https://w3id.org/constructx/credentials/v1.0/ConstructXMembershipCredential"
+      credentialDefinitionId: "membership-credential"
+      credentialFormat: "VC1_0_JWT"
     derive:
       cp_hostname: "{name}-{controlplane_hostname}"
       dp_hostname: "{name}-{dataplane_hostname}"
@@ -494,6 +501,70 @@ components:
         from: cx_wallet_host
       - path: wallet.ingresses[0].className
         value: 'nginx'
+      - path: wallet.ingresses[0].annotations
+        from: annotations
+      - path: wallet.ingresses[0].certManager.clusterIssuer
+        value: 'letsencrypt-int'
+      - path: wallet.ingresses[0].tls.secretName
+        template: "{name}-tls"
+      - path: postgresql.persistence.enabled
+        value: false
+      - path: postgresql.jdbcUrl
+        template: "jdbc:postgresql://{name}-postgresql:5432/{db_name}"
+      - path: postgresql.auth.database
+        from: db_name
+      - path: postgresql.auth.username
+        from: auth.db_username
+      - path: postgresql.auth.password
+        from: auth.db_password
+
+  # Construct-X test issuer (one instance, named "issuer"); chart from project-construct-x/wallet@a184f3fd
+  constructxIssuer:
+    releaseName: "{name}"
+    maxInstances: 1
+    version: "{version}"
+    chart:
+      directory: config/constructx-issuer
+    versions:
+      - version: "0.18.0-1"
+    context:
+      cx_issuer_host: "{name}.txcd.arena2036-x.de"
+      cx_wallet_image: ghcr.io/project-construct-x/wallet
+      cx_image_pull_secrets:
+        - name: ghcr-creds
+      cx_did_web_https: "true"
+    onboarding:
+      role: issuer
+      wallet: "{name}"
+      identityUrl: "http://{name}:15151/api/identity"
+      adminUrl: "http://{name}:15152/api/issuer"
+      participantContextId: "{name}"
+      did: "did:web:{cx_issuer_host}"
+      issuanceServiceUrl: "https://{cx_issuer_host}/api/issuance/v1beta/participants/{name}"
+      attestationId: "membership-attestation"
+      credentialDefinitionId: "membership-credential"
+      credentialType: "https://w3id.org/constructx/credentials/v1.0/ConstructXMembershipCredential"
+      credentialFormat: "VC1_0_JWT"
+    derive:
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "{cx_issuer_host}"
+    valueMappings:
+      - path: fullnameOverride
+        template: "{name}"
+      - path: imagePullSecrets
+        from: cx_image_pull_secrets
+      - path: wallet.image.repository
+        from: cx_wallet_image
+      - path: wallet.image.tag
+        template: "{version}"
+      - path: wallet.hostname
+        from: cx_issuer_host
+      - path: wallet.didweb.https
+        from: cx_did_web_https
+      - path: wallet.superuser.apiKey
+        template: "YWRtaW4.{auth[db_password]}"
+      - path: wallet.ingresses[0].hostname
+        from: cx_issuer_host
       - path: wallet.ingresses[0].annotations
         from: annotations
       - path: wallet.ingresses[0].certManager.clusterIssuer

@@ -37,7 +37,7 @@ from app.core import config
 from app.managers.cluster_manager import ClusterManager, Phase
 from app.managers.edc_manager import URL_SCHEME
 from app.models.database import ConnectorDB
-from app.services.onboarding import onboard
+from app.services.onboarding import bootstrap_issuer, onboard
 from app.utils.errors import (BadRequest, ComponentLimitExceeded, ComponentMisconfigured,
                               ComponentNameTaken, DuplicateComponentName, EmcError,
                               NotFound, Stage, UnknownComponentType,
@@ -186,13 +186,18 @@ class ComponentService:
         return deployed
 
     def _start_onboarding(self, onboarding: dict) -> None:
-        """Onboard in the background: the wallet needs minutes to start."""
+        """Onboard in the background: wallets need minutes to start."""
         wallet = self.database.get_connector_by_name(onboarding["wallet"])
         if wallet is None or not wallet.db_password:
             logger.warning("[ComponentService] Wallet '%s' is not deployed; skipping onboarding",
                            onboarding["wallet"])
             return
-        task = asyncio.create_task(asyncio.to_thread(onboard, onboarding, wallet.db_password))
+        if onboarding.get("role") == "issuer":
+            job = (bootstrap_issuer, onboarding, wallet.db_password)
+        else:
+            issuer = self.database.get_connector_by_name(onboarding.get("issuer", ""))
+            job = (onboard, onboarding, wallet.db_password, issuer.db_password if issuer else None)
+        task = asyncio.create_task(asyncio.to_thread(*job))
         _onboarding_tasks.add(task)
         task.add_done_callback(_onboarding_tasks.discard)
 

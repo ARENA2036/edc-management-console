@@ -100,6 +100,7 @@ async def get_dataspace_settings(user: dict = Depends(get_current_user)):
                 "connector": config.component_versions("connector"),
                 "constructxConnector": config.component_versions("constructxConnector"),
                 "constructxWallet": config.component_versions("constructxWallet"),
+                "constructxIssuer": config.component_versions("constructxIssuer"),
                 "digitalTwinRegistry": config.component_versions("digitalTwinRegistry"),
                 "submodelServer": config.component_versions("submodelServer"),
             },
