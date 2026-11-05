@@ -25,6 +25,7 @@ Ownership, the per-type instance cap, name availability, deployment and status
 derivation all live here. The routers below `app/api` decide status codes and
 payload shape; nothing in this module knows either.
 """
+import asyncio
 import logging
 import secrets
 import uuid
@@ -36,6 +37,7 @@ from app.core import config
 from app.managers.cluster_manager import ClusterManager, Phase
 from app.managers.edc_manager import URL_SCHEME
 from app.models.database import ConnectorDB
+from app.services.onboarding import onboard
 from app.utils.errors import (BadRequest, ComponentLimitExceeded, ComponentMisconfigured,
                               ComponentNameTaken, DuplicateComponentName, EmcError,
                               NotFound, Stage, UnknownComponentType,
@@ -43,6 +45,8 @@ from app.utils.errors import (BadRequest, ComponentLimitExceeded, ComponentMisco
 from app.utils.ownership import ComponentScope, normalize_bpn
 
 logger = logging.getLogger(__name__)
+
+_onboarding_tasks = set()
 
 _PLAN_ERRORS = {
     "VERSION_UNSUPPORTED": (
@@ -174,10 +178,23 @@ class ComponentService:
                 namespace=namespace,
             )
             self._upsert_row(comp, plan, namespace, scope)
+            if plan.get("onboarding"):
+                self._start_onboarding(plan["onboarding"])
             deployed.append({"type": comp.type, "name": comp.name,
                              "release": plan["release_name"], "version": plan["version"]})
 
         return deployed
+
+    def _start_onboarding(self, onboarding: dict) -> None:
+        """Onboard in the background: the wallet needs minutes to start."""
+        wallet = self.database.get_connector_by_name(onboarding["wallet"])
+        if wallet is None or not wallet.db_password:
+            logger.warning("[ComponentService] Wallet '%s' is not deployed; skipping onboarding",
+                           onboarding["wallet"])
+            return
+        task = asyncio.create_task(asyncio.to_thread(onboard, onboarding, wallet.db_password))
+        _onboarding_tasks.add(task)
+        task.add_done_callback(_onboarding_tasks.discard)
 
     async def delete(self, name: str, scope: ComponentScope) -> str:
         """Delete exactly one component and uninstall its Helm release.

@@ -235,4 +235,5 @@ class EdcManager:
             "version": version,
             # What Helm may be told; None for a local chart directory.
             "chart_version": chart_version,
+            "onboarding": render_structure(cfg.get("onboarding"), render_source),
         }

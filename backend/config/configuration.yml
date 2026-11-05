@@ -337,6 +337,15 @@ components:
       cx_sts_secret_alias: "sts-client-secret"
       cx_trusted_issuer_did: "did:web:issuer.txcd.arena2036-x.de"
       cx_did_web_https: "true"
+    onboarding:
+      wallet: "{name}-wallet"
+      identityUrl: "http://{name}-wallet:15151/api/identity"
+      participantContextId: "{name}"
+      did: "{cx_did}"
+      credentialServiceUrl: "https://{cx_wallet_host}/api/credentials/v1/participants/{name}"
+      vaultUrl: "http://{name}-vault:8200"
+      vaultToken: "root"
+      secretAlias: "{cx_sts_secret_alias}"
     derive:
       cp_hostname: "{name}-{controlplane_hostname}"
       dp_hostname: "{name}-{dataplane_hostname}"
