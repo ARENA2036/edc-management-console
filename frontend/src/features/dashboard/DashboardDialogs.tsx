@@ -85,6 +85,8 @@ export default function DashboardDialogs({
       existingConnectorNames={connectorNames}
       defaultVersion={details?.deployment?.connector?.defaultVersion}
       availableVersions={details?.deployment?.connector?.availableVersions}
+      constructxVersions={details?.deployment?.constructxConnector?.availableVersions}
+      walletVersion={details?.deployment?.constructxWallet?.defaultVersion}
       prefilledBpn={identity.bpn}
       defaultApiEndpoint={
         details?.edc?.controlplane_url || details?.edc?.default_url

@@ -58,11 +58,22 @@ export function useDeploymentActions(state: DeploymentState, limits: ComponentLi
     saveLocalStorage(CONNECTORS_STORAGE_KEY, updatedConnectors);
     setConnectors(updatedConnectors);
 
+    const constructx = connector.config?.type === 'constructxConnector';
+    const wallet = {
+      type: 'constructxWallet' as const,
+      name: `${connector.name}-wallet`,
+      version: String(connector.config?.walletVersion ?? ''),
+      url: '',
+      db_name: `${connector.name}-wallet-db`,
+      auth: { db_username: `${connector.name}-wallet-username`, db_password: '' },
+    };
+
     try {
       await componentApi.create({
         components: [
+          ...(constructx ? [wallet] : []),
           {
-            type: 'connector',
+            type: constructx ? 'constructxConnector' : 'connector',
             name: connector.name,
             url: connector.url,
             bpn: connector.bpn,

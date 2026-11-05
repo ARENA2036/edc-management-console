@@ -79,7 +79,7 @@ export interface DashboardConnector extends Connector {
 }
 
 export interface DeployComponent {
-  type: "connector" | "digitalTwinRegistry" | "submodelServer";
+  type: "connector" | "constructxConnector" | "constructxWallet" | "digitalTwinRegistry" | "submodelServer";
 
   name: string;
   version: string;

@@ -67,6 +67,16 @@ export interface DataspaceSettingsPayload {
       availableVersions?: string[];
       maxInstances?: number;
     };
+    constructxConnector?: {
+      defaultVersion?: string;
+      availableVersions?: string[];
+      maxInstances?: number;
+    };
+    constructxWallet?: {
+      defaultVersion?: string;
+      availableVersions?: string[];
+      maxInstances?: number;
+    };
     digitalTwinRegistry?: {
       defaultVersion?: string;
       availableVersions?: string[];

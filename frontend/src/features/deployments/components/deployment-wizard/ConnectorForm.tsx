@@ -25,7 +25,7 @@ import Notice from '../../../../components/ui/Notice';
 import { useI18n } from '../../../../i18n';
 import { MAX_CONNECTORS, MAX_RESOURCE_NAME_LENGTH } from '../../nameRules';
 
-import type { ConnectorDraftState } from './useConnectorDraft';
+import type { ConnectorDraftState, Distribution } from './useConnectorDraft';
 
 /** The connector's editable and derived values. */
 export default function ConnectorForm({
@@ -70,6 +70,22 @@ export default function ConnectorForm({
         accent="brand"
       />
       <Notice tone="brand">{t('connectorNameHelp')}</Notice>
+
+      {draft.distributions.length > 1 && (
+        <SelectField
+          id="connector-distribution"
+          label={t('distributionLabel')}
+          value={draft.distribution}
+          onChange={(value) => draft.setDistribution(value as Distribution)}
+          options={draft.distributions}
+          emptyLabel={t('distributionTractusX')}
+          renderOption={(option) =>
+            option === 'constructx' ? t('distributionConstructX') : t('distributionTractusX')
+          }
+          disabled={deploying}
+          accent="brand"
+        />
+      )}
 
       <SelectField
         id="connector-version"

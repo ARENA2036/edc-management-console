@@ -38,6 +38,8 @@ interface Props {
   existingConnectorNames: string[];
   defaultVersion?: string;
   availableVersions?: string[];
+  constructxVersions?: string[];
+  walletVersion?: string;
   prefilledBpn?: string;
   bpnRequired?: boolean;
   defaultApiEndpoint?: string;
@@ -55,6 +57,8 @@ export default function DeploymentWizard({
   existingConnectorNames,
   defaultVersion,
   availableVersions,
+  constructxVersions,
+  walletVersion,
   prefilledBpn,
   bpnRequired = true,
   defaultApiEndpoint,
@@ -70,6 +74,8 @@ export default function DeploymentWizard({
     existingConnectorNames,
     defaultVersion,
     availableVersions,
+    constructxVersions,
+    walletVersion,
     prefilledBpn,
     bpnRequired,
     defaultApiEndpoint,

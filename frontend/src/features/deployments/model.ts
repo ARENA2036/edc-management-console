@@ -43,6 +43,10 @@ export function getRecordType(record: DashboardConnector) {
   return typeof configuredType === 'string' ? configuredType : 'connector';
 }
 
+export function isConnectorType(type: string) {
+  return type === 'connector' || type === 'constructxConnector';
+}
+
 export function isManagedComponentType(
   value: string,
 ): value is ManagedComponent['type'] {

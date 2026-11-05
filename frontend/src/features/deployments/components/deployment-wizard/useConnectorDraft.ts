@@ -37,6 +37,7 @@ import {
 import type { DashboardConnector } from '../../../../types';
 
 export type ConnectorField = 'name';
+export type Distribution = 'tractusx' | 'constructx';
 
 export interface ConnectorDraftInput {
   open: boolean;
@@ -45,6 +46,8 @@ export interface ConnectorDraftInput {
   existingConnectorNames: string[];
   defaultVersion?: string;
   availableVersions?: string[];
+  constructxVersions?: string[];
+  walletVersion?: string;
   prefilledBpn?: string;
   bpnRequired: boolean;
   defaultApiEndpoint?: string;
@@ -64,6 +67,8 @@ export function useConnectorDraft(input: ConnectorDraftInput) {
     existingConnectorNames,
     defaultVersion,
     availableVersions,
+    constructxVersions,
+    walletVersion,
     prefilledBpn,
     bpnRequired,
     defaultApiEndpoint,
@@ -74,13 +79,22 @@ export function useConnectorDraft(input: ConnectorDraftInput) {
     onClose,
   } = input;
 
+  const [distribution, setDistribution] = useState<Distribution>('tractusx');
+  const distributions: Distribution[] = constructxVersions?.length
+    ? ['tractusx', 'constructx']
+    : ['tractusx'];
+  const constructx = distribution === 'constructx';
+
   const versionOptions = useMemo(() => {
+    if (constructx) {
+      return (constructxVersions ?? []).map((value) => value.trim()).filter(Boolean);
+    }
     const options = (availableVersions ?? []).map((value) => value.trim()).filter(Boolean);
     const fallback = defaultVersion?.trim();
     return fallback && !options.includes(fallback) ? [fallback, ...options] : options;
-  }, [availableVersions, defaultVersion]);
+  }, [availableVersions, constructx, constructxVersions, defaultVersion]);
 
-  const recommendedVersion = defaultVersion?.trim() || versionOptions[0] || '';
+  const recommendedVersion = (constructx ? '' : defaultVersion?.trim()) || versionOptions[0] || '';
 
   const [name, setName] = useState('');
   const [version, setVersion] = useState(recommendedVersion);
@@ -170,7 +184,8 @@ export function useConnectorDraft(input: ConnectorDraftInput) {
     cp_hostname: controlPlaneHostname,
     dp_hostname: dataPlaneHostname,
     config: {
-      connectorType: t('connectorTypeDefault'),
+      ...(constructx ? { type: 'constructxConnector', walletVersion: walletVersion ?? '' } : {}),
+      connectorType: constructx ? t('distributionConstructX') : t('connectorTypeDefault'),
       endpoint: apiUrl,
       hostname: controlPlaneHostname,
       dataPlaneUrl,
@@ -184,6 +199,7 @@ export function useConnectorDraft(input: ConnectorDraftInput) {
     setName('');
     setTouched({});
     setSubmitted(false);
+    setDistribution('tractusx');
     setVersion(recommendedVersion);
   };
 
@@ -209,6 +225,9 @@ export function useConnectorDraft(input: ConnectorDraftInput) {
       setTouched((current) => ({ ...current, name: true }));
     },
     markNameTouched: () => setTouched((current) => ({ ...current, name: true })),
+    distribution,
+    setDistribution,
+    distributions,
     version,
     setVersion,
     versionOptions,

@@ -25,7 +25,7 @@ import { toApiError, type ApiError } from '../../api/errors';
 import { COMPONENTS_STORAGE_KEY, CONNECTORS_STORAGE_KEY } from '../../app/constants';
 import { readLocalStorage, saveLocalStorage } from '../../utils/storage';
 
-import { getRecordType, mapApiComponent, mapApiConnector } from './model';
+import { getRecordType, isConnectorType, mapApiComponent, mapApiConnector } from './model';
 
 import type { DashboardConnector, ManagedComponent } from '../../types';
 
@@ -56,10 +56,10 @@ export async function fetchDeploymentState(): Promise<{
       ? (response.data.data as DashboardConnector[])
       : [];
     const connectors = apiRows
-      .filter((record) => getRecordType(record) === 'connector')
+      .filter((record) => isConnectorType(getRecordType(record)))
       .map(mapApiConnector);
     const components = apiRows
-      .filter((record) => getRecordType(record) !== 'connector')
+      .filter((record) => !isConnectorType(getRecordType(record)))
       .map(mapApiComponent)
       .filter((component): component is ManagedComponent => component !== null);
 
