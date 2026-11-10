@@ -32,10 +32,12 @@ export default function ConnectorForm({
   draft,
   deploying,
   bpnRequired,
+  edcVersions,
 }: {
   draft: ConnectorDraftState;
   deploying: boolean;
   bpnRequired: boolean;
+  edcVersions?: Record<string, string>;
 }) {
   const { t } = useI18n();
 
@@ -94,11 +96,14 @@ export default function ConnectorForm({
         onChange={draft.setVersion}
         options={draft.versionOptions}
         emptyLabel={t('versionUnavailable')}
-        renderOption={(option) =>
-          option === draft.recommendedVersion
-            ? t('versionOptionRecommended', { version: option })
-            : option
-        }
+        renderOption={(option) => {
+          const label = edcVersions?.[option]
+            ? t('versionOptionEdc', { version: option, edc: edcVersions[option] })
+            : option;
+          return option === draft.recommendedVersion
+            ? t('versionOptionRecommended', { version: label })
+            : label;
+        }}
         disabled={deploying}
         help={draft.versionOptions.length === 0 ? t('versionUnavailableHelp') : t('versionHelp')}
         accent="brand"

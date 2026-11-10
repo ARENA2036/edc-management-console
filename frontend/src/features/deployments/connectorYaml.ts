@@ -31,6 +31,10 @@ export interface ConnectorYamlView {
   bpn?: string;
   namespace?: string;
   status?: string;
+  did?: string;
+  didDocument?: string;
+  trustedIssuer?: string;
+  onboarding?: string;
   controlPlaneUrl?: string;
   dataPlaneUrl?: string;
   apiEndpoints?: string[];
@@ -70,6 +74,7 @@ export function toConnectorYamlView(
   components: ManagedComponent[] = [],
 ): ConnectorYamlView {
   const planes = planeEndpoints(connector);
+  const identity = (connector.config?.identity ?? {}) as Record<string, unknown>;
   const submodel = components.find((component) => component.type === 'submodelServer');
   const registry = components.find((component) => component.type === 'digitalTwinRegistry');
 
@@ -80,6 +85,10 @@ export function toConnectorYamlView(
     bpn: asText(connector.bpn),
     namespace: asText(connector.namespace),
     status: asText(connector.status),
+    did: asText(identity.did),
+    didDocument: asText(identity.didDocument),
+    trustedIssuer: asText(identity.trustedIssuer),
+    onboarding: asText(connector.config?.onboarding),
     controlPlaneUrl: planes.controlPlane,
     dataPlaneUrl: planes.dataPlane,
     apiEndpoints: connector.urls?.filter(Boolean),

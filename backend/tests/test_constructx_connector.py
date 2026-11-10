@@ -29,7 +29,7 @@ from app.services.edc_service import EdcService
 
 REQUEST = {
     "name": "cx-1",
-    "version": "0.13.0-021daa74",
+    "version": "0.13.0",
     "bpn": "BPNL000000000001",
     "db_name": "cx-1-db",
     "auth": {"db_username": "cx-1-user", "db_password": "secret"},
@@ -53,7 +53,7 @@ def plan(manager):
 def test_deploys_the_vendored_chart_without_a_helm_version(plan):
     assert plan["chart"] == "config/constructx-connector"
     assert plan["repo"] is None and plan["chart_version"] is None
-    assert plan["version"] == "0.13.0-021daa74"
+    assert plan["version"] == "0.13.0"
     assert plan["release_name"] == "cx-1"
 
 
@@ -64,8 +64,8 @@ def test_identity_uses_the_connectors_own_did(plan):
     assert values["iatp"]["id"] == did
     assert values["iatp"]["sts"]["oauth"]["client"]["id"] == did
     assert values["iatp"]["sts"]["oauth"]["token_url"] == "http://cx-1-wallet:9292/api/sts/token"
-    assert values["iatp"]["trustedIssuerId"] == "did:web:issuer.txcd.arena2036-x.de"
-    assert values["iatp"]["trustedIssuers"] == ["did:web:issuer.txcd.arena2036-x.de"]
+    assert values["iatp"]["trustedIssuerId"] == "did:web:issuer.int.construct-x.net:issuer"
+    assert values["iatp"]["trustedIssuers"] == ["did:web:issuer.int.construct-x.net:issuer"]
 
 
 def test_chart_default_staging_identities_are_overridden(plan):
@@ -74,7 +74,7 @@ def test_chart_default_staging_identities_are_overridden(plan):
         assert env["EDC_IAM_ISSUER_ID"] == "did:web:cx-1-wallet.txcd.arena2036-x.de"
         assert env["EDC_IAM_STS_OAUTH_CLIENT_SECRET_ALIAS"] == "sts-client-secret"
     dp_env = plan["values"]["dataplane"]["env"]
-    assert dp_env["EDC_IAM_TRUSTED-ISSUER_EXAMPLE_ID"] == "did:web:issuer.txcd.arena2036-x.de"
+    assert dp_env["EDC_IAM_TRUSTED-ISSUER_EXAMPLE_ID"] == "did:web:issuer.int.construct-x.net:issuer"
 
 
 def test_release_unique_names_and_ingresses(plan):
@@ -85,6 +85,7 @@ def test_release_unique_names_and_ingresses(plan):
     assert cp[0]["endpoints"][:2] == ["protocol", "management"]
     assert dp[0]["hostname"] == "cx-1-dataplane.txcd.arena2036-x.de"
     assert cp[1]["enabled"] is False and dp[1]["enabled"] is False
+    assert dp[0]["enabled"] is True and dp[0]["endpoints"] == ["public", "proxy"]
 
 
 def test_images_and_pull_secrets_are_set_per_plane(plan):
@@ -105,16 +106,21 @@ def test_it_is_a_connector_and_offered_by_version(manager):
     assert manager.is_connector_type("connector")
     assert not manager.is_connector_type("submodelServer")
     versions = [v["version"] for v in manager.components["constructxConnector"]["versions"]]
-    assert versions == ["0.13.0-021daa74"]
+    assert versions == ["0.13.0"]
 
 
 class _RecordingCommand:
     def __init__(self):
         self.calls = []
+        self.installs = []
 
     async def run(self, command, input=None):
         self.calls.append(command)
         return b""
+
+    async def install_or_upgrade(self, release_name, chart_ref, values=None, **kwargs):
+        self.installs.append((release_name, chart_ref, kwargs))
+        return {}
 
 
 def _service_with(command):
@@ -158,6 +164,28 @@ def test_a_read_only_chart_is_built_on_a_copy(tmp_path, monkeypatch):
 
     built = asyncio.run(_service_with(command)._with_dependencies(str(chart)))
 
-    assert built.startswith(str(tmp_path / "tmp" / "emc-charts" / "chart-"))
+    assert built.startswith((tmp_path / "tmp" / "emc-charts" / "chart-").as_posix())
     assert (tmp_path / "tmp" / "emc-charts").exists()
     assert command.calls == [["dependency", "build", built]]
+
+
+def test_a_local_chart_is_installed_by_its_configured_relative_path(tmp_path, monkeypatch):
+    chart = tmp_path / "config" / "chart"
+    chart.mkdir(parents=True)
+    (chart / "Chart.yaml").write_text("name: c\nversion: 1.0.0\n")
+    monkeypatch.chdir(tmp_path)
+    command = _RecordingCommand()
+
+    asyncio.run(_service_with(command).install_or_upgrade(
+        release_name="cx-1", chart_name="config/chart", repo=None, version=None,
+        values={"a": 1}, namespace="ns"))
+
+    assert command.installs == [("cx-1", "config/chart",
+                                 {"namespace": "ns", "create_namespace": False,
+                                  "cleanup_on_fail": True})]
+
+
+def test_versions_carry_the_eclipse_edc_version():
+    from app.core import config
+    assert config.component_versions("constructxConnector")["edcVersions"] == {"0.13.0": "0.17.0"}
+    assert config.component_versions("connector")["edcVersions"] == {"0.13.0": "0.17.0"}

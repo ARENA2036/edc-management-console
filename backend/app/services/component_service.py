@@ -27,6 +27,7 @@ payload shape; nothing in this module knows either.
 """
 import asyncio
 import logging
+import os
 import secrets
 import uuid
 from typing import Optional
@@ -37,7 +38,8 @@ from app.core import config
 from app.managers.cluster_manager import ClusterManager, Phase
 from app.managers.edc_manager import URL_SCHEME
 from app.models.database import ConnectorDB
-from app.services.onboarding import bootstrap_issuer, onboard
+from app.services.onboarding import (WALLET_API_KEY_PREFIX, ServiceProxy, bootstrap_issuer,
+                                     onboard)
 from app.utils.errors import (BadRequest, ComponentLimitExceeded, ComponentMisconfigured,
                               ComponentNameTaken, DuplicateComponentName, EmcError,
                               NotFound, Stage, UnknownComponentType,
@@ -59,6 +61,12 @@ _PLAN_ERRORS = {
         ComponentMisconfigured,
         "An operator must fix this component's `chart` block in configuration.yml."),
 }
+
+
+def did_document_url(did: str) -> str:
+    """did:web:<host>[:<path>...] -> where the DID document is served."""
+    host, *path = did.removeprefix("did:web:").split(":")
+    return f"https://{host}/{'/'.join(path)}/did.json" if path else f"https://{host}/.well-known/did.json"
 
 
 def record_type(record: ConnectorDB) -> str:
@@ -179,14 +187,15 @@ class ComponentService:
             )
             self._upsert_row(comp, plan, namespace, scope)
             if plan.get("onboarding"):
-                self._start_onboarding(plan["onboarding"])
+                self._start_onboarding(plan["onboarding"], comp.name, namespace)
             deployed.append({"type": comp.type, "name": comp.name,
                              "release": plan["release_name"], "version": plan["version"]})
 
         return deployed
 
-    def _start_onboarding(self, onboarding: dict) -> None:
-        """Onboard in the background: wallets need minutes to start."""
+    def _start_onboarding(self, onboarding: dict, name: str, namespace: str) -> None:
+        """Onboard in the background (wallets need minutes to start) and record
+        the outcome on the component's row."""
         wallet = self.database.get_connector_by_name(onboarding["wallet"])
         if wallet is None or not wallet.db_password:
             logger.warning("[ComponentService] Wallet '%s' is not deployed; skipping onboarding",
@@ -196,10 +205,30 @@ class ComponentService:
             job = (bootstrap_issuer, onboarding, wallet.db_password)
         else:
             issuer = self.database.get_connector_by_name(onboarding.get("issuer", ""))
-            job = (onboard, onboarding, wallet.db_password, issuer.db_password if issuer else None)
-        task = asyncio.create_task(asyncio.to_thread(*job))
+            issuer_key = os.getenv("CX_ISSUER_API_KEY") or (
+                WALLET_API_KEY_PREFIX + issuer.db_password if issuer else None)
+            job = (onboard, onboarding, wallet.db_password, issuer_key)
+        try:
+            http = ServiceProxy(namespace)
+        except Exception as exception:
+            logger.warning("[ComponentService] No Kubernetes API proxy (%s); calling services "
+                           "directly", exception)
+            http = None
+
+        def run():
+            self._set_onboarding_status(name, "running")
+            done = job[0](*job[1:], **({"http": http} if http else {}))
+            self._set_onboarding_status(name, "onboarded" if done else "failed (see backend log)")
+
+        task = asyncio.create_task(asyncio.to_thread(run))
         _onboarding_tasks.add(task)
         task.add_done_callback(_onboarding_tasks.discard)
+
+    def _set_onboarding_status(self, name: str, status: str) -> None:
+        record = self.database.get_connector_by_name(name)
+        if record is not None:
+            record.config = {**(record.config or {}), "onboarding": status}
+            self.database.update_connector(record)
 
     async def delete(self, name: str, scope: ComponentScope) -> str:
         """Delete exactly one component and uninstall its Helm release.
@@ -317,7 +346,9 @@ class ComponentService:
         urls = []
         # Only connector components carry a control-plane host to build URLs from.
         if record.cp_hostname:
-            for path in config.connector_endpoints().values():
+            component = config.components_config().get(record_type(record)) or {}
+            endpoints = {**config.connector_endpoints(), **(component.get("endpoints") or {})}
+            for path in endpoints.values():
                 urls.append(f"{URL_SCHEME}://{record.cp_hostname}{path}")
         if record.registry:
             urls.append(f"{URL_SCHEME}://{record.registry}/semantics/registry/")
@@ -445,6 +476,11 @@ class ComponentService:
         is_connector = self.edc_manager.is_connector_type(comp.type)
         row_config = {"type": comp.type, "release": plan["release_name"],
                       "chart": plan["chart"]}
+        onboarding = plan.get("onboarding") or {}
+        if onboarding.get("did"):
+            row_config["identity"] = {"did": onboarding["did"],
+                                      "didDocument": did_document_url(onboarding["did"]),
+                                      "trustedIssuer": onboarding.get("issuerDid")}
 
         # Scoped, so a re-deploy can only ever roll forward a row the caller owns.
         record = self.database.get_connector_by_name(comp.name, bpn=scope.bpn)

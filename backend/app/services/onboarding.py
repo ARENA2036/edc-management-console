@@ -20,9 +20,11 @@
 # SPDX-License-Identifier: Apache-2.0
 ###############################################################
 """Onboarding of Construct-X connectors onto their wallets and the test issuer."""
+import json
 import logging
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -33,17 +35,69 @@ WALLET_API_KEY_PREFIX = "YWRtaW4."
 ATTEMPTS, DELAY = 40, 15
 
 
-def _post(url: str, payload: dict, headers: dict, attempts: int, delay: float) -> Optional[requests.Response]:
+class _ProxyResponse:
+    def __init__(self, status: int, body: bytes):
+        self.status_code, self.text = status, (body or b"").decode(errors="replace")
+        self.ok = status < 400
+
+    def json(self):
+        return json.loads(self.text)
+
+
+class ServiceProxy:
+    """Calls in-cluster services through the Kubernetes API server's service
+    proxy, with the same Kubernetes client and credentials the cluster status
+    uses, so onboarding works from outside the cluster as well."""
+
+    def __init__(self, default_namespace: str):
+        from kubernetes import client, config
+        try:
+            config.load_kube_config()
+        except Exception:
+            config.load_incluster_config()
+        self._api = client.ApiClient()
+        self._base = self._api.configuration.host.rstrip("/")
+        self._namespace = default_namespace
+
+    def path(self, url: str) -> str:
+        """http://<service>[.<namespace>...]:<port>/<path> -> API server proxy path."""
+        parsed = urlparse(url)
+        service, *rest = parsed.hostname.split(".")
+        namespace = rest[0] if rest else self._namespace
+        return f"/api/v1/namespaces/{namespace}/services/{service}:{parsed.port}/proxy{parsed.path}"
+
+    def url(self, url: str) -> str:
+        return self._base + self.path(url)
+
+    def post(self, url: str, json=None, headers=None, timeout=None) -> _ProxyResponse:
+        from kubernetes.client.exceptions import ApiException
+        try:
+            response = self._api.call_api(
+                self.path(url), "POST", header_params={"Content-Type": "application/json",
+                                                       **(headers or {})},
+                body=json, auth_settings=["BearerToken"], _preload_content=False,
+                _return_http_data_only=True, _request_timeout=timeout)
+            return _ProxyResponse(response.status, response.data)
+        except ApiException as exception:
+            return _ProxyResponse(exception.status, (exception.body or "").encode()
+                                  if isinstance(exception.body, str) else exception.body)
+
+
+def _post(url: str, payload: dict, headers: dict, attempts: int, delay: float,
+          http=requests) -> Optional[requests.Response]:
     """POST until the service answers (it may still be starting); None if it never does."""
+    reason = ""
     for attempt in range(attempts):
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response = http.post(url, json=payload, headers=headers, timeout=10)
             if response.status_code < 500:
                 return response
-        except requests.RequestException:
-            pass
+            reason = f"HTTP {response.status_code}: {response.text[:200]}"
+        except Exception as exception:
+            reason = str(exception)
         if attempt < attempts - 1:
             time.sleep(delay)
+    logger.warning("[Onboarding] %s not reachable: %s", url, reason)
     return None
 
 
@@ -51,13 +105,13 @@ def _done(response: Optional[requests.Response], what: str) -> bool:
     """True when the call succeeded or the resource already exists (409)."""
     if response is not None and (response.ok or response.status_code == 409):
         return True
-    logger.error("[Onboarding] %s failed: %s", what,
-                 "unreachable" if response is None else f"HTTP {response.status_code}")
+    logger.error("[Onboarding] %s failed: %s", what, "unreachable" if response is None
+                 else f"HTTP {response.status_code}: {getattr(response, 'text', '')[:200]}")
     return False
 
 
 def _create_participant(onboarding: dict, api_key: str, endpoints: list,
-                        attempts: int, delay: float) -> Optional[requests.Response]:
+                        attempts: int, delay: float, http=requests) -> Optional[requests.Response]:
     did = onboarding["did"]
     participant = {
         "participantContextId": onboarding["participantContextId"],
@@ -69,35 +123,35 @@ def _create_participant(onboarding: dict, api_key: str, endpoints: list,
                 "keyGeneratorParams": {"algorithm": "EdDSA", "curve": "Ed25519"}},
     }
     return _post(onboarding["identityUrl"].rstrip("/") + "/v1beta/participants", participant,
-                 {"x-api-key": api_key}, attempts, delay)
+                 {"x-api-key": api_key}, attempts, delay, http)
 
 
-def onboard(onboarding: dict, wallet_secret: str, issuer_secret: Optional[str] = None,
-            attempts: int = ATTEMPTS, delay: float = DELAY) -> bool:
+def onboard(onboarding: dict, wallet_secret: str, issuer_api_key: Optional[str] = None,
+            attempts: int = ATTEMPTS, delay: float = DELAY, http=requests) -> bool:
     """Create the connector's participant in its wallet, store the STS client
     secret in the connector's vault and, when an issuer is deployed, register the
     connector as holder there and request its membership credential."""
     did, context = onboarding["did"], onboarding["participantContextId"]
+    logger.info("[Onboarding] Started for %s via %s", did, onboarding["identityUrl"])
     wallet_key = {"x-api-key": WALLET_API_KEY_PREFIX + wallet_secret}
     created = _create_participant(onboarding, wallet_key["x-api-key"], [
         {"id": "credential-service", "type": "CredentialService",
-         "serviceEndpoint": onboarding["credentialServiceUrl"]}], attempts, delay)
+         "serviceEndpoint": onboarding["credentialServiceUrl"]}], attempts, delay, http)
     if not _done(created, f"Creating participant {did}"):
         return False
     if created.status_code != 409:
         secret_url = f'{onboarding["vaultUrl"].rstrip("/")}/v1/secret/data/{onboarding["secretAlias"]}'
         stored = _post(secret_url, {"data": {"content": created.json()["clientSecret"]}},
-                       {"X-Vault-Token": onboarding["vaultToken"]}, attempts, delay)
+                       {"X-Vault-Token": onboarding["vaultToken"]}, attempts, delay, http)
         if not _done(stored, f"Storing the STS secret of {did}"):
             return False
 
-    if issuer_secret is None:
+    if issuer_api_key is None:
         logger.warning("[Onboarding] No issuer deployed; %s gets no membership credential", did)
         return True
-    issuer_admin = (f'{onboarding["issuerAdminUrl"].rstrip("/")}/v1beta/participants/'
-                    f'{onboarding["issuerContextId"]}')
+    issuer_admin = onboarding["issuerParticipantUrl"].rstrip("/")
     holder = _post(f"{issuer_admin}/holders", {"holderId": did, "did": did, "name": context},
-                   {"x-api-key": WALLET_API_KEY_PREFIX + issuer_secret}, attempts, delay)
+                   {"x-api-key": issuer_api_key}, attempts, delay, http)
     if not _done(holder, f"Registering holder {did}"):
         return False
     requested = _post(
@@ -106,7 +160,7 @@ def onboard(onboarding: dict, wallet_secret: str, issuer_secret: Optional[str] =
          "credentials": [{"format": onboarding["credentialFormat"],
                           "type": onboarding["credentialType"],
                           "id": onboarding["credentialDefinitionId"]}]},
-        wallet_key, attempts, delay)
+        wallet_key, attempts, delay, http)
     if not _done(requested, f"Requesting the membership credential of {did}"):
         return False
     logger.info("[Onboarding] %s onboarded", did)
@@ -114,12 +168,12 @@ def onboard(onboarding: dict, wallet_secret: str, issuer_secret: Optional[str] =
 
 
 def bootstrap_issuer(onboarding: dict, secret: str, attempts: int = ATTEMPTS,
-                     delay: float = DELAY) -> bool:
+                     delay: float = DELAY, http=requests) -> bool:
     """Create the issuer's participant and the membership credential it issues."""
     api_key = WALLET_API_KEY_PREFIX + secret
     created = _create_participant(onboarding, api_key, [
         {"id": "issuer-service", "type": "IssuerService",
-         "serviceEndpoint": onboarding["issuanceServiceUrl"]}], attempts, delay)
+         "serviceEndpoint": onboarding["issuanceServiceUrl"]}], attempts, delay, http)
     if not _done(created, f'Creating issuer {onboarding["did"]}'):
         return False
     admin = (f'{onboarding["adminUrl"].rstrip("/")}/v1beta/participants/'
@@ -128,7 +182,7 @@ def bootstrap_issuer(onboarding: dict, secret: str, attempts: int = ATTEMPTS,
     attestation = _post(f"{admin}/attestations", {
         "id": onboarding["attestationId"], "attestationType": "dev",
         "configuration": {"default": {"isMember": True}, "blackList": []}},
-        headers, attempts, delay)
+        headers, attempts, delay, http)
     if not _done(attestation, "Creating the membership attestation"):
         return False
     definition = _post(f"{admin}/credentialdefinitions", {
@@ -140,7 +194,7 @@ def bootstrap_issuer(onboarding: dict, secret: str, attempts: int = ATTEMPTS,
         "jsonSchemaUrl": "https://example.com/schema/membership.json",
         "mappings": [{"input": "content", "output": "credentialSubject", "required": True}],
         "rules": [],
-        "validity": 15552000}, headers, attempts, delay)
+        "validity": 15552000}, headers, attempts, delay, http)
     if not _done(definition, "Creating the membership credential definition"):
         return False
     logger.info("[Onboarding] Issuer %s ready", onboarding["did"])

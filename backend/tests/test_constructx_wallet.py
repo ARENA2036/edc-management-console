@@ -26,7 +26,7 @@ from app.managers.edc_manager import EdcManager
 
 REQUEST = {
     "name": "cx-1-wallet",
-    "version": "0.18.0-1",
+    "version": "0.18.0-2",
     "db_name": "cx-1-wallet-db",
     "auth": {"db_username": "cx-1-wallet-user", "db_password": "secret"},
 }
@@ -44,8 +44,8 @@ def plan():
 
 def test_deploys_the_vendored_chart_with_the_version_as_image_tag(plan):
     assert plan["chart"] == "config/constructx-wallet"
-    assert plan["chart_version"] is None and plan["version"] == "0.18.0-1"
-    assert plan["values"]["wallet"]["image"]["tag"] == "0.18.0-1"
+    assert plan["chart_version"] is None and plan["version"] == "0.18.0-2"
+    assert plan["values"]["wallet"]["image"]["tag"] == "0.18.0-2"
     assert plan["values"]["imagePullSecrets"] == [{"name": "ghcr-creds"}]
 
 
@@ -59,6 +59,8 @@ def test_wallet_host_and_ingress(plan):
     ingress = wallet["ingresses"][0]
     assert ingress["hostname"] == "cx-1-wallet.txcd.arena2036-x.de"
     assert ingress["tls"]["secretName"] == "cx-1-wallet-tls"
+    assert ingress["enabled"] is True and ingress["tls"]["enabled"] is True
+    assert ingress["endpoints"] == ["credentials", "did", "sts"]
     assert ingress["annotations"]["external-dns.alpha.kubernetes.io/hostname"] == ingress["hostname"]
 
 

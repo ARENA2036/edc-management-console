@@ -176,6 +176,7 @@
   "bpnPrefilledHelp": "This BPNL was detected automatically from your login or dataspace information. You can still adjust it if needed.",
   "versionLabel": "Version",
   "versionHelp": "Stable Tractus-X releases only. The newest version is preselected; pick an older one if you need to match an existing deployment.",
+  "versionOptionEdc": "{version} (Eclipse EDC {edc})",
   "versionOptionRecommended": "{version} (recommended)",
   "versionUnavailable": "No version available",
   "versionUnavailableHelp": "No deployable version was returned by the dataspace configuration. Contact your dataspace administrator.",

@@ -163,13 +163,15 @@ export function useDeploymentActions(state: DeploymentState, limits: ComponentLi
     }
   };
 
-  const remove = async (name: string) => {
+  const remove = async (...names: string[]) => {
     setActionError(null);
     try {
-      await componentApi.delete(name);
+      for (const name of names) {
+        await componentApi.delete(name);
+      }
       await refresh();
     } catch (error) {
-      const apiError = toApiError(error, `'${name}' could not be deleted.`);
+      const apiError = toApiError(error, `'${names.join("', '")}' could not be deleted.`);
       console.error('Failed to delete deployment:', apiError);
       setActionError(apiError);
     }
@@ -180,7 +182,10 @@ export function useDeploymentActions(state: DeploymentState, limits: ComponentLi
     dismissActionError: () => setActionError(null),
     deployConnector,
     deployComponent,
-    deleteConnector: (connector: DashboardConnector) => remove(connector.name),
+    deleteConnector: (connector: DashboardConnector) =>
+      connector.config?.type === 'constructxConnector'
+        ? remove(connector.name, `${connector.name}-wallet`)
+        : remove(connector.name),
     deleteComponent: (component: ManagedComponent) => remove(component.name),
   };
 }

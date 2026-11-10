@@ -113,7 +113,13 @@ class EdcService:
         """
         async with self._install_lock:
             if not repo:
-                chart_name = await self._with_dependencies(chart_name)
+                chart_dir = await self._with_dependencies(chart_name)
+                await self._command.install_or_upgrade(
+                    release_name, chart_dir, values, namespace=namespace,
+                    create_namespace=False, cleanup_on_fail=True,
+                )
+                logger.info("[EdcService] Release '%s' installed from %s", release_name, chart_dir)
+                return None
             chart = await self._client.get_chart(
                 chart_name, repo=self._repo_url(repo), version=version,
             )
@@ -148,17 +154,18 @@ class EdcService:
             self._prepared_charts[chart_dir] = chart_dir
             return chart_dir
 
-        target = source
+        target = chart_dir
         if not os.access(source, os.W_OK):
             digest = hashlib.sha256(chart_file.read_bytes()).hexdigest()[:12]
-            target = Path(tempfile.gettempdir()) / "emc-charts" / f"{source.name}-{digest}"
-            if not target.exists():
-                shutil.copytree(source, target)
+            copy = Path(tempfile.gettempdir()) / "emc-charts" / f"{source.name}-{digest}"
+            if not copy.exists():
+                shutil.copytree(source, copy)
+            target = copy.as_posix()
 
         logger.info("[EdcService] helm dependency build %s", target)
-        await self._command.run(["dependency", "build", str(target)])
-        self._prepared_charts[chart_dir] = str(target)
-        return str(target)
+        await self._command.run(["dependency", "build", target])
+        self._prepared_charts[chart_dir] = target
+        return target
 
     async def uninstall(self, release_name: str, namespace: str, wait: bool = True) -> None:
         """Uninstall a connector release. No-op if it does not exist."""

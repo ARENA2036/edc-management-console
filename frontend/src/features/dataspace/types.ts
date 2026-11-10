@@ -65,11 +65,13 @@ export interface DataspaceSettingsPayload {
     connector?: {
       defaultVersion?: string;
       availableVersions?: string[];
+      edcVersions?: Record<string, string>;
       maxInstances?: number;
     };
     constructxConnector?: {
       defaultVersion?: string;
       availableVersions?: string[];
+      edcVersions?: Record<string, string>;
       maxInstances?: number;
     };
     constructxWallet?: {

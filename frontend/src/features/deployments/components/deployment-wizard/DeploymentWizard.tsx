@@ -39,6 +39,7 @@ interface Props {
   defaultVersion?: string;
   availableVersions?: string[];
   constructxVersions?: string[];
+  edcVersions?: Record<string, string>;
   walletVersion?: string;
   prefilledBpn?: string;
   bpnRequired?: boolean;
@@ -58,6 +59,7 @@ export default function DeploymentWizard({
   defaultVersion,
   availableVersions,
   constructxVersions,
+  edcVersions,
   walletVersion,
   prefilledBpn,
   bpnRequired = true,
@@ -106,7 +108,12 @@ export default function DeploymentWizard({
         </div>
       }
     >
-      <ConnectorForm draft={draft} deploying={deploying} bpnRequired={bpnRequired} />
+      <ConnectorForm
+        draft={draft}
+        deploying={deploying}
+        bpnRequired={bpnRequired}
+        edcVersions={edcVersions}
+      />
     </Modal>
   );
 }

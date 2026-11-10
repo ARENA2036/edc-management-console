@@ -143,6 +143,7 @@ components:
     templatesDir: config/connector-templates
     versions:
       - version: "0.13.0"
+        edc: "0.17.0"
         valuesYaml: /values-0.13.0.yaml
         replaceValueMappings: true
         valueMappings:
@@ -318,13 +319,18 @@ components:
   # Construct-X EDC; chart from project-construct-x/constructx-edc@021daa74
   constructxConnector:
     family: connector
+    endpoints:
+      dsp: "/dsp/2025-1"
     releaseName: "{name}"
     maxInstances: 3
     version: "{version}"
     chart:
       directory: config/constructx-connector
+    templatesDir: config/constructx-connector
     versions:
-      - version: "0.13.0-021daa74"
+      - version: "0.13.0"
+        edc: "0.17.0"
+        valuesYaml: /values.yaml
     context:
       cx_controlplane_image: ghcr.io/project-construct-x/con-x-controlplane-postgresql-hashicorp-vault
       cx_dataplane_image: ghcr.io/project-construct-x/con-x-dataplane-postgresql-hashicorp-vault
@@ -335,8 +341,12 @@ components:
       cx_did: "did:web:{cx_wallet_host}"
       cx_sts_token_url: "http://{name}-wallet:9292/api/sts/token"
       cx_sts_secret_alias: "sts-client-secret"
-      cx_trusted_issuer_did: "did:web:issuer.txcd.arena2036-x.de"
       cx_did_web_https: "true"
+      cx_trusted_issuer_did: "did:web:issuer.int.construct-x.net:issuer"
+      cx_issuer_participant_url: "http://issuer.wallet.svc.cluster.local:15152/api/issuer/v1alpha/participants/issuer"
+      cx_credential_type: "MembershipCredential"
+      cx_credential_definition_id: "dev-credential-def-1"
+      cx_credential_format: "VC1_0_JWT"
     onboarding:
       wallet: "{name}-wallet"
       identityUrl: "http://{name}-wallet:15151/api/identity"
@@ -347,12 +357,11 @@ components:
       vaultToken: "root"
       secretAlias: "{cx_sts_secret_alias}"
       issuer: "issuer"
-      issuerAdminUrl: "http://issuer:15152/api/issuer"
-      issuerContextId: "issuer"
+      issuerParticipantUrl: "{cx_issuer_participant_url}"
       issuerDid: "{cx_trusted_issuer_did}"
-      credentialType: "https://w3id.org/constructx/credentials/v1.0/ConstructXMembershipCredential"
-      credentialDefinitionId: "membership-credential"
-      credentialFormat: "VC1_0_JWT"
+      credentialType: "{cx_credential_type}"
+      credentialDefinitionId: "{cx_credential_definition_id}"
+      credentialFormat: "{cx_credential_format}"
     derive:
       cp_hostname: "{name}-{controlplane_hostname}"
       dp_hostname: "{name}-{dataplane_hostname}"
@@ -470,8 +479,10 @@ components:
     version: "{version}"
     chart:
       directory: config/constructx-wallet
+    templatesDir: config/constructx-wallet
     versions:
-      - version: "0.18.0-1"
+      - version: "0.18.0-2"
+        valuesYaml: /values.yaml
     context:
       cx_wallet_host: "{name}.txcd.arena2036-x.de"
       cx_wallet_image: ghcr.io/project-construct-x/wallet
@@ -525,8 +536,10 @@ components:
     version: "{version}"
     chart:
       directory: config/constructx-issuer
+    templatesDir: config/constructx-issuer
     versions:
       - version: "0.18.0-1"
+        valuesYaml: /values.yaml
     context:
       cx_issuer_host: "{name}.txcd.arena2036-x.de"
       cx_wallet_image: ghcr.io/project-construct-x/wallet

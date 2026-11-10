@@ -123,6 +123,9 @@ def component_versions(component_key: str) -> dict:
     return {
         "defaultVersion": versions[0] if versions else "",
         "availableVersions": versions,
+        "edcVersions": {entry["version"]: entry["edc"]
+                        for entry in (component.get("versions") or [])
+                        if entry.get("version") and entry.get("edc")},
         "maxInstances": component_instance_limit(component_key),
     }
 

@@ -37,8 +37,7 @@ ONBOARDING = {
     "vaultToken": "root",
     "secretAlias": "sts-client-secret",
     "issuer": "issuer",
-    "issuerAdminUrl": "http://issuer:15152/api/issuer",
-    "issuerContextId": "issuer",
+    "issuerParticipantUrl": "http://issuer:15152/api/issuer/v1beta/participants/issuer",
     "issuerDid": "did:web:issuer.example",
     "credentialType": "MembershipCredential",
     "credentialDefinitionId": "membership-credential",
@@ -121,7 +120,7 @@ def test_the_connector_plan_carries_its_onboarding():
         config = yaml.safe_load(file)
     manager = EdcManager(config["connector"], config["dataspaceConfig"], config["components"])
     plan = manager.prepare_deployment("constructxConnector", {
-        "name": "cx-1", "version": "0.13.0-021daa74", "db_name": "db",
+        "name": "cx-1", "version": "0.13.0", "db_name": "db",
         "auth": {"db_username": "u", "db_password": "p"}})
 
     assert plan["onboarding"] == {
@@ -135,22 +134,19 @@ def test_the_connector_plan_carries_its_onboarding():
         "vaultToken": "root",
         "secretAlias": "sts-client-secret",
         "issuer": "issuer",
-        "issuerAdminUrl": "http://issuer:15152/api/issuer",
-        "issuerContextId": "issuer",
-        "issuerDid": "did:web:issuer.txcd.arena2036-x.de",
-        "credentialType":
-            "https://w3id.org/constructx/credentials/v1.0/ConstructXMembershipCredential",
-        "credentialDefinitionId": "membership-credential",
+        "issuerParticipantUrl":
+            "http://issuer.wallet.svc.cluster.local:15152/api/issuer/v1alpha/participants/issuer",
+        "issuerDid": "did:web:issuer.int.construct-x.net:issuer",
+        "credentialType": "MembershipCredential",
+        "credentialDefinitionId": "dev-credential-def-1",
         "credentialFormat": "VC1_0_JWT",
     }
     issuer = manager.prepare_deployment("constructxIssuer", {
         "name": "issuer", "version": "0.18.0-1", "db_name": "db",
         "auth": {"db_username": "u", "db_password": "p"}})
-    assert issuer["onboarding"]["did"] == plan["onboarding"]["issuerDid"]
-    assert issuer["onboarding"]["credentialDefinitionId"] == plan["onboarding"]["credentialDefinitionId"]
     assert issuer["values"]["wallet"]["hostname"] == "issuer.txcd.arena2036-x.de"
     assert manager.prepare_deployment("constructxWallet", {
-        "name": "cx-1-wallet", "version": "0.18.0-1", "db_name": "db",
+        "name": "cx-1-wallet", "version": "0.18.0-2", "db_name": "db",
         "auth": {"db_username": "u", "db_password": "p"}})["onboarding"] is None
 
 
@@ -158,13 +154,13 @@ def test_with_an_issuer_registers_the_holder_and_requests_the_credential(posts):
     calls, replies = posts
     replies += [_Response(200, {"clientSecret": "s3cret"}), _Response(204), _Response(201), _Response(201)]
 
-    assert onboard(ONBOARDING, "pw", "issuer-pw") is True
+    assert onboard(ONBOARDING, "pw", "issuer-key") is True
 
     holder_url, holder, holder_headers = calls[2]
     assert holder_url == "http://issuer:15152/api/issuer/v1beta/participants/issuer/holders"
     assert holder == {"holderId": "did:web:cx-1-wallet.example", "did": "did:web:cx-1-wallet.example",
                       "name": "cx-1"}
-    assert holder_headers == {"x-api-key": "YWRtaW4.issuer-pw"}
+    assert holder_headers == {"x-api-key": "issuer-key"}
     request_url, request, _ = calls[3]
     assert request_url == ("http://cx-1-wallet:15151/api/identity/v1beta/participants/cx-1"
                            "/credentials/request")
@@ -186,3 +182,35 @@ def test_bootstrap_issuer_creates_participant_attestation_and_definition(posts):
     ]
     assert calls[0][1]["serviceEndpoints"][0]["type"] == "IssuerService"
     assert calls[2][1]["attestations"] == ["membership-attestation"]
+
+
+def test_service_proxy_maps_service_urls_onto_the_api_server():
+    proxy = module.ServiceProxy.__new__(module.ServiceProxy)
+    proxy._base, proxy._namespace = "https://api.example", "edc-management-console"
+
+    assert proxy.url("http://cx-1-wallet:15151/api/identity/v1beta/participants") == (
+        "https://api.example/api/v1/namespaces/edc-management-console/services/"
+        "cx-1-wallet:15151/proxy/api/identity/v1beta/participants")
+    assert proxy.url("http://issuer.wallet.svc.cluster.local:15152/api/issuer/x") == (
+        "https://api.example/api/v1/namespaces/wallet/services/issuer:15152/proxy/api/issuer/x")
+
+
+def test_onboard_uses_the_given_http_client(posts):
+    calls, replies = posts
+
+    class Http:
+        def post(self, url, **kwargs):
+            calls.append((url, kwargs["json"], kwargs["headers"]))
+            return _Response(409)
+
+    assert onboard(ONBOARDING, "pw", http=Http()) is True
+    assert calls[0][0] == "http://cx-1-wallet:15151/api/identity/v1beta/participants"
+
+
+def test_did_document_url():
+    from app.services.component_service import did_document_url
+
+    assert did_document_url("did:web:cx-1-wallet.example") == \
+        "https://cx-1-wallet.example/.well-known/did.json"
+    assert did_document_url("did:web:issuer.example:issuer") == \
+        "https://issuer.example/issuer/did.json"

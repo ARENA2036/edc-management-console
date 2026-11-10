@@ -176,6 +176,7 @@
   "bpnPrefilledHelp": "Diese BPNL wurde automatisch aus Ihrem Login oder den Datenraum-Informationen übernommen. Sie können sie bei Bedarf anpassen.",
   "versionLabel": "Version",
   "versionHelp": "Nur stabile Tractus-X-Releases. Die neueste Version ist vorausgewählt; wählen Sie eine ältere, wenn Sie zu einer bestehenden Installation passen müssen.",
+  "versionOptionEdc": "{version} (Eclipse EDC {edc})",
   "versionOptionRecommended": "{version} (empfohlen)",
   "versionUnavailable": "Keine Version verfügbar",
   "versionUnavailableHelp": "Die Datenraum-Konfiguration hat keine deploybare Version geliefert. Bitte wenden Sie sich an Ihren Dataspace-Administrator.",
