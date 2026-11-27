@@ -44,7 +44,7 @@ RUN npm install -g vite
 RUN vite build
 
 
-FROM nginxinc/nginx-unprivileged:alpine
+FROM nginx/nginx-unprivileged:1.30.7-alpine
 
 USER root
 
